@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -108,4 +109,46 @@ func SetupLogger() (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
 	cfg.Encoding = "json"
 	return cfg.Build()
+}
+
+// ZapToSlog wraps a zap.Logger as slog.Logger.
+func ZapToSlog(logger *zap.Logger) *slog.Logger {
+	return slog.New(slogHandler{logger.Sugar()})
+}
+
+type slogHandler struct {
+	sugar *zap.SugaredLogger
+}
+
+func (h slogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h slogHandler) Handle(ctx context.Context, r slog.Record) error {
+	args := make([]interface{}, 0, r.NumAttrs()*2)
+	r.Attrs(func(a slog.Attr) bool {
+		args = append(args, a.Key, a.Value.Any())
+		return true
+	})
+	switch r.Level {
+	case slog.LevelDebug:
+		h.sugar.Debugw(r.Message, args...)
+	case slog.LevelInfo:
+		h.sugar.Infow(r.Message, args...)
+	case slog.LevelWarn:
+		h.sugar.Warnw(r.Message, args...)
+	case slog.LevelError:
+		h.sugar.Errorw(r.Message, args...)
+	}
+	return nil
+}
+
+func (h slogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	args := make([]interface{}, 0, len(attrs)*2)
+	for _, a := range attrs {
+		args = append(args, a.Key, a.Value.Any())
+	}
+	return slogHandler{h.sugar.With(args...)}
+}
+
+func (h slogHandler) WithGroup(name string) slog.Handler {
+	return h
 }

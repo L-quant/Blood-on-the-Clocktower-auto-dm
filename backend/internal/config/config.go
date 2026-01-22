@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -15,6 +16,13 @@ type Config struct {
 	SnapshotInterval  int64
 	PrometheusAddr    string
 	TraceStdout       bool
+
+	// AutoDM configuration
+	AutoDMEnabled    bool
+	AutoDMLLMBaseURL string
+	AutoDMLLMAPIKey  string
+	AutoDMLLMModel   string
+	AutoDMLLMTimeout time.Duration
 }
 
 func getEnv(key, def string) string {
@@ -60,5 +68,12 @@ func Load() Config {
 		SnapshotInterval:  int64(getEnvInt("SNAPSHOT_INTERVAL", 50)),
 		PrometheusAddr:    getEnv("PROM_ADDR", ":9090"),
 		TraceStdout:       getEnvBool("TRACE_STDOUT", true),
+
+		// AutoDM: AI Storyteller configuration
+		AutoDMEnabled:    getEnvBool("AUTODM_ENABLED", false),
+		AutoDMLLMBaseURL: getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1"),
+		AutoDMLLMAPIKey:  getEnv("AUTODM_LLM_API_KEY", ""),
+		AutoDMLLMModel:   getEnv("AUTODM_LLM_MODEL", "gpt-4o"),
+		AutoDMLLMTimeout: time.Duration(getEnvInt("AUTODM_LLM_TIMEOUT_SEC", 60)) * time.Second,
 	}
 }

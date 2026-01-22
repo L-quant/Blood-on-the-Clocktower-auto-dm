@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/api"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/config"
@@ -47,7 +48,30 @@ func main() {
 
 	metrics := observability.NewMetrics(prometheus.DefaultRegisterer.(*prometheus.Registry))
 	jwtMgr := auth.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
-	roomMgr := room.NewRoomManager(st, logger, metrics, cfg.SnapshotInterval)
+
+	// Initialize AutoDM (AI Storyteller)
+	slogLogger := observability.ZapToSlog(logger)
+	autoDM := agent.NewAutoDM(agent.Config{
+		RoomID:  "", // Will be set per-room
+		Enabled: cfg.AutoDMEnabled,
+		LLM: agent.LLMRoutingConfig{
+			Default: agent.LLMClientConfig{
+				BaseURL: cfg.AutoDMLLMBaseURL,
+				APIKey:  cfg.AutoDMLLMAPIKey,
+				Model:   cfg.AutoDMLLMModel,
+				Timeout: cfg.AutoDMLLMTimeout,
+			},
+		},
+		Logger: slogLogger,
+	})
+
+	if autoDM.Enabled() {
+		logger.Info("AutoDM enabled",
+			zap.String("model", cfg.AutoDMLLMModel),
+			zap.String("base_url", cfg.AutoDMLLMBaseURL))
+	}
+
+	roomMgr := room.NewRoomManager(st, logger, metrics, cfg.SnapshotInterval, autoDM)
 	wsServer := realtime.NewWSServer(jwtMgr, st, roomMgr, logger, metrics)
 	server := api.NewServer(st, jwtMgr, roomMgr, wsServer, logger)
 

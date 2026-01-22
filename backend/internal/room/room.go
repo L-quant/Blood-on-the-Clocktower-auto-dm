@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/engine"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/projection"
@@ -41,9 +42,10 @@ type RoomActor struct {
 	cmdCh    chan CommandRequest
 	subs     map[string]*Subscriber
 	snapshot int64
+	autoDM   *agent.AutoDM
 }
 
-func NewRoomActor(ctx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64) (*RoomActor, error) {
+func NewRoomActor(ctx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM) (*RoomActor, error) {
 	ra := &RoomActor{
 		RoomID:   roomID,
 		store:    st,
@@ -52,10 +54,17 @@ func NewRoomActor(ctx context.Context, roomID string, st *store.Store, logger *z
 		cmdCh:    make(chan CommandRequest, 256),
 		subs:     make(map[string]*Subscriber),
 		snapshot: snapshotInterval,
+		autoDM:   autoDM,
 	}
 	if err := ra.loadState(ctx); err != nil {
 		return nil, err
 	}
+
+	// Set up AutoDM dispatcher if enabled
+	if autoDM != nil && autoDM.Enabled() {
+		autoDM.SetDispatcher(ra, func() interface{} { return ra.GetState() })
+	}
+
 	go ra.loop(ctx)
 	return ra, nil
 }
@@ -166,11 +175,11 @@ func (ra *RoomActor) handleCommand(ctx context.Context, cmd types.CommandEnvelop
 	}
 	rj, _ := json.Marshal(result)
 	dedupRec.ResultJSON = string(rj)
-	ra.broadcast(storedEvents)
+	ra.broadcast(ctx, storedEvents)
 	return result, nil
 }
 
-func (ra *RoomActor) broadcast(events []store.StoredEvent) {
+func (ra *RoomActor) broadcast(ctx context.Context, events []store.StoredEvent) {
 	ra.mu.Lock()
 	defer ra.mu.Unlock()
 	for _, e := range events {
@@ -184,12 +193,19 @@ func (ra *RoomActor) broadcast(events []store.StoredEvent) {
 			Payload:           json.RawMessage(e.PayloadJSON),
 			ServerTimestampMs: e.ServerTime.UnixMilli(),
 		}
+
+		// Notify subscribers (WebSocket clients)
 		for _, sub := range ra.subs {
 			viewer := types.Viewer{UserID: sub.UserID, IsDM: sub.IsDM}
 			projected := projection.Project(ev, ra.state, viewer)
 			if projected != nil {
 				sub.Send(*projected)
 			}
+		}
+
+		// Notify AutoDM to respond to game events
+		if ra.autoDM != nil && ra.autoDM.Enabled() {
+			go ra.autoDM.OnEvent(ctx, ev, ra.state.Copy())
 		}
 	}
 }
@@ -212,6 +228,13 @@ func (ra *RoomActor) Dispatch(cmd types.CommandEnvelope) CommandResponse {
 	return <-ch
 }
 
+// DispatchAsync implements the agent.CommandDispatcher interface.
+// It dispatches commands asynchronously without blocking.
+func (ra *RoomActor) DispatchAsync(cmd types.CommandEnvelope) error {
+	resp := ra.Dispatch(cmd)
+	return resp.Err
+}
+
 func (ra *RoomActor) GetState() engine.State {
 	return ra.state.Copy()
 }
@@ -223,15 +246,17 @@ type RoomManager struct {
 	logger   *zap.Logger
 	metrics  *observability.Metrics
 	snapshot int64
+	autoDM   *agent.AutoDM
 }
 
-func NewRoomManager(st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64) *RoomManager {
+func NewRoomManager(st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM) *RoomManager {
 	return &RoomManager{
 		actors:   make(map[string]*RoomActor),
 		store:    st,
 		logger:   logger,
 		metrics:  metrics,
 		snapshot: snapshotInterval,
+		autoDM:   autoDM,
 	}
 }
 
@@ -241,7 +266,7 @@ func (m *RoomManager) GetOrCreate(ctx context.Context, roomID string) (*RoomActo
 	if ra, ok := m.actors[roomID]; ok {
 		return ra, nil
 	}
-	ra, err := NewRoomActor(ctx, roomID, m.store, m.logger, m.metrics, m.snapshot)
+	ra, err := NewRoomActor(ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM)
 	if err != nil {
 		return nil, err
 	}

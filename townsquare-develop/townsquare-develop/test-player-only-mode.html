@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无说书人模式测试工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h2 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #2196F3;
+        }
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
+        }
+        .result {
+            background: #333;
+            border-left: 4px solid #4CAF50;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .result.error {
+            border-left-color: #f44336;
+        }
+        .result.success {
+            border-left-color: #4CAF50;
+        }
+        .result.info {
+            border-left-color: #2196F3;
+        }
+        .player-windows {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .player-window {
+            background: #333;
+            border: 2px solid #666;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .player-window h3 {
+            margin-top: 0;
+            color: #2196F3;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+        .status.connected {
+            background: #4CAF50;
+        }
+        .status.disconnected {
+            background: #f44336;
+        }
+        .status.pending {
+            background: #FFC107;
+            color: #000;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #666;
+            border-radius: 3px;
+            background: #333;
+            color: #fff;
+        }
+        .instructions {
+            background: #1e3a5f;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #2196F3;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎭 无说书人模式测试工具</h1>
+    
+    <div class="instructions">
+        <h3>📋 使用说明</h3>
+        <ol>
+            <li>确保开发服务器正在运行（npm run serve）</li>
+            <li>使用下面的测试按钮验证各项功能</li>
+            <li>或者打开多个浏览器标签页进行真实测试</li>
+            <li>查看控制台（F12）获取详细日志</li>
+        </ol>
+    </div>
+
+    <!-- 测试1：基础功能测试 -->
+    <div class="test-section">
+        <h2>1️⃣ 基础功能测试</h2>
+        <p>测试游戏模式切换和隐私保护模块是否正确加载</p>
+        <button onclick="testBasicFunctionality()">运行基础测试</button>
+        <button class="secondary" onclick="clearResult('basic')">清除结果</button>
+        <div id="basic-result" class="result"></div>
+    </div>
+
+    <!-- 测试2：模式切换测试 -->
+    <div class="test-section">
+        <h2>2️⃣ 模式切换测试</h2>
+        <p>测试在说书人模式和无说书人模式之间切换</p>
+        <button onclick="testModeSwitching()">测试模式切换</button>
+        <button class="secondary" onclick="getCurrentMode()">查看当前模式</button>
+        <button class="secondary" onclick="clearResult('mode')">清除结果</button>
+        <div id="mode-result" class="result"></div>
+    </div>
+
+    <!-- 测试3：座位认领测试 -->
+    <div class="test-section">
+        <h2>3️⃣ 座位认领测试</h2>
+        <p>测试玩家座位认领和令牌生成</p>
+        <div>
+            <input type="text" id="player-id" placeholder="玩家ID (例如: player1)" value="player1">
+            <input type="number" id="seat-index" placeholder="座位索引 (0-19)" value="0" min="0" max="19">
+        </div>
+        <button onclick="testClaimSeat()">认领座位</button>
+        <button class="secondary" onclick="testReleaseSeat()">释放座位</button>
+        <button class="secondary" onclick="getAvailableSeats()">查看可用座位</button>
+        <button class="secondary" onclick="clearResult('seat')">清除结果</button>
+        <div id="seat-result" class="result"></div>
+    </div>
+
+    <!-- 测试4：多玩家模拟 -->
+    <div class="test-section">
+        <h2>4️⃣ 多玩家模拟测试</h2>
+        <p>在单个页面中模拟多个玩家</p>
+        <button onclick="openMultipleWindows()">打开多个测试窗口</button>
+        <button class="secondary" onclick="simulateMultiplePlayers()">模拟3个玩家</button>
+        <button class="danger" onclick="clearAllPlayers()">清除所有玩家</button>
+        <button class="secondary" onclick="clearResult('multi')">清除结果</button>
+        <div id="multi-result" class="result"></div>
+    </div>
+
+    <!-- 测试5：隐私保护验证 -->
+    <div class="test-section">
+        <h2>5️⃣ 隐私保护验证</h2>
+        <p>验证角色信息是否正确隐藏</p>
+        <button onclick="testPrivacyProtection()">测试隐私保护</button>
+        <button class="secondary" onclick="testRoleVisibility()">测试角色可见性</button>
+        <button class="secondary" onclick="clearResult('privacy')">清除结果</button>
+        <div id="privacy-result" class="result"></div>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="test-section">
+        <h2>⚡ 快速操作</h2>
+        <button onclick="openMainApp()">打开主应用</button>
+        <button class="secondary" onclick="openConsole()">打开控制台说明</button>
+        <button class="secondary" onclick="copyTestURL()">复制测试URL</button>
+        <button class="danger" onclick="resetAllTests()">重置所有测试</button>
+    </div>
+
+    <script>
+        // 工具函数
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId + '-result');
+            if (element) {
+                const timestamp = new Date().toLocaleTimeString();
+                element.className = 'result ' + type;
+                element.textContent += `[${timestamp}] ${message}\n`;
+                element.scrollTop = element.scrollHeight;
+            }
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        function clearResult(elementId) {
+            const element = document.getElementById(elementId + '-result');
+            if (element) {
+                element.textContent = '';
+            }
+        }
+
+        // 测试1：基础功能测试
+        function testBasicFunctionality() {
+            log('basic', '开始基础功能测试...', 'info');
+            
+            // 检查是否可以访问主应用
+            const mainAppURL = 'http://localhost:8081/';
+            log('basic', `主应用URL: ${mainAppURL}`, 'info');
+            
+            // 提示用户打开主应用
+            log('basic', '请在主应用中打开浏览器控制台（F12）', 'info');
+            log('basic', '然后运行以下命令检查privacy模块：', 'info');
+            log('basic', '  this.$store.state.privacy', 'success');
+            log('basic', '', 'info');
+            log('basic', '预期结果：应该看到包含以下属性的对象：', 'info');
+            log('basic', '  - gameMode: "storyteller" 或 "player-only"', 'success');
+            log('basic', '  - isPrivacyEnabled: true/false', 'success');
+            log('basic', '  - myPlayerId: null 或玩家ID', 'success');
+            log('basic', '', 'info');
+            log('basic', '✅ 如果看到这些属性，说明privacy模块已正确加载', 'success');
+        }
+
+        // 测试2：模式切换测试
+        function testModeSwitching() {
+            log('mode', '开始模式切换测试...', 'info');
+            log('mode', '', 'info');
+            log('mode', '请在主应用控制台中运行以下命令：', 'info');
+            log('mode', '', 'info');
+            log('mode', '1. 切换到无说书人模式：', 'info');
+            log('mode', '   this.$store.dispatch("privacy/switchGameMode", "player-only")', 'success');
+            log('mode', '', 'info');
+            log('mode', '2. 切换回说书人模式：', 'info');
+            log('mode', '   this.$store.dispatch("privacy/switchGameMode", "storyteller")', 'success');
+            log('mode', '', 'info');
+            log('mode', '预期结果：', 'info');
+            log('mode', '  - 返回 { success: true }', 'success');
+            log('mode', '  - 控制台显示 "[Privacy] Switched to xxx mode"', 'success');
+        }
+
+        function getCurrentMode() {
+            log('mode', '查看当前模式...', 'info');
+            log('mode', '请在主应用控制台中运行：', 'info');
+            log('mode', '  this.$store.state.privacy.gameMode', 'success');
+        }
+
+        // 测试3：座位认领测试
+        function testClaimSeat() {
+            const playerId = document.getElementById('player-id').value;
+            const seatIndex = parseInt(document.getElementById('seat-index').value);
+            
+            log('seat', `测试认领座位 - 玩家: ${playerId}, 座位: ${seatIndex}`, 'info');
+            log('seat', '', 'info');
+            log('seat', '请在主应用控制台中运行：', 'info');
+            log('seat', `  this.$store.dispatch("privacy/claimSeat", { playerId: "${playerId}", seatIndex: ${seatIndex} })`, 'success');
+            log('seat', '', 'info');
+            log('seat', '预期结果：', 'info');
+            log('seat', '  - 返回 { success: true }', 'success');
+            log('seat', '  - 控制台显示 "[Privacy] Successfully claimed seat X"', 'success');
+        }
+
+        function testReleaseSeat() {
+            log('seat', '测试释放座位...', 'info');
+            log('seat', '请在主应用控制台中运行：', 'info');
+            log('seat', '  this.$store.dispatch("privacy/releaseSeat")', 'success');
+        }
+
+        function getAvailableSeats() {
+            log('seat', '查看可用座位...', 'info');
+            log('seat', '请在主应用控制台中运行：', 'info');
+            log('seat', '  this.$store.getters["privacy/availableSeats"]', 'success');
+        }
+
+        // 测试4：多玩家模拟
+        function openMultipleWindows() {
+            log('multi', '打开多个测试窗口...', 'info');
+            const baseURL = 'http://localhost:8081/';
+            
+            // 打开3个窗口
+            for (let i = 1; i <= 3; i++) {
+                setTimeout(() => {
+                    window.open(baseURL, `player${i}`, 'width=800,height=600');
+                    log('multi', `已打开窗口 ${i}`, 'success');
+                }, i * 500);
+            }
+            
+            log('multi', '', 'info');
+            log('multi', '测试步骤：', 'info');
+            log('multi', '1. 在窗口1中创建会话（主持）', 'info');
+            log('multi', '2. 在窗口2和3中加入会话', 'info');
+            log('multi', '3. 每个窗口认领不同的座位', 'info');
+            log('multi', '4. 验证每个窗口只能看到自己的角色', 'info');
+        }
+
+        function simulateMultiplePlayers() {
+            log('multi', '模拟3个玩家认领座位...', 'info');
+            log('multi', '', 'info');
+            log('multi', '请在主应用控制台中依次运行：', 'info');
+            log('multi', '', 'info');
+            log('multi', '玩家1认领座位0：', 'info');
+            log('multi', '  this.$store.dispatch("privacy/claimSeat", { playerId: "Alice", seatIndex: 0 })', 'success');
+            log('multi', '', 'info');
+            log('multi', '玩家2认领座位1：', 'info');
+            log('multi', '  this.$store.dispatch("privacy/claimSeat", { playerId: "Bob", seatIndex: 1 })', 'success');
+            log('multi', '', 'info');
+            log('multi', '玩家3认领座位2：', 'info');
+            log('multi', '  this.$store.dispatch("privacy/claimSeat", { playerId: "Charlie", seatIndex: 2 })', 'success');
+        }
+
+        function clearAllPlayers() {
+            log('multi', '清除所有玩家...', 'info');
+            log('multi', '请在主应用控制台中运行：', 'info');
+            log('multi', '  this.$store.dispatch("privacy/releaseSeat")', 'success');
+        }
+
+        // 测试5：隐私保护验证
+        function testPrivacyProtection() {
+            log('privacy', '测试隐私保护...', 'info');
+            log('privacy', '', 'info');
+            log('privacy', '步骤1：切换到无说书人模式', 'info');
+            log('privacy', '  this.$store.dispatch("privacy/switchGameMode", "player-only")', 'success');
+            log('privacy', '', 'info');
+            log('privacy', '步骤2：检查隐私保护是否启用', 'info');
+            log('privacy', '  this.$store.state.privacy.isPrivacyEnabled', 'success');
+            log('privacy', '', 'info');
+            log('privacy', '预期结果：应该返回 true', 'success');
+        }
+
+        function testRoleVisibility() {
+            log('privacy', '测试角色可见性...', 'info');
+            log('privacy', '', 'info');
+            log('privacy', '请在主应用控制台中运行：', 'info');
+            log('privacy', '', 'info');
+            log('privacy', '检查是否可以看到玩家1的角色：', 'info');
+            log('privacy', '  this.$store.getters["privacy/canSeeRole"]("player1")', 'success');
+            log('privacy', '', 'info');
+            log('privacy', '获取可见的玩家列表：', 'info');
+            log('privacy', '  this.$store.getters["privacy/getVisiblePlayers"]', 'success');
+        }
+
+        // 快速操作
+        function openMainApp() {
+            window.open('http://localhost:8081/', '_blank');
+            log('basic', '已打开主应用', 'success');
+        }
+
+        function openConsole() {
+            alert('请按 F12 打开浏览器开发者工具\n然后切换到 Console（控制台）标签');
+        }
+
+        function copyTestURL() {
+            const url = 'http://localhost:8081/';
+            navigator.clipboard.writeText(url).then(() => {
+                alert('测试URL已复制到剪贴板：' + url);
+            });
+        }
+
+        function resetAllTests() {
+            if (confirm('确定要重置所有测试结果吗？')) {
+                ['basic', 'mode', 'seat', 'multi', 'privacy'].forEach(clearResult);
+                alert('所有测试结果已清除');
+            }
+        }
+
+        // 页面加载时显示欢迎信息
+        window.onload = function() {
+            log('basic', '🎭 欢迎使用无说书人模式测试工具！', 'success');
+            log('basic', '', 'info');
+            log('basic', '请确保开发服务器正在运行：npm run serve', 'info');
+            log('basic', '主应用地址：http://localhost:8081/', 'info');
+            log('basic', '', 'info');
+            log('basic', '点击上方按钮开始测试各项功能', 'success');
+        };
+    </script>
+</body>
+</html>
