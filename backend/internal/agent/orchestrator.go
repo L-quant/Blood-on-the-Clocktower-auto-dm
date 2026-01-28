@@ -207,8 +207,8 @@ func (o *Orchestrator) executeRun(ctx context.Context) error {
 		return fmt.Errorf("sense: %w", err)
 	}
 
-	run.SeqFrom = agentCtx.MemoryContext.ShortTerm[0].Seq
 	if len(agentCtx.MemoryContext.ShortTerm) > 0 {
+		run.SeqFrom = agentCtx.MemoryContext.ShortTerm[0].Seq
 		run.SeqTo = agentCtx.MemoryContext.ShortTerm[len(agentCtx.MemoryContext.ShortTerm)-1].Seq
 	}
 
@@ -284,30 +284,32 @@ func (o *Orchestrator) executeRun(ctx context.Context) error {
 // sense gathers the current state and recent events
 func (o *Orchestrator) sense(ctx context.Context, runID string) (*AgentContext, error) {
 	// Get room state via tool
-	stateResult, err := o.toolRegistry.Execute(ctx, "get_room_state", GetRoomStateArgs{
+	argsJSON, _ := json.Marshal(GetRoomStateArgs{
 		RoomID: o.roomID,
 	})
+	stateResult, err := o.toolRegistry.Execute(ctx, "get_room_state", argsJSON)
 	if err != nil {
 		return nil, fmt.Errorf("get room state: %w", err)
 	}
 
 	var roomState RoomState
-	if err := json.Unmarshal(stateResult.Output, &roomState); err != nil {
+	if err := json.Unmarshal(stateResult, &roomState); err != nil {
 		return nil, fmt.Errorf("unmarshal room state: %w", err)
 	}
 
 	// Get recent events
-	eventsResult, err := o.toolRegistry.Execute(ctx, "get_recent_events", GetRecentEventsArgs{
+	eventsArgsJSON, _ := json.Marshal(GetRecentEventsArgs{
 		RoomID:   o.roomID,
 		SinceSeq: roomState.LastSeq - int64(o.config.ShortTermMemorySize),
 		Limit:    o.config.ShortTermMemorySize,
 	})
+	eventsResult, err := o.toolRegistry.Execute(ctx, "get_recent_events", eventsArgsJSON)
 	if err != nil {
 		return nil, fmt.Errorf("get recent events: %w", err)
 	}
 
-	var events []Event
-	if err := json.Unmarshal(eventsResult.Output, &events); err != nil {
+	var events []GameEvent
+	if err := json.Unmarshal(eventsResult, &events); err != nil {
 		return nil, fmt.Errorf("unmarshal events: %w", err)
 	}
 
@@ -532,14 +534,19 @@ func (o *Orchestrator) observe(ctx context.Context, agentCtx *AgentContext, resu
 
 	// Get new events if state changed
 	if obs.StateChanged {
-		eventsResult, err := o.toolRegistry.Execute(ctx, "get_recent_events", GetRecentEventsArgs{
+		var lastSeq int64
+		if len(agentCtx.MemoryContext.ShortTerm) > 0 {
+			lastSeq = agentCtx.MemoryContext.ShortTerm[len(agentCtx.MemoryContext.ShortTerm)-1].Seq
+		}
+		eventsArgsJSON, _ := json.Marshal(GetRecentEventsArgs{
 			RoomID:   o.roomID,
-			SinceSeq: agentCtx.MemoryContext.ShortTerm[len(agentCtx.MemoryContext.ShortTerm)-1].Seq,
+			SinceSeq: lastSeq,
 			Limit:    20,
 		})
+		eventsResult, err := o.toolRegistry.Execute(ctx, "get_recent_events", eventsArgsJSON)
 		if err == nil {
-			var events []Event
-			if json.Unmarshal(eventsResult.Output, &events) == nil {
+			var events []GameEvent
+			if json.Unmarshal(eventsResult, &events) == nil {
 				obs.NewEvents = events
 			}
 		}

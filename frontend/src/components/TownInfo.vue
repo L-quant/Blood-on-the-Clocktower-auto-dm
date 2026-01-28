@@ -1,91 +1,180 @@
 <template>
-  <div id="towninfo">
-    <h2>{{ edition.name }}</h2>
-    <div class="player-count">
-      {{ players.length }} Players
-      <span v-if="players.length < minPlayers"> (need {{ minPlayers - players.length }} more)</span>
-    </div>
-    <div class="team-counts">
-      <span class="townsfolk">{{ counts.townsfolk }} Townsfolk</span>
-      <span class="outsider">{{ counts.outsider }} Outsiders</span>
-      <span class="minion">{{ counts.minion }} Minions</span>
-      <span class="demon">{{ counts.demon }} Demon</span>
-    </div>
-    <div class="info">
-      <span v-if="aliveCount.alive">{{ aliveCount.alive }} alive</span>
-      <span v-if="aliveCount.votes"> / {{ aliveCount.votes }} ghost votes</span>
-    </div>
-  </div>
+  <ul class="info">
+    <li
+      class="edition"
+      :class="['edition-' + edition.id]"
+      :style="{
+        backgroundImage: `url(${
+          edition.logo && grimoire.isImageOptIn
+            ? edition.logo
+            : require('../assets/editions/' + edition.id + '.png')
+        })`
+      }"
+    ></li>
+    <li v-if="players.length - teams.traveler < 5">
+      Please add more players!
+    </li>
+    <li>
+      <span class="meta" v-if="!edition.isOfficial">
+        {{ edition.name }}
+        {{ edition.author ? "by " + edition.author : "" }}
+      </span>
+      <span>
+        {{ players.length }} <font-awesome-icon class="players" icon="users" />
+      </span>
+      <span>
+        {{ teams.alive }}
+        <font-awesome-icon class="alive" icon="heartbeat" />
+      </span>
+      <span>
+        {{ teams.votes }} <font-awesome-icon class="votes" icon="vote-yea" />
+      </span>
+    </li>
+    <li v-if="players.length - teams.traveler >= 5">
+      <span>
+        {{ teams.townsfolk }}
+        <font-awesome-icon class="townsfolk" icon="user-friends" />
+      </span>
+      <span>
+        {{ teams.outsider }}
+        <font-awesome-icon
+          class="outsider"
+          :icon="teams.outsider > 1 ? 'user-friends' : 'user'"
+        />
+      </span>
+      <span>
+        {{ teams.minion }}
+        <font-awesome-icon
+          class="minion"
+          :icon="teams.minion > 1 ? 'user-friends' : 'user'"
+        />
+      </span>
+      <span>
+        {{ teams.demon }}
+        <font-awesome-icon
+          class="demon"
+          :icon="teams.demon > 1 ? 'user-friends' : 'user'"
+        />
+      </span>
+      <span v-if="teams.traveler">
+        {{ teams.traveler }}
+        <font-awesome-icon
+          class="traveler"
+          :icon="teams.traveler > 1 ? 'user-friends' : 'user'"
+        />
+      </span>
+      <span v-if="grimoire.isNight">
+        Night phase
+        <font-awesome-icon :icon="['fas', 'cloud-moon']" />
+      </span>
+    </li>
+  </ul>
 </template>
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useGrimoireStore, usePlayersStore } from '@/stores'
+<script>
+import gameJSON from "./../game";
+import { mapState } from "vuex";
 
-const grimoire = useGrimoireStore()
-const playersStore = usePlayersStore()
-
-const { edition } = storeToRefs(grimoire)
-const { players } = storeToRefs(playersStore)
-
-const minPlayers = 5
-
-const counts = computed(() => {
-  const result = { townsfolk: 0, outsider: 0, minion: 0, demon: 0 }
-  players.value.forEach(p => {
-    if (p.role.team && p.role.team in result) {
-      result[p.role.team as keyof typeof result]++
-    }
-  })
-  return result
-})
-
-const aliveCount = computed(() => {
-  const alive = players.value.filter(p => !p.isDead).length
-  const votes = players.value.filter(p => p.isDead && !p.isVoteless).length
-  return { alive, votes }
-})
+export default {
+  computed: {
+    teams: function() {
+      const { players } = this.$store.state.players;
+      const nonTravelers = this.$store.getters["players/nonTravelers"];
+      const alive = players.filter(player => player.isDead !== true).length;
+      return {
+        ...gameJSON[nonTravelers - 5],
+        traveler: players.length - nonTravelers,
+        alive,
+        votes:
+          alive +
+          players.filter(
+            player => player.isDead === true && player.isVoteless !== true
+          ).length
+      };
+    },
+    ...mapState(["edition", "grimoire"]),
+    ...mapState("players", ["players"])
+  }
+};
 </script>
 
-<style scoped lang="scss">
-@import '@/styles/vars';
+<style lang="scss" scoped>
+@import "../vars.scss";
 
-#towninfo {
+.info {
   position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 15px 25px;
-  border-radius: 10px;
+  display: flex;
+  width: 20%;
+  height: 20%;
+  padding: 50px 0 0;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  background: url("../assets/demon-head.png") center center no-repeat;
+  background-size: auto 100%;
 
-  h2 {
-    margin-bottom: 5px;
-  }
-
-  .player-count {
-    font-size: 1.2em;
-    margin-bottom: 10px;
-  }
-
-  .team-counts {
+  li {
+    font-weight: bold;
+    width: 100%;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
     display: flex;
-    gap: 15px;
+    flex-wrap: wrap;
     justify-content: center;
-    font-size: 0.9em;
-    margin-bottom: 10px;
+    text-shadow: 0 2px 1px black, 0 -2px 1px black, 2px 0 1px black,
+      -2px 0 1px black;
 
-    .townsfolk { color: $townsfolk; }
-    .outsider { color: $outsider; }
-    .minion { color: $minion; }
-    .demon { color: $demon; }
+    span {
+      white-space: nowrap;
+    }
+
+    .meta {
+      text-align: center;
+      flex-basis: 100%;
+      font-family: PiratesBay, sans-serif;
+      font-weight: normal;
+    }
+
+    svg {
+      margin-right: 10px;
+    }
+
+    .players {
+      color: #00f700;
+    }
+    .alive {
+      color: #ff4a50;
+    }
+    .votes {
+      color: #fff;
+    }
+    .townsfolk {
+      color: $townsfolk;
+    }
+    .outsider {
+      color: $outsider;
+    }
+    .minion {
+      color: $minion;
+    }
+    .demon {
+      color: $demon;
+    }
+    .traveler {
+      color: $traveler;
+    }
   }
 
-  .info {
-    font-size: 0.85em;
-    opacity: 0.8;
+  li.edition {
+    width: 220px;
+    height: 200px;
+    max-width: 100%;
+    max-height: 100%;
+    background-position: 0 center;
+    background-repeat: no-repeat;
+    background-size: 100% auto;
+    position: absolute;
+    top: -25%;
   }
 }
 </style>

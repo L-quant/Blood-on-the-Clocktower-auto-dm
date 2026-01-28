@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -17,6 +18,8 @@ import (
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/config"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/queue"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/rag"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/realtime"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/room"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/store"
@@ -49,8 +52,62 @@ func main() {
 	metrics := observability.NewMetrics(prometheus.DefaultRegisterer.(*prometheus.Registry))
 	jwtMgr := auth.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
 
+	// Initialize RAG system
+	var retriever *rag.RuleRetriever
+	if cfg.QdrantHost != "" {
+		qdrantClient := rag.NewQdrantClient(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection)
+		embedder := rag.NewOpenAIEmbedding(rag.OpenAIEmbeddingConfig{
+			APIKey:     cfg.AutoDMLLMAPIKey,
+			BaseURL:    cfg.AutoDMLLMBaseURL,
+			Dimensions: 1536,
+		})
+		retriever = rag.NewRuleRetriever(qdrantClient, embedder)
+
+		// Initialize with rules from assets/rules directory
+		rulesDir := "../assets/rules"
+		if err := retriever.Initialize(ctx, rulesDir); err != nil {
+			logger.Warn("Failed to initialize RAG", zap.Error(err))
+		} else {
+			logger.Info("RAG system initialized", zap.String("rules_dir", rulesDir))
+		}
+	}
+
+	// Initialize task queue
+	var taskQueue *queue.Queue
+	if cfg.RabbitMQURL != "" {
+		slogLogger := observability.ZapToSlog(logger)
+		taskQueue, err = queue.New(queue.Config{
+			URL:       cfg.RabbitMQURL,
+			QueueName: "agentdm_tasks",
+			Prefetch:  10,
+			Logger:    slogLogger,
+		})
+		if err != nil {
+			logger.Warn("Failed to connect to RabbitMQ", zap.Error(err))
+		} else {
+			logger.Info("Task queue connected", zap.String("url", cfg.RabbitMQURL))
+			defer taskQueue.Close()
+
+			// Start consuming tasks
+			if err := taskQueue.Start(ctx); err != nil {
+				logger.Error("Failed to start task queue", zap.Error(err))
+			}
+		}
+	}
+
 	// Initialize AutoDM (AI Storyteller)
 	slogLogger := observability.ZapToSlog(logger)
+
+	// Create adapters for interfaces
+	var retrieverAdapter agent.RuleRetriever
+	if retriever != nil {
+		retrieverAdapter = &ruleRetrieverAdapter{r: retriever}
+	}
+	var taskQueueAdapter agent.TaskQueue
+	if taskQueue != nil {
+		taskQueueAdapter = &taskQueueAdapterImpl{q: taskQueue}
+	}
+
 	autoDM := agent.NewAutoDM(agent.Config{
 		RoomID:  "", // Will be set per-room
 		Enabled: cfg.AutoDMEnabled,
@@ -62,7 +119,9 @@ func main() {
 				Timeout: cfg.AutoDMLLMTimeout,
 			},
 		},
-		Logger: slogLogger,
+		Logger:    slogLogger,
+		Retriever: retrieverAdapter,
+		TaskQueue: taskQueueAdapter,
 	})
 
 	if autoDM.Enabled() {
@@ -90,4 +149,38 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	srv.Shutdown(shutdownCtx)
+}
+
+// ruleRetrieverAdapter adapts rag.RuleRetriever to agent.RuleRetriever
+type ruleRetrieverAdapter struct {
+	r *rag.RuleRetriever
+}
+
+func (a *ruleRetrieverAdapter) Retrieve(ctx context.Context, query string, limit int) ([]agent.RetrieveResult, error) {
+	results, err := a.r.Retrieve(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	converted := make([]agent.RetrieveResult, len(results))
+	for i, r := range results {
+		converted[i] = agent.RetrieveResult{
+			Content:  r.Content,
+			Score:    r.Score,
+			Metadata: r.Metadata,
+		}
+	}
+	return converted, nil
+}
+
+// taskQueueAdapterImpl adapts queue.Queue to agent.TaskQueue
+type taskQueueAdapterImpl struct {
+	q *queue.Queue
+}
+
+func (a *taskQueueAdapterImpl) Publish(ctx context.Context, task interface{}) error {
+	t, ok := task.(queue.Task)
+	if !ok {
+		return fmt.Errorf("invalid task type")
+	}
+	return a.q.Publish(ctx, t)
 }

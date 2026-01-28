@@ -1,15 +1,26 @@
 <template>
-  <div class="token" :class="[role.id]" @click="emit('click')">
+  <div class="token" @click="setRole" :class="[role.id]">
     <span
-      v-if="role.id"
       class="icon"
-      :style="iconStyle"
-    />
-    <span v-if="role.firstNight || role.firstNightReminder" class="leaf-left" />
-    <span v-if="role.otherNight || role.otherNightReminder" class="leaf-right" />
-    <span v-if="reminderLeaves" :class="['leaf-top' + reminderLeaves]" />
-    <span v-if="role.setup" class="leaf-orange" />
-    
+      v-if="role.id"
+      :style="{
+        backgroundImage: `url(${
+          role.image && grimoire.isImageOptIn
+            ? role.image
+            : require('../assets/icons/' + (role.imageAlt || role.id) + '.png')
+        })`
+      }"
+    ></span>
+    <span
+      class="leaf-left"
+      v-if="role.firstNight || role.firstNightReminder"
+    ></span>
+    <span
+      class="leaf-right"
+      v-if="role.otherNight || role.otherNightReminder"
+    ></span>
+    <span v-if="reminderLeaves" :class="['leaf-top' + reminderLeaves]"></span>
+    <span class="leaf-orange" v-if="role.setup"></span>
     <svg viewBox="0 0 150 150" class="name">
       <path
         d="M 13 75 C 13 160, 138 160, 138 75"
@@ -20,57 +31,60 @@
         width="150"
         x="66.6%"
         text-anchor="middle"
-        class="label"
-        :font-size="fontSize"
+        class="label mozilla"
+        :font-size="role.name | nameToFontSize"
       >
-        <textPath href="#curve">{{ role.name }}</textPath>
+        <textPath xlink:href="#curve">
+          {{ role.name }}
+        </textPath>
       </text>
     </svg>
-
-    <div class="edition" :class="[`edition-${role.edition}`, role.team]" />
-    <div v-if="role.ability" class="ability">{{ role.ability }}</div>
+    <div class="edition" :class="[`edition-${role.edition}`, role.team]"></div>
+    <div class="ability" v-if="role.ability">
+      {{ role.ability }}
+    </div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import { useGrimoireStore } from '@/stores'
-import type { Role } from '@/types'
+<script>
+import { mapState } from "vuex";
 
-const props = withDefaults(defineProps<{
-  role?: Role
-}>(), {
-  role: () => ({ id: '', name: '', team: 'townsfolk' })
-})
-
-const emit = defineEmits<{
-  click: []
-}>()
-
-const grimoire = useGrimoireStore()
-
-const reminderLeaves = computed(() => {
-  const count = (props.role.reminders?.length || 0) + (props.role.remindersGlobal?.length || 0)
-  return Math.min(count, 5)
-})
-
-const fontSize = computed(() => {
-  return props.role.name && props.role.name.length > 10 ? '90%' : '110%'
-})
-
-const iconStyle = computed(() => {
-  const iconPath = props.role.imageAlt || props.role.id
-  return {
-    backgroundImage: `url(/src/assets/icons/${iconPath}.png)`
+export default {
+  name: "Token",
+  props: {
+    role: {
+      type: Object,
+      default: () => ({})
+    }
+  },
+  computed: {
+    reminderLeaves: function() {
+      return (
+        (this.role.reminders || []).length +
+        (this.role.remindersGlobal || []).length
+      );
+    },
+    ...mapState(["grimoire"])
+  },
+  data() {
+    return {};
+  },
+  filters: {
+    nameToFontSize: name => (name && name.length > 10 ? "90%" : "110%")
+  },
+  methods: {
+    setRole() {
+      this.$emit("set-role");
+    }
   }
-})
+};
 </script>
 
 <style scoped lang="scss">
 .token {
   border-radius: 50%;
   width: 100%;
-  background: url('@/assets/token.png') center center;
+  background: url("../assets/token.png") center center;
   background-size: 100%;
   text-align: center;
   border: 3px solid black;
@@ -79,16 +93,23 @@ const iconStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 1;
   transition: border-color 250ms;
 
   &:hover .name .label {
     stroke: black;
     fill: white;
+    @-moz-document url-prefix() {
+      &.mozilla {
+        stroke: none;
+        filter: drop-shadow(0 1.5px 0 black) drop-shadow(0 -1.5px 0 black)
+          drop-shadow(1.5px 0 0 black) drop-shadow(-1.5px 0 0 black)
+          drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+      }
+    }
   }
 
   .icon,
-  &::before {
+  &:before {
     background-size: 100%;
     background-repeat: no-repeat;
     background-position: center 30%;
@@ -106,52 +127,62 @@ const iconStyle = computed(() => {
     pointer-events: none;
 
     &.leaf-left {
-      background-image: url('@/assets/leaf-left.png');
+      background-image: url("../assets/leaf-left.png");
     }
 
     &.leaf-orange {
-      background-image: url('@/assets/leaf-orange.png');
+      background-image: url("../assets/leaf-orange.png");
     }
 
     &.leaf-right {
-      background-image: url('@/assets/leaf-right.png');
+      background-image: url("../assets/leaf-right.png");
     }
 
     &.leaf-top1 {
-      background-image: url('@/assets/leaf-top1.png');
+      background-image: url("../assets/leaf-top1.png");
     }
 
     &.leaf-top2 {
-      background-image: url('@/assets/leaf-top2.png');
+      background-image: url("../assets/leaf-top2.png");
     }
 
     &.leaf-top3 {
-      background-image: url('@/assets/leaf-top3.png');
+      background-image: url("../assets/leaf-top3.png");
     }
 
     &.leaf-top4 {
-      background-image: url('@/assets/leaf-top4.png');
+      background-image: url("../assets/leaf-top4.png");
     }
 
     &.leaf-top5 {
-      background-image: url('@/assets/leaf-top5.png');
+      background-image: url("../assets/leaf-top5.png");
     }
   }
 
   .name {
     width: 100%;
     height: 100%;
-    font-size: 24px;
-
+    font-size: 24px; // svg fonts are relative to document font size
     .label {
       fill: black;
       stroke: white;
       stroke-width: 2px;
       paint-order: stroke;
-      font-family: 'Papyrus', serif;
+      font-family: "Papyrus", serif;
       font-weight: bold;
       text-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
       letter-spacing: 1px;
+
+      @-moz-document url-prefix() {
+        &.mozilla {
+          // Vue doesn't support scoped media queries, so we have to use a second css class
+          stroke: none;
+          text-shadow: none;
+          filter: drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white)
+            drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white)
+            drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+        }
+      }
     }
   }
 
@@ -166,22 +197,39 @@ const iconStyle = computed(() => {
   }
 
   .ability {
-    display: none;
+    display: flex;
     position: absolute;
-    bottom: -50px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    padding: 10px;
-    border-radius: 5px;
+    padding: 5px 10px;
+    left: 120%;
+    width: 250px;
+    z-index: 25;
     font-size: 80%;
-    max-width: 200px;
-    text-align: center;
-    z-index: 100;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    border: 3px solid black;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+    text-align: left;
+    justify-items: center;
+    align-content: center;
+    align-items: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 200ms ease-in-out;
+
+    &:before {
+      content: " ";
+      border: 10px solid transparent;
+      width: 0;
+      height: 0;
+      border-right-color: black;
+      position: absolute;
+      margin-right: 2px;
+      right: 100%;
+    }
   }
 
   &:hover .ability {
-    display: block;
+    opacity: 1;
   }
 }
 </style>

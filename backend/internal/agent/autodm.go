@@ -83,13 +83,32 @@ type LLMRoutingConfig = llm.RoutingConfig
 type LLMClientConfig = llm.Config
 type MemoryConfig = memory.Config
 
+// RuleRetriever interface for RAG
+type RuleRetriever interface {
+	Retrieve(ctx context.Context, query string, limit int) ([]RetrieveResult, error)
+}
+
+// RetrieveResult is the result from RAG retrieval
+type RetrieveResult struct {
+	Content  string
+	Score    float64
+	Metadata map[string]interface{}
+}
+
+// TaskQueue interface for async tasks
+type TaskQueue interface {
+	Publish(ctx context.Context, task interface{}) error
+}
+
 // Config configures the Auto-DM.
 type Config struct {
-	RoomID  string
-	LLM     LLMRoutingConfig
-	Memory  MemoryConfig
-	Logger  *slog.Logger
-	Enabled bool
+	RoomID    string
+	LLM       LLMRoutingConfig
+	Memory    MemoryConfig
+	Logger    *slog.Logger
+	Enabled   bool
+	Retriever RuleRetriever
+	TaskQueue TaskQueue
 }
 
 // NewAutoDM creates a new Auto-DM instance.

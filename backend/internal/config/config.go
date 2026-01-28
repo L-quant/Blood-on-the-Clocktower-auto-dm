@@ -17,12 +17,26 @@ type Config struct {
 	PrometheusAddr    string
 	TraceStdout       bool
 
+	// RabbitMQ configuration
+	RabbitMQURL string
+
+	// Qdrant (Vector DB) configuration
+	QdrantHost       string
+	QdrantPort       int
+	QdrantCollection string
+
 	// AutoDM configuration
 	AutoDMEnabled    bool
 	AutoDMLLMBaseURL string
 	AutoDMLLMAPIKey  string
 	AutoDMLLMModel   string
 	AutoDMLLMTimeout time.Duration
+
+	// Game configuration
+	DefaultNominationTimeout  time.Duration
+	DefaultVoteTimeout        time.Duration
+	DefaultDiscussionDuration time.Duration
+	DefaultNightActionTimeout time.Duration
 }
 
 func getEnv(key, def string) string {
@@ -69,11 +83,25 @@ func Load() Config {
 		PrometheusAddr:    getEnv("PROM_ADDR", ":9090"),
 		TraceStdout:       getEnvBool("TRACE_STDOUT", true),
 
+		// RabbitMQ
+		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://botc:botc_password@localhost:5672/"),
+
+		// Qdrant Vector DB
+		QdrantHost:       getEnv("QDRANT_HOST", "localhost"),
+		QdrantPort:       getEnvInt("QDRANT_PORT", 6333),
+		QdrantCollection: getEnv("QDRANT_COLLECTION", "botc_rules"),
+
 		// AutoDM: AI Storyteller configuration
 		AutoDMEnabled:    getEnvBool("AUTODM_ENABLED", false),
 		AutoDMLLMBaseURL: getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1"),
 		AutoDMLLMAPIKey:  getEnv("AUTODM_LLM_API_KEY", ""),
 		AutoDMLLMModel:   getEnv("AUTODM_LLM_MODEL", "gpt-4o"),
 		AutoDMLLMTimeout: time.Duration(getEnvInt("AUTODM_LLM_TIMEOUT_SEC", 60)) * time.Second,
+
+		// Game timing configuration
+		DefaultNominationTimeout:  time.Duration(getEnvInt("NOMINATION_TIMEOUT_SEC", 10)) * time.Second,
+		DefaultVoteTimeout:        time.Duration(getEnvInt("VOTE_TIMEOUT_SEC", 3)) * time.Second,
+		DefaultDiscussionDuration: time.Duration(getEnvInt("DISCUSSION_DURATION_SEC", 180)) * time.Second,
+		DefaultNightActionTimeout: time.Duration(getEnvInt("NIGHT_ACTION_TIMEOUT_SEC", 30)) * time.Second,
 	}
 }

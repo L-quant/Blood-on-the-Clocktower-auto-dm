@@ -1,30 +1,47 @@
 {
-  "name": "clocktower-auto-dm-web",
+  "name": "botc-auto-dm-frontend",
   "version": "1.0.0",
-  "description": "Blood on the Clocktower Auto DM - Web Frontend",
-  "type": "module",
+  "description": "Blood on the Clocktower - Auto DM Frontend (based on townsquare)",
+  "author": "Original: Steffen Baumgart, Modified for Auto-DM",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix"
+    "serve": "vue-cli-service serve",
+    "dev": "vue-cli-service serve",
+    "build": "vue-cli-service build ./src/main.js",
+    "lint": "vue-cli-service lint",
+    "lint-ci": "vue-cli-service lint --no-fix --max-warnings=0"
   },
+  "main": "App.vue",
   "dependencies": {
-    "@fortawesome/fontawesome-svg-core": "^6.6.0",
-    "@fortawesome/free-brands-svg-icons": "^6.6.0",
-    "@fortawesome/free-solid-svg-icons": "^6.6.0",
-    "@fortawesome/vue-fontawesome": "^3.0.8",
-    "pinia": "^2.2.6",
-    "vue": "^3.5.13",
-    "vue-router": "^4.4.5"
+    "@fortawesome/fontawesome-svg-core": "^1.2.32",
+    "@fortawesome/free-brands-svg-icons": "^5.15.1",
+    "@fortawesome/free-solid-svg-icons": "^5.15.1",
+    "@fortawesome/vue-fontawesome": "^0.1.10",
+    "@vue/cli-service": "^5.0.8",
+    "prom-client": "^13.0.0",
+    "sass": "^1.30.0",
+    "sass-loader": "^8.0.2",
+    "vue": "^2.6.12",
+    "vue-template-compiler": "^2.7.15",
+    "vuex": "^3.6.0",
+    "ws": "^7.4.6"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "@vue/tsconfig": "^0.7.0",
-    "sass": "^1.83.0",
-    "typescript": "~5.6.3",
-    "vite": "^6.0.5",
-    "vue-tsc": "^2.2.0"
+    "@vue/cli-plugin-eslint": "^5.0.8",
+    "@vue/eslint-config-prettier": "^8.0.0",
+    "eslint": "^8.53.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "eslint-plugin-vue": "^9.18.1",
+    "prettier": "^3.0.3"
+  },
+  "keywords": [
+    "botc",
+    "townsquare",
+    "vue",
+    "scss"
+  ],
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com//bra1n/townsquare.git"
   }
 }

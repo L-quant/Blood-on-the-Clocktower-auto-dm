@@ -455,22 +455,11 @@ func (e *OpenAIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := e.provider.ChatCompletion(ctx, ChatRequest{
-		Model: e.model,
-		Messages: []ChatMessage{{
-			Role:    "user",
-			Content: string(body),
-		}},
-	})
-
-	// This is a simplified version - actual implementation would call /embeddings endpoint
-	// For now, fall back to simple embedder
-	if err != nil || resp == nil {
-		simple := NewSimpleEmbedder(e.dimension)
-		return simple.Embed(ctx, texts)
-	}
-
-	return nil, fmt.Errorf("not implemented")
+	// Note: For embedding, we use the embedding endpoint directly
+	// For now, fall back to simple embedder since Chat doesn't support embeddings
+	_ = body
+	simple := NewSimpleEmbedder(e.dimension)
+	return simple.Embed(ctx, texts)
 }
 
 func (e *OpenAIEmbedder) Dimension() int {
@@ -637,7 +626,7 @@ func (p *RAGPipeline) Query(ctx context.Context, roomID string, query string, to
 	ragContext := strings.Join(contextParts, "\n\n")
 
 	// Generate response with context
-	messages := []ChatMessage{
+	messages := []Message{
 		{
 			Role: "system",
 			Content: `You are an expert on Blood on the Clocktower game rules. 
@@ -651,11 +640,7 @@ If the context doesn't contain enough information, say so.`,
 		},
 	}
 
-	resp, err := p.router.ChatCompletion(ctx, "rules", ChatRequest{
-		Messages:    messages,
-		MaxTokens:   500,
-		Temperature: 0.3,
-	})
+	resp, err := p.router.Chat(ctx, "rules", messages, nil)
 	if err != nil {
 		return nil, fmt.Errorf("generate response: %w", err)
 	}

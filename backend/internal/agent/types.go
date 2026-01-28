@@ -72,7 +72,7 @@ type Plan struct {
 type Observation struct {
 	RoomID       string         `json:"room_id"`
 	Results      []ActionResult `json:"results"`
-	NewEvents    []Event        `json:"new_events"`
+	NewEvents    []GameEvent    `json:"new_events"`
 	StateChanged bool           `json:"state_changed"`
 	Timestamp    time.Time      `json:"timestamp"`
 }
@@ -86,8 +86,8 @@ type Reflection struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// Event represents a game event
-type Event struct {
+// GameEvent represents a game event in types.go (distinct from Event in autodm.go)
+type GameEvent struct {
 	RoomID    string          `json:"room_id"`
 	Seq       int64           `json:"seq"`
 	EventID   string          `json:"event_id"`
@@ -135,7 +135,7 @@ type AgentContext struct {
 	RoomID        string
 	RunID         string
 	Phase         Phase
-	RecentEvents  []Event
+	RecentEvents  []GameEvent
 	PendingInputs []PendingInput
 	Timers        map[string]time.Time
 	MemoryContext *MemoryContext
@@ -153,7 +153,7 @@ type PendingInput struct {
 
 // MemoryContext holds memory-related context for agent execution
 type MemoryContext struct {
-	ShortTerm    []Event                `json:"short_term"`
+	ShortTerm    []GameEvent            `json:"short_term"`
 	LongTerm     []MemoryEntry          `json:"long_term"`
 	PlayerModels map[string]PlayerModel `json:"player_models,omitempty"`
 	GameSummary  string                 `json:"game_summary,omitempty"`

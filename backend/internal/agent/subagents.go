@@ -239,7 +239,7 @@ func (a *RulesAgent) Execute(ctx context.Context, agentCtx *AgentContext) (*Agen
 				}
 
 				// Generate response using LLM
-				messages := []ChatMessage{
+				messages := []Message{
 					{
 						Role: "system",
 						Content: `You are an expert Blood on the Clocktower rules judge.
@@ -254,11 +254,7 @@ If the rules are unclear, explain the most common interpretation.`,
 					},
 				}
 
-				resp, err := a.router.ChatCompletion(ctx, "rules", ChatRequest{
-					Messages:    messages,
-					MaxTokens:   300,
-					Temperature: 0.2,
-				})
+				resp, err := a.router.Chat(ctx, "rules", messages, nil)
 
 				if err == nil && len(resp.Choices) > 0 {
 					response = resp.Choices[0].Message.Content
@@ -351,7 +347,7 @@ func (a *NarratorAgent) Execute(ctx context.Context, agentCtx *AgentContext) (*A
 }
 
 func (a *NarratorAgent) generateGameStartNarration(ctx context.Context, agentCtx *AgentContext) string {
-	messages := []ChatMessage{
+	messages := []Message{
 		{
 			Role: "system",
 			Content: `You are a dramatic storyteller for Blood on the Clocktower.
@@ -365,11 +361,7 @@ Keep it under 100 words. Use evocative language about the village, darkness, and
 		},
 	}
 
-	resp, err := a.router.ChatCompletion(ctx, "narrator", ChatRequest{
-		Messages:    messages,
-		MaxTokens:   150,
-		Temperature: 0.9,
-	})
+	resp, err := a.router.Chat(ctx, "narrator", messages, nil)
 
 	if err != nil || len(resp.Choices) == 0 {
 		return "🌑 **Night falls upon the village...**\n\nA sinister presence lurks among you. One of your number is not what they seem. Trust no one completely. The fate of the village rests in your hands. Let the game begin!"
@@ -379,7 +371,7 @@ Keep it under 100 words. Use evocative language about the village, darkness, and
 }
 
 func (a *NarratorAgent) generateDawnNarration(ctx context.Context, agentCtx *AgentContext) string {
-	messages := []ChatMessage{
+	messages := []Message{
 		{
 			Role: "system",
 			Content: `You are a dramatic storyteller. Generate a brief (2-3 sentences) dawn announcement.
@@ -392,11 +384,7 @@ Keep it atmospheric and suspenseful.`,
 		},
 	}
 
-	resp, err := a.router.ChatCompletion(ctx, "narrator", ChatRequest{
-		Messages:    messages,
-		MaxTokens:   100,
-		Temperature: 0.8,
-	})
+	resp, err := a.router.Chat(ctx, "narrator", messages, nil)
 
 	if err != nil || len(resp.Choices) == 0 {
 		return "☀️ **Dawn breaks over the village.**\n\nThe survivors emerge from their homes, wary eyes scanning for signs of evil. The debate begins anew."
@@ -409,7 +397,7 @@ func (a *NarratorAgent) generateNightfallNarration(ctx context.Context, agentCtx
 	return "🌙 **Night descends upon the village.**\n\nClose your eyes and await your fate. Dark powers stir in the shadows, and the creatures of the night begin their work..."
 }
 
-func (a *NarratorAgent) generateExecutionNarration(ctx context.Context, agentCtx *AgentContext, event Event) string {
+func (a *NarratorAgent) generateExecutionNarration(ctx context.Context, agentCtx *AgentContext, event GameEvent) string {
 	var payload map[string]string
 	json.Unmarshal(event.Payload, &payload)
 
@@ -422,7 +410,7 @@ func (a *NarratorAgent) generateExecutionNarration(ctx context.Context, agentCtx
 	return fmt.Sprintf("🛡️ **The vote concludes.**\n\n%s has been spared. For now, they remain among the living.", nominee)
 }
 
-func (a *NarratorAgent) generateGameEndNarration(ctx context.Context, agentCtx *AgentContext, event Event) string {
+func (a *NarratorAgent) generateGameEndNarration(ctx context.Context, agentCtx *AgentContext, event GameEvent) string {
 	var payload map[string]string
 	json.Unmarshal(event.Payload, &payload)
 
@@ -478,7 +466,7 @@ func (a *SummarizerAgent) Execute(ctx context.Context, agentCtx *AgentContext) (
 	// Build events summary
 	eventsSummary := a.buildEventsSummary(agentCtx)
 
-	messages := []ChatMessage{
+	messages := []Message{
 		{
 			Role: "system",
 			Content: `You are a game summarizer for Blood on the Clocktower.
@@ -492,11 +480,7 @@ Keep it under 150 words and use bullet points.`,
 		},
 	}
 
-	resp, err := a.router.ChatCompletion(ctx, "summarizer", ChatRequest{
-		Messages:    messages,
-		MaxTokens:   200,
-		Temperature: 0.3,
-	})
+	resp, err := a.router.Chat(ctx, "summarizer", messages, nil)
 
 	if err != nil || len(resp.Choices) == 0 {
 		return output, nil

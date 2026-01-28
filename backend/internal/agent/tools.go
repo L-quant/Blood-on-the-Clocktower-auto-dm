@@ -18,11 +18,6 @@ type GameTools struct {
 	state      func() engine.State
 }
 
-// CommandDispatcher dispatches commands to the game engine.
-type CommandDispatcher interface {
-	DispatchAsync(cmd types.CommandEnvelope) error
-}
-
 // NewGameTools creates a new GameTools instance.
 func NewGameTools(dispatcher CommandDispatcher, stateGetter func() engine.State) *GameTools {
 	return &GameTools{

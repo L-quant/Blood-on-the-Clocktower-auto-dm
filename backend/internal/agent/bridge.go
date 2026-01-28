@@ -17,7 +17,7 @@ type RoomBridge struct {
 // RoomManagerInterface defines the interface for room management
 type RoomManagerInterface interface {
 	GetState(ctx context.Context, roomID string) (*RoomState, error)
-	GetEvents(ctx context.Context, roomID string, afterSeq int64, limit int) ([]Event, error)
+	GetEvents(ctx context.Context, roomID string, afterSeq int64, limit int) ([]GameEvent, error)
 	SendCommand(ctx context.Context, roomID string, cmd Command) error
 }
 
@@ -285,7 +285,7 @@ func (b *RoomBridge) TTSNarrate(ctx context.Context, text, voice string) (json.R
 // MockRoomManager is a mock implementation for testing
 type MockRoomManager struct {
 	state    *RoomState
-	events   []Event
+	events   []GameEvent
 	commands []Command
 }
 
@@ -299,7 +299,7 @@ func NewMockRoomManager() *MockRoomManager {
 			Timers:   make(map[string]time.Time),
 			Metadata: make(map[string]interface{}),
 		},
-		events:   make([]Event, 0),
+		events:   make([]GameEvent, 0),
 		commands: make([]Command, 0),
 	}
 }
@@ -308,8 +308,8 @@ func (m *MockRoomManager) GetState(ctx context.Context, roomID string) (*RoomSta
 	return m.state, nil
 }
 
-func (m *MockRoomManager) GetEvents(ctx context.Context, roomID string, afterSeq int64, limit int) ([]Event, error) {
-	var result []Event
+func (m *MockRoomManager) GetEvents(ctx context.Context, roomID string, afterSeq int64, limit int) ([]GameEvent, error) {
+	var result []GameEvent
 	for _, e := range m.events {
 		if e.Seq > afterSeq {
 			result = append(result, e)
@@ -325,7 +325,7 @@ func (m *MockRoomManager) SendCommand(ctx context.Context, roomID string, cmd Co
 	m.commands = append(m.commands, cmd)
 
 	// Simulate event generation
-	event := Event{
+	event := GameEvent{
 		RoomID:    roomID,
 		Seq:       int64(len(m.events) + 1),
 		EventID:   uuid.NewString(),
@@ -371,7 +371,7 @@ func (m *MockRoomManager) SetPhase(phase Phase) {
 // AddEvent adds an event
 func (m *MockRoomManager) AddEvent(eventType string, actorID string, payload map[string]string) {
 	payloadJSON, _ := json.Marshal(payload)
-	m.events = append(m.events, Event{
+	m.events = append(m.events, GameEvent{
 		RoomID:    m.state.RoomID,
 		Seq:       int64(len(m.events) + 1),
 		EventID:   uuid.NewString(),
