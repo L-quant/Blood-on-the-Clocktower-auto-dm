@@ -141,7 +141,7 @@ func (r *Runner) runS10FullGameFlow(ctx context.Context) (ScenarioResult, error)
 
 	// 3. Simulate some game actions based on current phase
 	// Note: Actual game flow depends on rules implementation
-	
+
 	// Send public chat messages
 	for i := 0; i < 3; i++ {
 		for j := 0; j < numPlayers; j++ {
@@ -155,7 +155,7 @@ func (r *Runner) runS10FullGameFlow(ctx context.Context) (ScenarioResult, error)
 
 	// 4. Collect all events
 	time.Sleep(2 * time.Second)
-	
+
 	eventsResp, err := r.httpClient.GetEvents(ctx, tokens[0], roomID, 0)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("get events failed: %v", err))
@@ -260,7 +260,7 @@ func (r *Runner) runS11ChaosTest(ctx context.Context) (ScenarioResult, error) {
 						ws.Close()
 						atomic.AddInt64(&totalDisconnects, 1)
 					}
-					
+
 					ws = NewWSClient(r.cfg.TargetWS, tokens[idx])
 					if err := ws.Connect(ctx); err != nil {
 						atomic.AddInt64(&totalErrors, 1)
@@ -281,14 +281,14 @@ func (r *Runner) runS11ChaosTest(ctx context.Context) (ScenarioResult, error) {
 					if ws != nil {
 						cmdTypes := []string{"public_chat", "join", "ping"}
 						cmdType := cmdTypes[rng.Intn(len(cmdTypes))]
-						
+
 						idempotencyKey := fmt.Sprintf("chaos_%d_%d_%d", idx, time.Now().UnixNano(), rng.Int())
-						
+
 						var data interface{}
 						if cmdType == "public_chat" {
 							data = map[string]string{"message": fmt.Sprintf("chaos %d", rng.Int())}
 						}
-						
+
 						if err := ws.SendCommand(ctx, roomID, cmdType, idempotencyKey, data); err != nil {
 							atomic.AddInt64(&totalErrors, 1)
 						} else {
@@ -314,7 +314,7 @@ func (r *Runner) runS11ChaosTest(ctx context.Context) (ScenarioResult, error) {
 
 	// Get final events to validate consistency
 	eventsResp, _ := r.httpClient.GetEvents(context.Background(), tokens[0], roomID, 0)
-	
+
 	var totalEvents int
 	var seqMonotonic bool = true
 	if eventsResp != nil {

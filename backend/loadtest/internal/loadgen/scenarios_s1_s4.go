@@ -48,7 +48,7 @@ func (r *Runner) runS1WSHandshakeStorm(ctx context.Context) (ScenarioResult, err
 
 			start := time.Now()
 			ws := NewWSClient(r.cfg.TargetWS, tokens[idx])
-			
+
 			if err := ws.Connect(ctx); err != nil {
 				atomic.AddInt64(&failCount, 1)
 				return

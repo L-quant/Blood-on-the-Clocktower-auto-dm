@@ -147,11 +147,11 @@ func (v *CorrectnessValidator) ValidateGamePhaseTransitions(phases []string) Gam
 
 	// Valid phase sequence: lobby -> night -> day -> (night -> day)* -> ended
 	validTransitions := map[string][]string{
-		"":       {"lobby"},
-		"lobby":  {"night", "ended"},
-		"night":  {"day", "ended"},
-		"day":    {"night", "ended"},
-		"ended":  {},
+		"":      {"lobby"},
+		"lobby": {"night", "ended"},
+		"night": {"day", "ended"},
+		"day":   {"night", "ended"},
+		"ended": {},
 	}
 
 	prev := ""
@@ -194,7 +194,7 @@ func (v *CorrectnessValidator) CalculateLatencyStats(latencies []int64) (max, p9
 
 	// Calculate stats
 	max = sorted[len(sorted)-1]
-	
+
 	p99Idx := int(float64(len(sorted)) * 0.99)
 	if p99Idx >= len(sorted) {
 		p99Idx = len(sorted) - 1

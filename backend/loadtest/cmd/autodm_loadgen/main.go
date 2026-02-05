@@ -19,17 +19,17 @@ import (
 func main() {
 	// Parse command line flags
 	var (
-		scenario          = flag.String("scenario", "", "Specific scenario to run (S1-S11), empty for all")
-		users             = flag.Int("users", 10, "Number of concurrent users")
-		duration          = flag.Duration("duration", 30*time.Second, "Test duration")
-		target            = flag.String("target", "http://localhost:8080", "Target HTTP server")
-		wsTarget          = flag.String("ws-target", "ws://localhost:8080/ws", "Target WebSocket server")
-		outputFile        = flag.String("output", "", "Output report file (default: loadtest_report_{timestamp}.json)")
-		verbose           = flag.Bool("verbose", false, "Verbose output")
-		listScenarios     = flag.Bool("list", false, "List all available scenarios")
+		scenario             = flag.String("scenario", "", "Specific scenario to run (S1-S11), empty for all")
+		users                = flag.Int("users", 10, "Number of concurrent users")
+		duration             = flag.Duration("duration", 30*time.Second, "Test duration")
+		target               = flag.String("target", "http://localhost:8080", "Target HTTP server")
+		wsTarget             = flag.String("ws-target", "ws://localhost:8080/ws", "Target WebSocket server")
+		outputFile           = flag.String("output", "", "Output report file (default: loadtest_report_{timestamp}.json)")
+		verbose              = flag.Bool("verbose", false, "Verbose output")
+		listScenarios        = flag.Bool("list", false, "List all available scenarios")
 		geminiMaxConcurrency = flag.Int("gemini-max-concurrency", 5, "Max concurrent Gemini requests")
-		geminiRPSLimit    = flag.Int("gemini-rps-limit", 10, "Gemini requests per second limit")
-		geminiRequestBudget = flag.Int("gemini-request-budget", 100, "Total Gemini request budget")
+		geminiRPSLimit       = flag.Int("gemini-rps-limit", 10, "Gemini requests per second limit")
+		geminiRequestBudget  = flag.Int("gemini-request-budget", 100, "Total Gemini request budget")
 	)
 	flag.Parse()
 

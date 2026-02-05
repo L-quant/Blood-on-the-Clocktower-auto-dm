@@ -345,7 +345,7 @@ func (r *Runner) runS8ReconnectSeqGap(ctx context.Context) (ScenarioResult, erro
 
 	// Collect events to get last seq
 	phase1Events, _ := ws1.WaitForEvents(ctx, 5, 5*time.Second)
-	
+
 	var lastSeq int64
 	for _, ev := range phase1Events {
 		if ev.Seq > lastSeq {
