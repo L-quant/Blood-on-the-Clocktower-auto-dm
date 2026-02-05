@@ -73,6 +73,39 @@ func (s *Store) LoadEventsAfter(ctx context.Context, roomID string, afterSeq int
 	return res, rows.Err()
 }
 
+func (s *Store) LoadEventsUpTo(ctx context.Context, roomID string, toSeq int64) ([]StoredEvent, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
+	if toSeq > 0 {
+		rows, err = s.DB.QueryContext(ctx,
+			`SELECT room_id,seq,event_id,event_type,actor_user_id,causation_command_id,payload_json,server_ts
+			 FROM events WHERE room_id=? AND seq<=? ORDER BY seq ASC`,
+			roomID, toSeq)
+	} else {
+		rows, err = s.DB.QueryContext(ctx,
+			`SELECT room_id,seq,event_id,event_type,actor_user_id,causation_command_id,payload_json,server_ts
+			 FROM events WHERE room_id=? ORDER BY seq ASC`,
+			roomID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []StoredEvent
+	for rows.Next() {
+		var e StoredEvent
+		if err := rows.Scan(&e.RoomID, &e.Seq, &e.EventID, &e.EventType, &e.ActorUserID, &e.CausationCommand, &e.PayloadJSON, &e.ServerTime); err != nil {
+			return nil, err
+		}
+		res = append(res, e)
+	}
+	return res, rows.Err()
+}
+
 func (s *Store) AppendEvents(ctx context.Context, roomID string, events []StoredEvent, dedup *DedupRecord, snap *Snapshot) error {
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		var current int64

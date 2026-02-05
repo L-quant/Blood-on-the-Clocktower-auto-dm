@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/realtime"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/room"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/store"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
 
 	_ "github.com/qingchang/Blood-on-the-Clocktower-auto-dm/docs" // Import swagger docs
 )
@@ -89,11 +92,6 @@ func main() {
 		} else {
 			logger.Info("Task queue connected", zap.String("url", cfg.RabbitMQURL))
 			defer taskQueue.Close()
-
-			// Start consuming tasks
-			if err := taskQueue.Start(ctx); err != nil {
-				logger.Error("Failed to start task queue", zap.Error(err))
-			}
 		}
 	}
 
@@ -132,7 +130,53 @@ func main() {
 			zap.String("base_url", cfg.AutoDMLLMBaseURL))
 	}
 
-	roomMgr := room.NewRoomManager(st, logger, metrics, cfg.SnapshotInterval, autoDM)
+	roomMgr := room.NewRoomManager(ctx, st, logger, metrics, cfg.SnapshotInterval, autoDM)
+	defer roomMgr.Close()
+	if autoDM.Enabled() {
+		autoDM.SetDispatcher(roomMgr, nil)
+		autoDM.Start()
+		defer autoDM.Stop()
+	}
+
+	if taskQueue != nil {
+		taskQueue.RegisterHandler("autodm_event", func(ctx context.Context, task queue.Task) (map[string]interface{}, error) {
+			raw, ok := task.Data["event"]
+			if !ok {
+				return nil, fmt.Errorf("task data missing event field")
+			}
+
+			var eventJSON []byte
+			switch v := raw.(type) {
+			case string:
+				eventJSON = []byte(v)
+			default:
+				b, err := json.Marshal(v)
+				if err != nil {
+					return nil, err
+				}
+				eventJSON = b
+			}
+
+			var ev types.Event
+			if err := json.Unmarshal(eventJSON, &ev); err != nil {
+				return nil, err
+			}
+			if err := autoDM.ProcessQueuedEvent(ctx, ev); err != nil {
+				return nil, err
+			}
+
+			return map[string]interface{}{
+				"status": "processed",
+				"room":   ev.RoomID,
+				"type":   ev.EventType,
+			}, nil
+		})
+
+		if err := taskQueue.Start(ctx); err != nil {
+			logger.Error("Failed to start task queue", zap.Error(err))
+		}
+	}
+
 	wsServer := realtime.NewWSServer(jwtMgr, st, roomMgr, logger, metrics)
 	server := api.NewServer(st, jwtMgr, roomMgr, wsServer, logger)
 
@@ -180,9 +224,25 @@ type taskQueueAdapterImpl struct {
 }
 
 func (a *taskQueueAdapterImpl) Publish(ctx context.Context, task interface{}) error {
-	t, ok := task.(queue.Task)
-	if !ok {
+	switch t := task.(type) {
+	case queue.Task:
+		return a.q.Publish(ctx, t)
+	case agent.AsyncEventTask:
+		eventJSON, err := json.Marshal(t.Event)
+		if err != nil {
+			return err
+		}
+		qt := queue.Task{
+			ID:        uuid.NewString(),
+			Type:      t.Type,
+			RoomID:    t.RoomID,
+			Data:      map[string]interface{}{"event": string(eventJSON)},
+			Priority:  7,
+			CreatedAt: time.Now().UTC(),
+			MaxRetry:  3,
+		}
+		return a.q.Publish(ctx, qt)
+	default:
 		return fmt.Errorf("invalid task type")
 	}
-	return a.q.Publish(ctx, t)
 }

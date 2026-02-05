@@ -52,6 +52,8 @@ func HandleCommand(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		return handleAbility(state, cmd)
 	case "advance_phase":
 		return handleAdvancePhase(state, cmd)
+	case "write_event":
+		return handleWriteEvent(state, cmd)
 	case "slayer_shot":
 		return handleSlayerShot(state, cmd)
 	default:
@@ -535,6 +537,43 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 	events = append(events, winEvents...)
 
 	return events, acceptedResult(cmd.CommandID), nil
+}
+
+func handleWriteEvent(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	if cmd.ActorUserID != "autodm" && cmd.ActorUserID != "auto-dm" {
+		player, ok := state.Players[cmd.ActorUserID]
+		if !ok || !player.IsDM {
+			return nil, nil, fmt.Errorf("only DM or AutoDM can write custom events")
+		}
+	}
+
+	var payload struct {
+		EventType string                 `json:"event_type"`
+		Data      map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+		return nil, nil, fmt.Errorf("invalid write_event payload: %w", err)
+	}
+	if payload.EventType == "" {
+		return nil, nil, fmt.Errorf("event_type required")
+	}
+
+	data := make(map[string]string, len(payload.Data))
+	for k, v := range payload.Data {
+		switch vv := v.(type) {
+		case string:
+			data[k] = vv
+		default:
+			b, err := json.Marshal(v)
+			if err != nil {
+				data[k] = fmt.Sprint(v)
+				continue
+			}
+			data[k] = string(b)
+		}
+	}
+
+	return []types.Event{newEvent(cmd, payload.EventType, data)}, acceptedResult(cmd.CommandID), nil
 }
 
 func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {

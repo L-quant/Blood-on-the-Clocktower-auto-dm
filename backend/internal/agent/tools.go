@@ -226,12 +226,11 @@ func (t *GameTools) advancePhase(ctx context.Context, args json.RawMessage, room
 		return nil, err
 	}
 
-	eventType := "phase." + a.ToPhase
 	cmd := types.CommandEnvelope{
 		RoomID:      roomID,
-		Type:        eventType,
+		Type:        "advance_phase",
 		ActorUserID: "autodm",
-		Payload:     json.RawMessage(fmt.Sprintf(`{"reason": %q}`, a.Reason)),
+		Payload:     json.RawMessage(fmt.Sprintf(`{"phase": %q, "reason": %q}`, a.ToPhase, a.Reason)),
 	}
 
 	if err := t.dispatcher.DispatchAsync(cmd); err != nil {

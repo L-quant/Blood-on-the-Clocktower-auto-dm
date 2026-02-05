@@ -53,14 +53,26 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"strings"
 	"sync"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/core"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/llm"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/memory"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/tools"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/engine"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/mcp"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
+)
+
+const (
+	autoDMEventTaskType = "autodm_event"
+	defaultEventTimeout = 8 * time.Second
 )
 
 // AutoDM is the main Auto-DM agent.
@@ -71,6 +83,10 @@ type AutoDM struct {
 	enabled      bool
 	dispatcher   CommandDispatcher
 	stateGetter  func() interface{}
+	retriever    RuleRetriever
+	taskQueue    TaskQueue
+	eventTimeout time.Duration
+	mcpRegistry  *mcp.Registry
 }
 
 // CommandDispatcher dispatches commands to the game engine.
@@ -100,6 +116,13 @@ type TaskQueue interface {
 	Publish(ctx context.Context, task interface{}) error
 }
 
+// AsyncEventTask is the payload published to RabbitMQ for out-of-band AutoDM processing.
+type AsyncEventTask struct {
+	Type   string
+	RoomID string
+	Event  types.Event
+}
+
 // Config configures the Auto-DM.
 type Config struct {
 	RoomID    string
@@ -116,6 +139,10 @@ func NewAutoDM(cfg Config) *AutoDM {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	eventTimeout := cfg.LLM.Default.Timeout
+	if eventTimeout <= 0 {
+		eventTimeout = defaultEventTimeout
+	}
 
 	orch := core.New(core.Config{
 		RoomID:       cfg.RoomID,
@@ -124,11 +151,16 @@ func NewAutoDM(cfg Config) *AutoDM {
 		Logger:       cfg.Logger,
 	})
 
-	return &AutoDM{
+	a := &AutoDM{
 		orchestrator: orch,
 		logger:       cfg.Logger,
 		enabled:      cfg.Enabled,
+		retriever:    cfg.Retriever,
+		taskQueue:    cfg.TaskQueue,
+		eventTimeout: eventTimeout,
 	}
+	a.initMCPRegistry()
+	return a
 }
 
 // Enabled returns whether the Auto-DM is enabled.
@@ -296,21 +328,65 @@ func (a *AutoDM) OnEvent(ctx context.Context, ev types.Event, state interface{})
 	if !a.Enabled() {
 		return
 	}
-
-	// Convert types.Event to agent.Event
-	event := a.convertEvent(ev)
-
-	// Process the event
-	resp, err := a.ProcessEvent(ctx, event)
-	if err != nil {
-		a.logger.Error("AutoDM failed to process event", "error", err, "event_type", ev.EventType)
+	if (ev.ActorUserID == "autodm" || ev.ActorUserID == "auto-dm") &&
+		(ev.EventType == "public.chat" || ev.EventType == "whisper.sent") {
 		return
 	}
+	a.updateGameStateFromEngineState(state)
 
-	// If we have a response that should be spoken, dispatch a chat command
+	if a.publishAsyncTask(ctx, ev) {
+		return
+	}
+	if err := a.ProcessQueuedEvent(ctx, ev); err != nil {
+		a.logger.Error("AutoDM failed to process event", "error", err, "event_type", ev.EventType)
+	}
+}
+
+// ProcessQueuedEvent executes an event that was dequeued by RabbitMQ workers.
+// It bypasses queue publish to avoid enqueue loops.
+func (a *AutoDM) ProcessQueuedEvent(ctx context.Context, ev types.Event) error {
+	if !a.Enabled() {
+		return nil
+	}
+
+	event := a.convertEvent(ev)
+	a.injectRuleContext(ctx, &event)
+
+	processCtx, cancel := context.WithTimeout(ctx, a.eventTimeout)
+	defer cancel()
+
+	resp, err := a.ProcessEvent(processCtx, event)
+	if err != nil {
+		if fallback := defaultMessageForEvent(ev.EventType); fallback != "" {
+			a.sendMessage(ctx, ev.RoomID, fallback)
+		}
+		return err
+	}
+
 	if resp != nil && resp.ShouldSpeak && resp.Message != "" {
 		a.sendMessage(ctx, ev.RoomID, resp.Message)
 	}
+	return nil
+}
+
+func (a *AutoDM) publishAsyncTask(ctx context.Context, ev types.Event) bool {
+	a.mu.RLock()
+	taskQueue := a.taskQueue
+	a.mu.RUnlock()
+	if taskQueue == nil {
+		return false
+	}
+
+	task := AsyncEventTask{
+		Type:   autoDMEventTaskType,
+		RoomID: ev.RoomID,
+		Event:  ev,
+	}
+	if err := taskQueue.Publish(ctx, task); err != nil {
+		a.logger.Warn("failed to enqueue AutoDM event task, falling back to inline processing", "error", err, "event_type", ev.EventType)
+		return false
+	}
+	return true
 }
 
 func (a *AutoDM) convertEvent(ev types.Event) Event {
@@ -328,16 +404,30 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 
 	// Map event types to our internal types
 	switch ev.EventType {
-	case "phase.night", "phase.day":
+	case "phase.first_night":
 		event.Type = "phase_change"
-		event.Data["new_phase"] = ev.EventType
+		event.Data["new_phase"] = "night"
+		event.Data["night_type"] = "first_night"
+	case "phase.night":
+		event.Type = "phase_change"
+		event.Data["new_phase"] = "night"
+	case "phase.day":
+		event.Type = "phase_change"
+		event.Data["new_phase"] = "day"
+	case "phase.nomination":
+		event.Type = "phase_change"
+		event.Data["new_phase"] = "nomination"
 	case "nomination.created":
 		event.Type = "nomination"
+		event.Data["nominator"] = ev.ActorUserID
 	case "vote.cast":
 		event.Type = "vote"
 	case "execution.resolved":
 		event.Type = "death"
 		event.Data["cause"] = "execution"
+		if executed, ok := event.Data["executed"]; ok {
+			event.Data["player_name"] = executed
+		}
 	case "game.started", "game.ended":
 		event.Type = "phase_change"
 	}
@@ -348,12 +438,80 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 	return event
 }
 
+func (a *AutoDM) injectRuleContext(ctx context.Context, event *Event) {
+	if event == nil {
+		return
+	}
+	a.mu.RLock()
+	retriever := a.retriever
+	a.mu.RUnlock()
+	if retriever == nil {
+		return
+	}
+
+	query := buildRuleQuery(*event)
+	if query == "" {
+		return
+	}
+
+	retrieveCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+
+	results, err := retriever.Retrieve(retrieveCtx, query, 2)
+	if err != nil || len(results) == 0 {
+		return
+	}
+
+	snippets := make([]string, 0, len(results))
+	for _, r := range results {
+		content := strings.TrimSpace(r.Content)
+		if content == "" {
+			continue
+		}
+		if len(content) > 180 {
+			content = content[:180] + "..."
+		}
+		snippets = append(snippets, content)
+	}
+	if len(snippets) == 0 {
+		return
+	}
+
+	event.Data["rule_context"] = snippets
+	event.Description = event.Description + "\nRelevant rule context:\n- " + strings.Join(snippets, "\n- ")
+}
+
+func buildRuleQuery(event Event) string {
+	switch event.Type {
+	case "phase_change":
+		if nightType, ok := event.Data["night_type"].(string); ok && nightType == "first_night" {
+			return "first night setup rules in Blood on the Clocktower"
+		}
+		if phase, ok := event.Data["new_phase"].(string); ok && phase != "" {
+			return "phase transition to " + phase + " in Blood on the Clocktower"
+		}
+		return "phase transition in Blood on the Clocktower"
+	case "nomination":
+		return "nomination and voting rules in Blood on the Clocktower"
+	case "vote":
+		return "voting threshold and ghost vote rules in Blood on the Clocktower"
+	case "death":
+		return "execution and death resolution rules in Blood on the Clocktower"
+	default:
+		return ""
+	}
+}
+
 func formatEventDescription(eventType string, data map[string]interface{}) string {
 	switch eventType {
+	case "phase.first_night":
+		return "First night phase begins"
 	case "phase.night":
 		return "Night phase begins"
 	case "phase.day":
 		return "Day phase begins"
+	case "phase.nomination":
+		return "Nomination phase begins"
 	case "nomination.created":
 		return "A nomination has been made"
 	case "vote.cast":
@@ -370,58 +528,467 @@ func formatEventDescription(eventType string, data map[string]interface{}) strin
 }
 
 func (a *AutoDM) sendMessage(ctx context.Context, roomID, message string) {
-	a.mu.RLock()
-	dispatcher := a.dispatcher
-	a.mu.RUnlock()
-
-	if dispatcher == nil {
+	if strings.TrimSpace(message) == "" || strings.TrimSpace(roomID) == "" {
 		return
 	}
 
-	cmd := types.CommandEnvelope{
-		RoomID:      roomID,
-		Type:        "chat.send",
-		ActorUserID: "auto-dm",
-		CommandID:   generateCommandID(),
-		Payload:     json.RawMessage(`{"message":"` + escapeJSON(message) + `","from":"auto-dm"}`),
+	a.mu.RLock()
+	registry := a.mcpRegistry
+	a.mu.RUnlock()
+	if registry != nil {
+		params, _ := json.Marshal(map[string]string{
+			"room_id": roomID,
+			"message": message,
+		})
+		result := registry.Invoke(ctx, mcp.ToolCall{
+			ID:         generateCommandID(),
+			ToolName:   "send_public_message",
+			Parameters: params,
+			Timestamp:  time.Now().UnixMilli(),
+		})
+		if result.Success {
+			return
+		}
+		a.logger.Error("MCP send_public_message failed", "error", result.Error)
 	}
 
-	if err := dispatcher.DispatchAsync(cmd); err != nil {
+	payload, _ := json.Marshal(map[string]string{
+		"message": message,
+		"from":    "auto-dm",
+	})
+	cmdID := generateCommandID()
+	cmd := types.CommandEnvelope{
+		CommandID:      cmdID,
+		IdempotencyKey: cmdID,
+		RoomID:         roomID,
+		Type:           "public_chat",
+		ActorUserID:    "autodm",
+		Payload:        payload,
+	}
+
+	if err := a.dispatchCommand(cmd); err != nil {
 		a.logger.Error("Failed to send AutoDM message", "error", err)
 	}
 }
 
 func generateCommandID() string {
-	return "autodm-" + randomString(8)
+	return "autodm-" + uuid.NewString()
 }
 
-func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[i%len(letters)]
+func defaultMessageForEvent(eventType string) string {
+	switch eventType {
+	case "phase.day":
+		return "☀️ 天亮了，开始讨论并寻找隐藏的邪恶吧。"
+	case "phase.night":
+		return "🌙 夜幕降临，请等待夜晚行动结算。"
+	case "nomination.created":
+		return "📣 提名已发起，请进行陈述与投票。"
+	case "game.started":
+		return "🎲 游戏开始，愿好运站在你这边。"
+	case "game.ended":
+		return "🏁 对局结束，感谢各位参与。"
+	default:
+		return ""
 	}
-	return string(b)
 }
 
-func escapeJSON(s string) string {
-	// Simple JSON string escaping
-	result := ""
-	for _, c := range s {
-		switch c {
-		case '"':
-			result += `\"`
-		case '\\':
-			result += `\\`
-		case '\n':
-			result += `\n`
-		case '\r':
-			result += `\r`
-		case '\t':
-			result += `\t`
+func (a *AutoDM) dispatchCommand(cmd types.CommandEnvelope) error {
+	a.mu.RLock()
+	dispatcher := a.dispatcher
+	a.mu.RUnlock()
+	if dispatcher == nil {
+		return errors.New("AutoDM dispatcher is not configured")
+	}
+	return dispatcher.DispatchAsync(cmd)
+}
+
+func (a *AutoDM) initMCPRegistry() {
+	registry := mcp.NewRegistry()
+	minLen, maxLen := 1, 2000
+	phaseEnum := []string{"day", "night", "nomination"}
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "send_public_message",
+		Description: "Send a public message into a room",
+		Category:    mcp.CategoryCommunication,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"message": {
+				Type:      "string",
+				MinLength: &minLen,
+				MaxLength: &maxLen,
+			},
+		},
+		Required: []string{"room_id", "message"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID  string `json:"room_id"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		cmdID := generateCommandID()
+		payload, _ := json.Marshal(map[string]string{
+			"message": p.Message,
+			"from":    "auto-dm",
+		})
+		cmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "public_chat",
+			ActorUserID:    "autodm",
+			Payload:        payload,
+		}
+		if err := a.dispatchCommand(cmd); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "sent"}, nil
+	})
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "send_private_message",
+		Description: "Send a private whisper to one player",
+		Category:    mcp.CategoryCommunication,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"to_user_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"message": {
+				Type:      "string",
+				MinLength: &minLen,
+				MaxLength: &maxLen,
+			},
+		},
+		Required: []string{"room_id", "to_user_id", "message"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID   string `json:"room_id"`
+			ToUserID string `json:"to_user_id"`
+			Message  string `json:"message"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+
+		cmdID := generateCommandID()
+		payload, _ := json.Marshal(map[string]string{
+			"to_user_id": p.ToUserID,
+			"message":    p.Message,
+			"from":       "auto-dm",
+		})
+		cmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "whisper",
+			ActorUserID:    "autodm",
+			Payload:        payload,
+		}
+		if err := a.dispatchCommand(cmd); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "sent"}, nil
+	})
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "request_player_confirmation",
+		Description: "Ask a player to confirm or reject an action",
+		Category:    mcp.CategoryModeration,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"to_user_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"prompt": {
+				Type:      "string",
+				MinLength: &minLen,
+				MaxLength: &maxLen,
+			},
+		},
+		Required: []string{"room_id", "to_user_id", "prompt"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID   string `json:"room_id"`
+			ToUserID string `json:"to_user_id"`
+			Prompt   string `json:"prompt"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+
+		cmdID := generateCommandID()
+		whisperPayload, _ := json.Marshal(map[string]string{
+			"to_user_id": p.ToUserID,
+			"message":    "[确认请求] " + p.Prompt + "（回复 yes/no）",
+			"from":       "auto-dm",
+		})
+		whisperCmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "whisper",
+			ActorUserID:    "autodm",
+			Payload:        whisperPayload,
+		}
+		if err := a.dispatchCommand(whisperCmd); err != nil {
+			return nil, err
+		}
+
+		eventCmdID := generateCommandID()
+		eventPayload, _ := json.Marshal(map[string]interface{}{
+			"event_type": "confirmation.requested",
+			"data": map[string]string{
+				"to_user_id": p.ToUserID,
+				"prompt":     p.Prompt,
+			},
+		})
+		eventCmd := types.CommandEnvelope{
+			CommandID:      eventCmdID,
+			IdempotencyKey: eventCmdID,
+			RoomID:         p.RoomID,
+			Type:           "write_event",
+			ActorUserID:    "autodm",
+			Payload:        eventPayload,
+		}
+		if err := a.dispatchCommand(eventCmd); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "requested"}, nil
+	})
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "toggle_voting",
+		Description: "Enable or disable voting mode",
+		Category:    mcp.CategoryGameControl,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"enabled": {
+				Type: "boolean",
+			},
+			"reason": {
+				Type:      "string",
+				MinLength: &minLen,
+				MaxLength: &maxLen,
+			},
+		},
+		Required: []string{"room_id", "enabled"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID  string `json:"room_id"`
+			Enabled bool   `json:"enabled"`
+			Reason  string `json:"reason"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+
+		targetPhase := "day"
+		if p.Enabled {
+			targetPhase = "nomination"
+		}
+
+		cmdID := generateCommandID()
+		payload, _ := json.Marshal(map[string]string{
+			"phase":  targetPhase,
+			"reason": p.Reason,
+		})
+		cmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "advance_phase",
+			ActorUserID:    "autodm",
+			Payload:        payload,
+		}
+		if err := a.dispatchCommand(cmd); err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"status": "updated", "enabled": p.Enabled}, nil
+	})
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "advance_phase",
+		Description: "Advance game phase deterministically",
+		Category:    mcp.CategoryGameControl,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"phase": {
+				Type: "string",
+				Enum: phaseEnum,
+			},
+			"reason": {
+				Type:      "string",
+				MinLength: &minLen,
+				MaxLength: &maxLen,
+			},
+		},
+		Required: []string{"room_id", "phase"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID string `json:"room_id"`
+			Phase  string `json:"phase"`
+			Reason string `json:"reason"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+
+		cmdID := generateCommandID()
+		payload, _ := json.Marshal(map[string]string{
+			"phase":  p.Phase,
+			"reason": p.Reason,
+		})
+		cmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "advance_phase",
+			ActorUserID:    "autodm",
+			Payload:        payload,
+		}
+		if err := a.dispatchCommand(cmd); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "advanced", "phase": p.Phase}, nil
+	})
+
+	_ = registry.Register(mcp.ToolDefinition{
+		Name:        "write_event",
+		Description: "Write an auditable custom event into the immutable stream",
+		Category:    mcp.CategoryModeration,
+		Parameters: map[string]mcp.ParamSchema{
+			"room_id": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"event_type": {
+				Type:      "string",
+				MinLength: &minLen,
+			},
+			"data": {
+				Type: "object",
+			},
+		},
+		Required: []string{"room_id", "event_type"},
+	}, func(ctx context.Context, params json.RawMessage) (interface{}, error) {
+		var p struct {
+			RoomID    string                 `json:"room_id"`
+			EventType string                 `json:"event_type"`
+			Data      map[string]interface{} `json:"data"`
+		}
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, err
+		}
+		if p.Data == nil {
+			p.Data = map[string]interface{}{}
+		}
+
+		cmdID := generateCommandID()
+		payload, _ := json.Marshal(map[string]interface{}{
+			"event_type": p.EventType,
+			"data":       normalizeEventData(p.Data),
+		})
+		cmd := types.CommandEnvelope{
+			CommandID:      cmdID,
+			IdempotencyKey: cmdID,
+			RoomID:         p.RoomID,
+			Type:           "write_event",
+			ActorUserID:    "autodm",
+			Payload:        payload,
+		}
+		if err := a.dispatchCommand(cmd); err != nil {
+			return nil, err
+		}
+		return map[string]string{"status": "written", "event_type": p.EventType}, nil
+	})
+
+	a.mu.Lock()
+	a.mcpRegistry = registry
+	a.mu.Unlock()
+}
+
+func normalizeEventData(data map[string]interface{}) map[string]string {
+	normalized := make(map[string]string, len(data))
+	for k, v := range data {
+		switch vv := v.(type) {
+		case string:
+			normalized[k] = vv
 		default:
-			result += string(c)
+			b, err := json.Marshal(v)
+			if err != nil {
+				continue
+			}
+			normalized[k] = string(b)
 		}
 	}
-	return result
+	return normalized
+}
+
+func (a *AutoDM) updateGameStateFromEngineState(raw interface{}) {
+	state, ok := raw.(engine.State)
+	if !ok {
+		return
+	}
+
+	gs := &GameState{
+		RoomID:      state.RoomID,
+		Phase:       string(state.Phase),
+		DayNumber:   state.DayCount,
+		Edition:     state.Edition,
+		IsStarted:   state.Phase != engine.PhaseLobby,
+		IsFinished:  state.Phase == engine.PhaseEnded,
+		Players:     make([]Player, 0, len(state.Players)),
+		Nominations: make([]Nomination, 0, len(state.NominationQueue)+1),
+	}
+
+	for _, p := range state.Players {
+		gs.Players = append(gs.Players, Player{
+			ID:        p.UserID,
+			Name:      p.Name,
+			Role:      p.Role,
+			IsAlive:   p.Alive,
+			HasVoted:  false,
+			Seat:      p.SeatNumber,
+			Reminders: p.Reminders,
+		})
+	}
+
+	for _, n := range state.NominationQueue {
+		gs.Nominations = append(gs.Nominations, Nomination{
+			Nominator: n.Nominator,
+			Nominee:   n.Nominee,
+			Votes:     n.VotesFor,
+			Threshold: n.Threshold,
+		})
+	}
+	if state.Nomination != nil && !state.Nomination.Resolved {
+		gs.Nominations = append(gs.Nominations, Nomination{
+			Nominator: state.Nomination.Nominator,
+			Nominee:   state.Nomination.Nominee,
+			Votes:     state.Nomination.VotesFor,
+			Threshold: state.Nomination.Threshold,
+		})
+	}
+
+	a.UpdateGameState(gs)
 }

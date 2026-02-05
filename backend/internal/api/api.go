@@ -331,16 +331,16 @@ func (s *Server) replay(w http.ResponseWriter, r *http.Request) {
 		toSeq, _ = strconv.ParseInt(q, 10, 64)
 	}
 	viewerParam := r.URL.Query().Get("viewer")
-	if viewerParam == "" {
-		viewerParam = userID
-	}
 	ok, role, _ := s.store.IsMember(r.Context(), roomID, userID)
 	if !ok {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	isDM := role == "dm"
-	events, _ := s.store.LoadEventsAfter(r.Context(), roomID, 0, int(toSeq))
+	if !isDM || viewerParam == "" {
+		viewerParam = userID
+	}
+	events, _ := s.store.LoadEventsUpTo(r.Context(), roomID, toSeq)
 	state := engine.NewState(roomID)
 	for _, e := range events {
 		var p map[string]string

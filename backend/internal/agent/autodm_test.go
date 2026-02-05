@@ -2,11 +2,13 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/llm"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/memory"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent/tools"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
 )
 
 // MockCommander implements GameCommander for testing.
@@ -90,22 +92,22 @@ func TestAutoDMCreation(t *testing.T) {
 			ShortTermCapacity: 50,
 		},
 	}
-	
+
 	dm := NewAutoDM(cfg)
-	
+
 	if dm == nil {
 		t.Fatal("Expected AutoDM to be created")
 	}
-	
+
 	if dm.IsActive() {
 		t.Error("Expected AutoDM to be inactive before Start()")
 	}
-	
+
 	dm.Start()
 	if !dm.IsActive() {
 		t.Error("Expected AutoDM to be active after Start()")
 	}
-	
+
 	dm.Stop()
 	if dm.IsActive() {
 		t.Error("Expected AutoDM to be inactive after Stop()")
@@ -122,9 +124,9 @@ func TestGameStateUpdate(t *testing.T) {
 			},
 		},
 	}
-	
+
 	dm := NewAutoDM(cfg)
-	
+
 	state := &GameState{
 		RoomID:    "test-room",
 		Phase:     "night",
@@ -135,7 +137,7 @@ func TestGameStateUpdate(t *testing.T) {
 		},
 		Edition: "trouble_brewing",
 	}
-	
+
 	// Should not panic
 	dm.UpdateGameState(state)
 }
@@ -149,7 +151,7 @@ func TestEventTypes(t *testing.T) {
 		{Type: "question", Description: "How does the Empath work?"},
 		{Type: "night_action", Description: "Imp chooses a target", Data: map[string]interface{}{"role": "Imp", "action": "kill"}},
 	}
-	
+
 	for _, e := range events {
 		if e.Type == "" {
 			t.Errorf("Event type should not be empty")
@@ -163,7 +165,7 @@ func TestEventTypes(t *testing.T) {
 func TestMockCommander(t *testing.T) {
 	ctx := context.Background()
 	mock := &MockCommander{}
-	
+
 	// Test SendMessage
 	err := mock.SendMessage(ctx, "room", "Hello")
 	if err != nil {
@@ -172,7 +174,7 @@ func TestMockCommander(t *testing.T) {
 	if len(mock.messages) != 1 || mock.messages[0] != "Hello" {
 		t.Errorf("Message not recorded correctly")
 	}
-	
+
 	// Test KillPlayer
 	err = mock.KillPlayer(ctx, "room", "p1")
 	if err != nil {
@@ -181,7 +183,7 @@ func TestMockCommander(t *testing.T) {
 	if len(mock.killed) != 1 || mock.killed[0] != "p1" {
 		t.Errorf("Kill not recorded correctly")
 	}
-	
+
 	// Test SetPhase
 	err = mock.SetPhase(ctx, "room", "night")
 	if err != nil {
@@ -190,7 +192,7 @@ func TestMockCommander(t *testing.T) {
 	if mock.phase != "night" {
 		t.Errorf("Phase not set correctly")
 	}
-	
+
 	// Test GetPlayers
 	players, err := mock.GetPlayers(ctx, "room")
 	if err != nil {
@@ -198,5 +200,93 @@ func TestMockCommander(t *testing.T) {
 	}
 	if len(players) != 3 {
 		t.Errorf("Expected 3 players, got %d", len(players))
+	}
+}
+
+type mockDispatcher struct {
+	commands []types.CommandEnvelope
+}
+
+func (m *mockDispatcher) DispatchAsync(cmd types.CommandEnvelope) error {
+	m.commands = append(m.commands, cmd)
+	return nil
+}
+
+type mockTaskQueue struct {
+	tasks []interface{}
+}
+
+func (m *mockTaskQueue) Publish(ctx context.Context, task interface{}) error {
+	m.tasks = append(m.tasks, task)
+	return nil
+}
+
+func TestAutoDMSendMessageUsesPublicChatCommand(t *testing.T) {
+	dm := NewAutoDM(Config{
+		Enabled: true,
+		LLM: llm.RoutingConfig{
+			Default: llm.Config{
+				BaseURL: "http://localhost:11434/v1",
+				Model:   "llama3.2",
+			},
+		},
+	})
+
+	dispatcher := &mockDispatcher{}
+	dm.SetDispatcher(dispatcher, nil)
+	dm.sendMessage(context.Background(), "room-1", "hello world")
+
+	if len(dispatcher.commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(dispatcher.commands))
+	}
+
+	cmd := dispatcher.commands[0]
+	if cmd.Type != "public_chat" {
+		t.Fatalf("expected command type public_chat, got %s", cmd.Type)
+	}
+	if cmd.RoomID != "room-1" {
+		t.Fatalf("expected room_id room-1, got %s", cmd.RoomID)
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+		t.Fatalf("failed to unmarshal payload: %v", err)
+	}
+	if payload["message"] != "hello world" {
+		t.Fatalf("expected message hello world, got %s", payload["message"])
+	}
+}
+
+func TestAutoDMOnEventEnqueuesAsyncTask(t *testing.T) {
+	taskQueue := &mockTaskQueue{}
+	dm := NewAutoDM(Config{
+		Enabled:   true,
+		TaskQueue: taskQueue,
+		LLM: llm.RoutingConfig{
+			Default: llm.Config{
+				BaseURL: "http://localhost:11434/v1",
+				Model:   "llama3.2",
+			},
+		},
+	})
+
+	dm.OnEvent(context.Background(), types.Event{
+		RoomID:    "room-1",
+		EventType: "phase.day",
+	}, nil)
+
+	if len(taskQueue.tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(taskQueue.tasks))
+	}
+
+	task, ok := taskQueue.tasks[0].(AsyncEventTask)
+	if !ok {
+		t.Fatalf("expected AsyncEventTask, got %T", taskQueue.tasks[0])
+	}
+	if task.Type != autoDMEventTaskType {
+		t.Fatalf("expected task type %s, got %s", autoDMEventTaskType, task.Type)
+	}
+	if task.RoomID != "room-1" {
+		t.Fatalf("expected room_id room-1, got %s", task.RoomID)
 	}
 }

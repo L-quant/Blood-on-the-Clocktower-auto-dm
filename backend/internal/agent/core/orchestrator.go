@@ -168,9 +168,12 @@ func (o *Orchestrator) ProcessEvent(ctx context.Context, event Event) (*Response
 		o.mu.RUnlock()
 		return nil, fmt.Errorf("orchestrator not active")
 	}
+	roomID := o.roomID
+	phase := o.gameState.Phase
+	dayNumber := o.gameState.DayNumber
 	o.mu.RUnlock()
 
-	o.memory.AddEvent(ctx, o.roomID, o.gameState.Phase, o.gameState.DayNumber, event.Description)
+	o.memory.AddEvent(ctx, roomID, phase, dayNumber, event.Description)
 	o.logger.Debug("Processing event", "type", event.Type, "description", event.Description)
 
 	return o.routeEvent(ctx, event)

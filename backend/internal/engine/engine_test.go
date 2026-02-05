@@ -155,6 +155,51 @@ func TestVoteResolution(t *testing.T) {
 	}
 }
 
+func TestHandleWriteEventByDM(t *testing.T) {
+	state := NewState("room1")
+	state.Players["dm"] = Player{UserID: "dm", IsDM: true}
+
+	cmd := types.CommandEnvelope{
+		CommandID:   uuid.NewString(),
+		RoomID:      "room1",
+		Type:        "write_event",
+		ActorUserID: "dm",
+		Payload:     []byte(`{"event_type":"audit.note","data":{"reason":"manual override","count":2}}`),
+	}
+
+	events, result, err := HandleCommand(state, cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || result.Status != "accepted" {
+		t.Fatalf("expected accepted result")
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].EventType != "audit.note" {
+		t.Fatalf("expected event type audit.note, got %s", events[0].EventType)
+	}
+}
+
+func TestHandleWriteEventRejectNonDM(t *testing.T) {
+	state := NewState("room1")
+	state.Players["p1"] = Player{UserID: "p1", IsDM: false}
+
+	cmd := types.CommandEnvelope{
+		CommandID:   uuid.NewString(),
+		RoomID:      "room1",
+		Type:        "write_event",
+		ActorUserID: "p1",
+		Payload:     []byte(`{"event_type":"audit.note","data":{"reason":"x"}}`),
+	}
+
+	_, _, err := HandleCommand(state, cmd)
+	if err == nil {
+		t.Fatalf("expected non-DM write_event to be rejected")
+	}
+}
+
 func toEventPayload(e types.Event) EventPayload {
 	var payload map[string]string
 	_ = json.Unmarshal(e.Payload, &payload)

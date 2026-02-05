@@ -13,6 +13,7 @@ import (
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/projection"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/room"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/store"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
@@ -219,8 +220,23 @@ func (s *Session) handleSubscribe(reqID string, payload SubscribePayload) {
 		},
 	})
 	events, _ := s.store.LoadEventsAfter(ctx, payload.RoomID, payload.LastSeq, 200)
+	state := ra.GetState()
+	viewer := types.Viewer{UserID: s.userID, IsDM: isDM}
 	for _, e := range events {
-		pe := types.ProjectedEvent{RoomID: e.RoomID, Seq: e.Seq, EventType: e.EventType, Data: json.RawMessage(e.PayloadJSON), ServerTS: e.ServerTime.UnixMilli()}
+		ev := types.Event{
+			RoomID:            e.RoomID,
+			Seq:               e.Seq,
+			EventID:           e.EventID,
+			EventType:         e.EventType,
+			ActorUserID:       e.ActorUserID,
+			CausationCommand:  e.CausationCommand,
+			Payload:           json.RawMessage(e.PayloadJSON),
+			ServerTimestampMs: e.ServerTime.UnixMilli(),
+		}
+		pe := projection.Project(ev, state, viewer)
+		if pe == nil {
+			continue
+		}
 		b, _ := json.Marshal(WSMessage{Type: "event", Payload: mustMarshal(pe)})
 		s.send <- b
 		s.metrics.ResyncEvents.Inc()
@@ -240,9 +256,17 @@ func (s *Session) handleCommand(reqID string, payload CommandPayload) {
 		s.sendError(reqID, "internal", "cannot load room")
 		return
 	}
+	commandID := payload.CommandID
+	if commandID == "" {
+		commandID = uuid.NewString()
+	}
+	idempotencyKey := payload.IdempotencyKey
+	if idempotencyKey == "" {
+		idempotencyKey = commandID
+	}
 	cmd := types.CommandEnvelope{
-		CommandID:      payload.CommandID,
-		IdempotencyKey: payload.IdempotencyKey,
+		CommandID:      commandID,
+		IdempotencyKey: idempotencyKey,
 		RoomID:         payload.RoomID,
 		Type:           payload.Type,
 		LastSeenSeq:    payload.LastSeenSeq,
@@ -251,7 +275,7 @@ func (s *Session) handleCommand(reqID string, payload CommandPayload) {
 	}
 	resp := ra.Dispatch(cmd)
 	if resp.Err != nil {
-		s.sendCommandResult(reqID, &types.CommandResult{CommandID: payload.CommandID, Status: "rejected", Reason: resp.Err.Error()})
+		s.sendCommandResult(reqID, &types.CommandResult{CommandID: commandID, Status: "rejected", Reason: resp.Err.Error()})
 		return
 	}
 	s.sendCommandResult(reqID, resp.Result)

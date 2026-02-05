@@ -25,6 +25,8 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 		return true
 	}
 	switch event.EventType {
+	case "bluffs.assigned", "night.action.queued", "night.action.completed", "player.poisoned", "player.protected", "demon.changed":
+		return false
 	case "whisper.sent":
 		var payload map[string]string
 		_ = json.Unmarshal(event.Payload, &payload)
@@ -52,6 +54,11 @@ func sanitizePayload(event types.Event, viewer types.Viewer) json.RawMessage {
 		if viewer.UserID != payload["user_id"] {
 			return []byte(`{}`)
 		}
+		delete(payload, "true_role")
+		delete(payload, "is_demon")
+		delete(payload, "is_minion")
+		b, _ := json.Marshal(payload)
+		return b
 	}
 	return event.Payload
 }
@@ -59,7 +66,14 @@ func sanitizePayload(event types.Event, viewer types.Viewer) json.RawMessage {
 func ProjectedState(state engine.State, viewer types.Viewer) engine.State {
 	cp := state.Copy()
 	if !viewer.IsDM {
+		cp.DemonID = ""
+		cp.MinionIDs = nil
+		cp.BluffRoles = nil
+
 		for id, p := range cp.Players {
+			p.TrueRole = ""
+			p.Team = ""
+			p.NightInfo = nil
 			if id != viewer.UserID {
 				p.Role = ""
 			}
