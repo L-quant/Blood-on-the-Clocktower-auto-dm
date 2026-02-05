@@ -91,6 +91,29 @@ swagger:
 docker-build:
 	docker build -t botc-autodm:latest .
 
+# Build loadtest tool
+loadtest-build:
+	cd loadtest && go mod tidy && go build -o ../bin/autodm_loadgen ./cmd/autodm_loadgen
+
+# Quick smoke test (< 1 minute)
+loadtest-quick: loadtest-build
+	./loadtest/scripts/quick_smoke.sh
+
+# Full load test suite (~10 minutes)
+loadtest-full: loadtest-build
+	./loadtest/scripts/full_suite.sh
+
+# Run specific scenario(s)
+# Usage: make loadtest SCENARIO=S1,S2 USERS=20 DURATION=30s
+loadtest: loadtest-build
+	./loadtest/scripts/run_loadtest.sh $(if $(SCENARIO),-scenario $(SCENARIO)) \
+		$(if $(USERS),-users $(USERS)) \
+		$(if $(DURATION),-duration $(DURATION))
+
+# List available load test scenarios
+loadtest-list:
+	@./bin/autodm_loadgen -list 2>/dev/null || (cd loadtest && go run ./cmd/autodm_loadgen -list)
+
 # Show help
 help:
 	@echo "Blood on the Clocktower Auto-DM Backend"
@@ -98,18 +121,27 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build         Build the binary"
-	@echo "  run           Build and run the server"
-	@echo "  run-env       Run with .env file loaded"
-	@echo "  run-autodm    Run with AutoDM enabled"
-	@echo "  dev           Start docker + run server (development)"
-	@echo "  test          Run tests"
-	@echo "  test-coverage Run tests with coverage report"
-	@echo "  lint          Run linter"
-	@echo "  docker-up     Start Docker containers"
-	@echo "  docker-down   Stop Docker containers"
-	@echo "  docker-logs   Show Docker logs"
-	@echo "  docker-build  Build Docker image"
-	@echo "  swagger       Show Swagger info"
-	@echo "  clean         Clean build artifacts"
-	@echo "  help          Show this help"
+	@echo "  build           Build the binary"
+	@echo "  run             Build and run the server"
+	@echo "  run-env         Run with .env file loaded"
+	@echo "  run-autodm      Run with AutoDM enabled"
+	@echo "  dev             Start docker + run server (development)"
+	@echo "  test            Run tests"
+	@echo "  test-coverage   Run tests with coverage report"
+	@echo "  lint            Run linter"
+	@echo "  docker-up       Start Docker containers"
+	@echo "  docker-down     Stop Docker containers"
+	@echo "  docker-logs     Show Docker logs"
+	@echo "  docker-build    Build Docker image"
+	@echo "  swagger         Show Swagger info"
+	@echo "  clean           Clean build artifacts"
+	@echo ""
+	@echo "Load Testing:"
+	@echo "  loadtest-build  Build loadtest tool"
+	@echo "  loadtest-quick  Quick smoke test (< 1 min)"
+	@echo "  loadtest-full   Full test suite (~10 min)"
+	@echo "  loadtest        Run specific scenarios"
+	@echo "                  e.g. make loadtest SCENARIO=S1,S2 USERS=20"
+	@echo "  loadtest-list   List available scenarios"
+	@echo ""
+	@echo "  help            Show this help"

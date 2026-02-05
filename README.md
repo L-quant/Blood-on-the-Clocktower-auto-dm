@@ -35,6 +35,7 @@
 - [技术亮点](#技术亮点)
 - [业务功能](#业务功能)
 - [快速开始](#快速开始)
+- [压测体系](#压测体系)
 - [API 文档](#api-文档)
 - [开发指南](#开发指南)
 
@@ -461,6 +462,87 @@ curl -X POST http://localhost:8080/v1/rooms \
 cd backend
 make test      # 运行单元测试
 make lint      # 代码检查（需安装 golangci-lint）
+```
+
+---
+
+## 压测体系
+
+本节介绍后端的完整压测体系，包括协议文档、测试场景、正确性验证和 Gemini API 保护机制。
+
+### 压测场景清单 (S1-S11)
+
+| 场景 | 名称 | 描述 | 正确性验证 |
+|------|------|------|------------|
+| **S1** | WS 握手风暴 | N 并发 WebSocket 连接 + 订阅 | 无超时、无 4xx/5xx |
+| **S2** | 单房间 Join Storm | M 用户同时加入同一房间 | Seq 单调递增、无缺失/重复事件 |
+| **S3** | 幂等去重验证 | 相同 idempotency_key 重复提交 | 只产生一个事件 |
+| **S4** | 命令序列号单调性 | 快速连续命令 | 所有 Seq 严格递增 |
+| **S5** | 可见性泄露检测 | whisper/role 事件投影 | 非目标用户不可见私密事件 |
+| **S6** | Gemini 调用监测 | 触发 AutoDM 事件流 | 调用数 ≤ 预算、延迟 ≤ 阈值 |
+| **S7** | 多房间隔离 | 创建 K 个房间并行操作 | 房间间事件不串扰 |
+| **S8** | 断线重连 Seq Gap | 断开→重连→last_seq 补发 | 无事件丢失 |
+| **S9** | RabbitMQ DLQ 监测 | 制造任务失败 | DLQ 消息数 = 预期 |
+| **S10** | 完整游戏流程 | Lobby→Night→Day→Vote→End | 状态机转换正确 |
+| **S11** | 混沌测试 | 随机断连、随机命令 | 系统不崩溃、可恢复 |
+
+### 运行压测
+
+```bash
+# 快速冒烟测试 (< 1 分钟)
+cd backend
+make loadtest-quick
+
+# 完整压测套件 (约 10 分钟)
+make loadtest-full
+
+# 单场景测试
+./bin/autodm_loadgen -scenario S2 -users 50 -duration 30s
+
+# 列出所有场景
+make loadtest-list
+```
+
+### 配置选项
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `LOADTEST_TARGET` | 目标服务器 | `http://localhost:8080` |
+| `LOADTEST_WS_TARGET` | WebSocket 目标 | `ws://localhost:8080/ws` |
+| `LOADTEST_USERS` | 并发用户数 | `10` |
+| `LOADTEST_DURATION` | 测试时长 | `30s` |
+| `GEMINI_MAX_CONCURRENCY` | Gemini 并发限制 | `5` |
+| `GEMINI_RPS_LIMIT` | Gemini RPS 限制 | `10` |
+| `GEMINI_REQUEST_BUDGET` | Gemini 请求预算 | `100` |
+
+### Gemini API 保护机制
+
+为防止压测意外消耗过多 Gemini API 配额，系统实现了多层保护：
+
+1. **并发限制 (Semaphore)**: 最多 `GEMINI_MAX_CONCURRENCY` 个并发请求
+2. **RPS 限速 (Token Bucket)**: 每秒最多 `GEMINI_RPS_LIMIT` 个请求
+3. **总请求预算 (Circuit Breaker)**: 达到 `GEMINI_REQUEST_BUDGET` 后停止发送
+
+### 压测报告示例
+
+运行完整压测后，会生成 `loadtest_report_{timestamp}.json`：
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:00Z",
+  "target": "http://localhost:8080",
+  "scenarios": [
+    {"scenario": "S1", "passed": true, "duration_ms": 2100},
+    {"scenario": "S2", "passed": true, "duration_ms": 5230}
+  ],
+  "summary": {
+    "total_scenarios": 11,
+    "passed": 11,
+    "failed": 0,
+    "gemini_requests": 23,
+    "gemini_budget_remaining": 77
+  }
+}
 ```
 
 ---
@@ -943,6 +1025,63 @@ Frontend runs at `http://localhost:8081`
 ### 5. Access Application
 
 Open `http://localhost:8081` in your browser!
+
+## Load Testing
+
+A complete load testing system is included for validating backend performance and correctness.
+
+### Test Scenarios (S1-S11)
+
+| Scenario | Name | Description | Validation |
+|----------|------|-------------|------------|
+| **S1** | WS Handshake Storm | N concurrent WebSocket connections | No timeouts, no 4xx/5xx |
+| **S2** | Single Room Join Storm | M users join same room | Seq monotonic, no missing events |
+| **S3** | Idempotency Verification | Duplicate idempotency_key | Only one event produced |
+| **S4** | Command Seq Monotonicity | Rapid sequential commands | All Seq strictly increasing |
+| **S5** | Visibility Leak Detection | whisper/role event projection | Private events not leaked |
+| **S6** | Gemini Call Monitoring | AutoDM event triggers | Calls ≤ budget, latency ≤ threshold |
+| **S7** | Multi-Room Isolation | K rooms in parallel | No cross-room events |
+| **S8** | Reconnect Seq Gap | Disconnect→reconnect→replay | No event loss |
+| **S9** | RabbitMQ DLQ Monitoring | Task failures | DLQ count = expected |
+| **S10** | Full Game Flow | Lobby→Night→Day→Vote→End | Valid state transitions |
+| **S11** | Chaos Test | Random disconnects/commands | System recoverable |
+
+### Running Load Tests
+
+```bash
+# Quick smoke test (< 1 min)
+cd backend
+make loadtest-quick
+
+# Full test suite (~10 min)
+make loadtest-full
+
+# Single scenario
+./bin/autodm_loadgen -scenario S2 -users 50 -duration 30s
+
+# List all scenarios
+make loadtest-list
+```
+
+### Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOADTEST_TARGET` | Target server | `http://localhost:8080` |
+| `LOADTEST_WS_TARGET` | WebSocket target | `ws://localhost:8080/ws` |
+| `LOADTEST_USERS` | Concurrent users | `10` |
+| `LOADTEST_DURATION` | Test duration | `30s` |
+| `GEMINI_MAX_CONCURRENCY` | Gemini concurrency limit | `5` |
+| `GEMINI_RPS_LIMIT` | Gemini RPS limit | `10` |
+| `GEMINI_REQUEST_BUDGET` | Gemini request budget | `100` |
+
+### Gemini API Protection
+
+To prevent excessive Gemini API consumption during load tests:
+
+1. **Concurrency Limit**: Max `GEMINI_MAX_CONCURRENCY` concurrent requests
+2. **RPS Limit**: Max `GEMINI_RPS_LIMIT` requests per second
+3. **Budget Circuit Breaker**: Stop after `GEMINI_REQUEST_BUDGET` requests
 
 ## Development
 

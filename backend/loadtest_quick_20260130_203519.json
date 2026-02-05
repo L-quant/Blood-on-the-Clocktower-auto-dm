@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-01-30T12:35:38.775913Z",
+  "target": "http://localhost:8080",
+  "scenarios": [
+    {
+      "scenario": "S1",
+      "passed": true,
+      "duration_ms": 617,
+      "metrics": {
+        "avg_latency_ms": 0,
+        "failed_connections": 0,
+        "max_latency_ms": 0,
+        "p95_latency_ms": 0,
+        "p99_latency_ms": 0,
+        "successful_connections": 5,
+        "total_connections": 5
+      },
+      "errors": []
+    },
+    {
+      "scenario": "S2",
+      "passed": true,
+      "duration_ms": 5804,
+      "metrics": {
+        "duplicate_seqs": [],
+        "missing_seqs": [],
+        "seq_monotonic": true,
+        "total_events": 1
+      },
+      "errors": []
+    },
+    {
+      "scenario": "S4",
+      "passed": true,
+      "duration_ms": 10204,
+      "metrics": {
+        "commands_sent": 50,
+        "duplicate_seqs": [],
+        "events_received": 9,
+        "missing_seqs": [],
+        "seq_monotonic": true
+      },
+      "errors": []
+    }
+  ],
+  "summary": {
+    "total_scenarios": 3,
+    "passed": 3,
+    "failed": 0,
+    "total_duration_ms": 16627,
+    "gemini_requests": 0,
+    "gemini_budget_remaining": 10
+  }
+}
