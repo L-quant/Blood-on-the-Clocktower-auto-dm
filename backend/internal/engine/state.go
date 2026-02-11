@@ -547,7 +547,7 @@ func (s *State) CheckWinCondition() (ended bool, winner, reason string) {
 		aliveCount := s.GetAliveCount()
 		hasScarletWoman := false
 		for _, p := range s.Players {
-			if p.TrueRole == "scarletwoman" && p.Alive {
+			if p.TrueRole == "scarlet_woman" && p.Alive {
 				hasScarletWoman = true
 				break
 			}
