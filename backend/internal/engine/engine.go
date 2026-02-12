@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -476,15 +478,46 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 				"user_id": effect.TargetID,
 			}))
 		case "starpass":
+			// The old demon dies
+			events = append(events, newEvent(cmd, "player.died", map[string]string{
+				"user_id": effect.TargetID,
+				"cause":   "starpass",
+			}))
 			// Find a minion to become demon
+			var candidateMinions []string
+			var scarletWomanID string
+
 			for _, minionID := range state.MinionIDs {
-				if state.Players[minionID].Alive {
-					events = append(events, newEvent(cmd, "demon.changed", map[string]string{
-						"old_demon": cmd.ActorUserID,
-						"new_demon": minionID,
-					}))
-					break
+				p := state.Players[minionID]
+				if p.Alive {
+					candidateMinions = append(candidateMinions, minionID)
+					if p.TrueRole == "scarlet_woman" {
+						scarletWomanID = minionID
+					}
 				}
+			}
+
+			if len(candidateMinions) > 0 {
+				newDemonID := ""
+				// Priority: Scarlet Woman -> Random Minion
+				if scarletWomanID != "" {
+					newDemonID = scarletWomanID
+				} else {
+					// Randomly select a minion
+					// Use crypto/rand for secure random selection
+					idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(candidateMinions))))
+					if err != nil {
+						// Fallback to first if random fails
+						newDemonID = candidateMinions[0]
+					} else {
+						newDemonID = candidateMinions[idx.Int64()]
+					}
+				}
+
+				events = append(events, newEvent(cmd, "demon.changed", map[string]string{
+					"old_demon": cmd.ActorUserID,
+					"new_demon": newDemonID,
+				}))
 			}
 		}
 	}
@@ -516,6 +549,11 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 					"user_id": death.UserID,
 					"cause":   death.Cause,
 				}))
+				// Update local state for immediate win check
+				if p, ok := state.Players[death.UserID]; ok {
+					p.Alive = false
+					state.Players[death.UserID] = p
+				}
 			}
 		}
 		// Clear poison
@@ -622,6 +660,10 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 			"cause":   "slayer",
 		}))
 
+		// Update state for win check (local copy only, doesn't affect persistence)
+		target.Alive = false
+		state.Players[targetID] = target
+
 		// Check win condition
 		winEvents := checkWinCondition(state, cmd)
 		events = append(events, winEvents...)
@@ -641,6 +683,33 @@ func checkWinCondition(state State, cmd types.CommandEnvelope) []types.Event {
 			"reason": reason,
 		})}
 	}
+
+	// Check if demon died but game continues (Scarlet Woman case)
+	if demon, ok := stateCopy.Players[stateCopy.DemonID]; ok && !demon.Alive {
+		// Find a living Scarlet Woman
+		for uid, p := range stateCopy.Players {
+			if p.TrueRole == "scarlet_woman" && p.Alive {
+				// We also check alive count >= 5 to be safe, though CheckWinCondition 
+				// already implicitly checked this by returning ended=false.
+				if stateCopy.GetAliveCount() >= 5 {
+					return []types.Event{
+						newEvent(cmd, "demon.changed", map[string]string{
+							"old_demon": stateCopy.DemonID,
+							"new_demon": uid,
+							"reason":    "scarlet_woman",
+						}),
+						// Notify the new demon privately
+						newEvent(cmd, "role.change", map[string]string{
+							"user_id":  uid,
+							"new_role": "imp", // She becomes the Imp
+							"reason":   "scarlet_woman_inheritance",
+						}),
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
