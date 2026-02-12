@@ -671,9 +671,9 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 	} else {
 		// Check if target is protected
 		if na.ctx.ProtectedIDs[targetID] {
-			result.Message = fmt.Sprintf("你试图杀死 %s，但他们被保护了", na.getPlayerName(targetID))
+			result.Message = fmt.Sprintf("你试图杀死 %s，但他被保护了", na.getPlayerName(targetID))
 		} else if na.ctx.Players[targetID] != nil && na.ctx.Players[targetID].TrueRole == "soldier" && !na.ctx.PoisonedIDs[targetID] {
-			result.Message = fmt.Sprintf("你试图杀死 %s，但他们是士兵", na.getPlayerName(targetID))
+			result.Message = fmt.Sprintf("你试图杀死 %s，但他是士兵", na.getPlayerName(targetID))
 		} else {
 			result.Message = fmt.Sprintf("你杀死了 %s", na.getPlayerName(targetID))
 			result.Effects = append(result.Effects, AbilityEffect{
