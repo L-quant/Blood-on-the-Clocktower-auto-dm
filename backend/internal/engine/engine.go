@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -482,14 +484,40 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 				"cause":   "starpass",
 			}))
 			// Find a minion to become demon
+			var candidateMinions []string
+			var scarletWomanID string
+
 			for _, minionID := range state.MinionIDs {
-				if state.Players[minionID].Alive {
-					events = append(events, newEvent(cmd, "demon.changed", map[string]string{
-						"old_demon": cmd.ActorUserID,
-						"new_demon": minionID,
-					}))
-					break
+				p := state.Players[minionID]
+				if p.Alive {
+					candidateMinions = append(candidateMinions, minionID)
+					if p.TrueRole == "scarlet_woman" {
+						scarletWomanID = minionID
+					}
 				}
+			}
+
+			if len(candidateMinions) > 0 {
+				newDemonID := ""
+				// Priority: Scarlet Woman -> Random Minion
+				if scarletWomanID != "" {
+					newDemonID = scarletWomanID
+				} else {
+					// Randomly select a minion
+					// Use crypto/rand for secure random selection
+					idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(candidateMinions))))
+					if err != nil {
+						// Fallback to first if random fails
+						newDemonID = candidateMinions[0]
+					} else {
+						newDemonID = candidateMinions[idx.Int64()]
+					}
+				}
+
+				events = append(events, newEvent(cmd, "demon.changed", map[string]string{
+					"old_demon": cmd.ActorUserID,
+					"new_demon": newDemonID,
+				}))
 			}
 		}
 	}
@@ -521,6 +549,11 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 					"user_id": death.UserID,
 					"cause":   death.Cause,
 				}))
+				// Update local state for immediate win check
+				if p, ok := state.Players[death.UserID]; ok {
+					p.Alive = false
+					state.Players[death.UserID] = p
+				}
 			}
 		}
 		// Clear poison
@@ -626,6 +659,10 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 			"user_id": targetID,
 			"cause":   "slayer",
 		}))
+
+		// Update state for win check (local copy only, doesn't affect persistence)
+		target.Alive = false
+		state.Players[targetID] = target
 
 		// Check win condition
 		winEvents := checkWinCondition(state, cmd)
