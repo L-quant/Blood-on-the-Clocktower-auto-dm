@@ -476,6 +476,11 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 				"user_id": effect.TargetID,
 			}))
 		case "starpass":
+			// The old demon dies
+			events = append(events, newEvent(cmd, "player.died", map[string]string{
+				"user_id": effect.TargetID,
+				"cause":   "starpass",
+			}))
 			// Find a minion to become demon
 			for _, minionID := range state.MinionIDs {
 				if state.Players[minionID].Alive {
