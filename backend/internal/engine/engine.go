@@ -646,6 +646,33 @@ func checkWinCondition(state State, cmd types.CommandEnvelope) []types.Event {
 			"reason": reason,
 		})}
 	}
+
+	// Check if demon died but game continues (Scarlet Woman case)
+	if demon, ok := stateCopy.Players[stateCopy.DemonID]; ok && !demon.Alive {
+		// Find a living Scarlet Woman
+		for uid, p := range stateCopy.Players {
+			if p.TrueRole == "scarlet_woman" && p.Alive {
+				// We also check alive count >= 5 to be safe, though CheckWinCondition 
+				// already implicitly checked this by returning ended=false.
+				if stateCopy.GetAliveCount() >= 5 {
+					return []types.Event{
+						newEvent(cmd, "demon.changed", map[string]string{
+							"old_demon": stateCopy.DemonID,
+							"new_demon": uid,
+							"reason":    "scarlet_woman",
+						}),
+						// Notify the new demon privately
+						newEvent(cmd, "role.change", map[string]string{
+							"user_id":  uid,
+							"new_role": "imp", // She becomes the Imp
+							"reason":   "scarlet_woman_inheritance",
+						}),
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
