@@ -757,7 +757,7 @@ func buildGameContext(state State) *game.GameContext {
 
 	// Set red herring for fortune teller
 	for uid, p := range state.Players {
-		if p.TrueRole == "fortuneteller" {
+		if p.TrueRole == "fortune_teller" {
 			// Pick a random good player as red herring
 			for targetUID, target := range state.Players {
 				if target.Team == "good" && targetUID != uid && target.Alive {

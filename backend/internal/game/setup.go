@@ -379,7 +379,7 @@ func describeNightAction(role Role, firstNight bool) string {
 		return "得知有多少对邪恶玩家相邻"
 	case "empath":
 		return "得知存活邻居中有多少邪恶玩家"
-	case "fortuneteller":
+	case "fortune_teller":
 		return "选择两名玩家，得知是否有恶魔"
 	case "undertaker":
 		return "得知今天被处决玩家的角色"
