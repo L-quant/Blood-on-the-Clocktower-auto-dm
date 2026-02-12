@@ -47,6 +47,7 @@ type Role struct {
 }
 
 // TroubleBrewingRoles contains all Trouble Brewing edition roles.
+// 这里入夜顺序按从小到大进行；后续如果加新版角色需调整权重以保持顺序正确。
 var TroubleBrewingRoles = []Role{
 	// Townsfolk
 	{ID: "washerwoman", Name: "Washerwoman", NameCN: "洗衣妇", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityFirstNight, FirstNightOrder: 32, Ability: "You start knowing that 1 of 2 players is a particular Townsfolk.", AbilityCN: "你在首个夜晚会得知2名玩家中有1名是特定的村民。"},
