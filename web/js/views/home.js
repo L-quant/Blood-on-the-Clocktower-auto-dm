@@ -15,7 +15,7 @@ export function renderHome() {
       <header class="home-header">
         <h1>🩸 血染钟楼</h1>
         <div class="user-info">
-          <span>👤 ${name}</span>
+          <span>👤 ${name}${window.__BOTC_AS ? ` <small style="color:var(--text-secondary)">(小号#${window.__BOTC_AS})</small>` : ''}</span>
           <button class="btn btn-ghost btn-sm" id="logout-btn">退出</button>
         </div>
       </header>

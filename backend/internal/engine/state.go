@@ -103,6 +103,20 @@ type State struct {
 	PhaseStartedAt  int64             `json:"phase_started_at"`
 	PhaseEndsAt     int64             `json:"phase_ends_at"`
 	Config          GameConfig        `json:"config"`
+	AIDecisionLog   []AIDecisionEntry `json:"ai_decision_log"`
+}
+
+type AIDecisionEntry struct {
+	Night       int    `json:"night"`
+	UserID      string `json:"user_id"`
+	PlayerName  string `json:"player_name"`
+	Role        string `json:"role"`
+	Targets     string `json:"targets,omitempty"`
+	TrueResult  string `json:"true_result"`
+	GivenResult string `json:"given_result"`
+	IsPoisoned  bool   `json:"is_poisoned"`
+	IsDrunk     bool   `json:"is_drunk"`
+	Timestamp   int64  `json:"timestamp"`
 }
 
 type GameConfig struct {
@@ -137,6 +151,7 @@ func NewState(roomID string) State {
 		MinionIDs:       []string{},
 		BluffRoles:      []string{},
 		Config:          DefaultGameConfig(),
+		AIDecisionLog:   []AIDecisionEntry{},
 	}
 }
 
@@ -174,6 +189,9 @@ func (s State) Copy() State {
 
 	cp.PendingDeaths = make([]PendingDeath, len(s.PendingDeaths))
 	copy(cp.PendingDeaths, s.PendingDeaths)
+
+	cp.AIDecisionLog = make([]AIDecisionEntry, len(s.AIDecisionLog))
+	copy(cp.AIDecisionLog, s.AIDecisionLog)
 
 	if s.Nomination != nil {
 		votes := make(map[string]bool, len(s.Nomination.Votes))
@@ -471,8 +489,35 @@ func (s *State) Reduce(event EventPayload) {
 		}
 		s.MinionIDs = append(s.MinionIDs, oldDemonID)
 
-	case "public.chat", "whisper.sent":
+	case "public.chat", "whisper.sent", "evil_team.chat":
 		// Just increment chat seq
+
+	case "ai.decision":
+		night := 0
+		if n, ok := event.Payload["night"]; ok {
+			if parsed, err := json.Number(n).Int64(); err == nil {
+				night = int(parsed)
+			}
+		}
+		var ts int64
+		if t, ok := event.Payload["timestamp"]; ok {
+			if parsed, err := json.Number(t).Int64(); err == nil {
+				ts = parsed
+			}
+		}
+		entry := AIDecisionEntry{
+			Night:       night,
+			UserID:      event.Payload["user_id"],
+			PlayerName:  event.Payload["player_name"],
+			Role:        event.Payload["role"],
+			Targets:     event.Payload["targets"],
+			TrueResult:  event.Payload["true_result"],
+			GivenResult: event.Payload["given_result"],
+			IsPoisoned:  event.Payload["is_poisoned"] == "true",
+			IsDrunk:     event.Payload["is_drunk"] == "true",
+			Timestamp:   ts,
+		}
+		s.AIDecisionLog = append(s.AIDecisionLog, entry)
 
 	case "game.ended":
 		s.Phase = PhaseEnded

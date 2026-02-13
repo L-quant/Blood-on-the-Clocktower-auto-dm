@@ -85,6 +85,16 @@ func (s *Store) GetRoomMembers(ctx context.Context, roomID string) ([]RoomMember
 }
 
 func (s *Store) IsMember(ctx context.Context, roomID, userID string) (bool, string, error) {
+	if s.MemoryMode {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		for _, m := range s.members[roomID] {
+			if m.UserID == userID {
+				return true, m.Role, nil
+			}
+		}
+		return false, "", nil
+	}
 	row := s.DB.QueryRowContext(ctx, `SELECT role FROM room_members WHERE room_id=? AND user_id=?`, roomID, userID)
 	var role string
 	err := row.Scan(&role)

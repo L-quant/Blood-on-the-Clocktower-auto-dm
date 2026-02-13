@@ -247,8 +247,13 @@ func (s *Server) quickLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := uuid.NewString()
-	u := store.User{ID: userID, Email: req.Name, PasswordHash: "", CreatedAt: time.Now().UTC()}
-	_ = s.store.CreateUser(r.Context(), u)
+	// Use unique email to avoid UNIQUE constraint collision when same display name is reused
+	uniqueEmail := userID + "@quick.local"
+	u := store.User{ID: userID, Email: uniqueEmail, PasswordHash: "", CreatedAt: time.Now().UTC()}
+	if err := s.store.CreateUser(r.Context(), u); err != nil {
+		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		return
+	}
 	token, _ := s.jwt.Generate(userID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(QuickLoginResponse{Token: token, UserID: userID, Name: req.Name})
@@ -300,7 +305,10 @@ type JoinRoomResponse struct {
 func (s *Server) joinRoom(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(userIDKey).(string)
 	roomID := chi.URLParam(r, "room_id")
-	_ = s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: roomID, UserID: userID, Role: "player", Joined: time.Now().UTC()})
+	if err := s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: roomID, UserID: userID, Role: "player", Joined: time.Now().UTC()}); err != nil {
+		http.Error(w, "failed to join room", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JoinRoomResponse{Status: "joined"})
 }

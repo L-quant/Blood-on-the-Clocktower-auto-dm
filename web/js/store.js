@@ -3,8 +3,22 @@
 // ============================================
 
 // Support multi-account testing: ?as=2 uses separate localStorage namespace
+// Handle both /?as=2#home  AND  /#home?as=2  (user may put ?as after the hash)
 const urlParams = new URLSearchParams(window.location.search);
-const STORAGE_SUFFIX = urlParams.get('as') ? `_${urlParams.get('as')}` : '';
+let _asVal = urlParams.get('as');
+if (!_asVal && window.location.hash.includes('?')) {
+  const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+  _asVal = hashParams.get('as');
+  // Fix URL: move ?as from hash to proper query string so future navigations work
+  if (_asVal) {
+    const cleanHash = window.location.hash.split('?')[0];
+    const sep = window.location.search ? '&' : '?';
+    const newUrl = window.location.pathname + window.location.search + sep + 'as=' + _asVal + cleanHash;
+    history.replaceState(null, '', newUrl);
+  }
+}
+const STORAGE_SUFFIX = _asVal ? `_${_asVal}` : '';
+window.__BOTC_AS = _asVal || '';  // Expose for UI display
 const KEY_TOKEN = 'botc_token' + STORAGE_SUFFIX;
 const KEY_USER_ID = 'botc_user_id' + STORAGE_SUFFIX;
 const KEY_EMAIL = 'botc_email' + STORAGE_SUFFIX;
@@ -116,7 +130,7 @@ class Store {
     localStorage.removeItem(KEY_TOKEN);
     localStorage.removeItem(KEY_USER_ID);
     localStorage.removeItem(KEY_EMAIL);
-    this.update({ token: '', userId: '', userEmail: '', currentView: 'auth' });
+    this.update({ token: '', userId: '', userEmail: '', roomId: '', isHost: false, gameState: null, messages: [], currentView: 'auth' });
   }
 
   isLoggedIn() {

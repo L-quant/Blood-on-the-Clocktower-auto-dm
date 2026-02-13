@@ -262,12 +262,12 @@ function handleGameEvent(event) {
 
   switch (eventType) {
     case 'player.joined':
-      store.addMessage({ type: 'system', text: `${data.name || '玩家'} 加入了房间` });
+      toast(`${data.name || '玩家'} 加入了房间`, 'info');
       refreshState();
       break;
 
     case 'player.left':
-      store.addMessage({ type: 'system', text: `玩家离开了房间` });
+      toast('有玩家离开了房间', 'info');
       refreshState();
       break;
 
@@ -276,12 +276,11 @@ function handleGameEvent(event) {
       break;
 
     case 'room.settings.changed':
-      console.log('[WS] room.settings.changed:', data);
       refreshState();
       break;
 
     case 'game.started':
-      store.addMessage({ type: 'announcement', text: '🩸 游戏开始！' });
+      store.addMessage({ type: 'system', text: '游戏开始' });
       store.set('currentView', 'game');
       refreshState();
       break;
@@ -289,30 +288,21 @@ function handleGameEvent(event) {
     case 'role.assigned': {
       const myId = store.get('userId');
       if (data.user_id === myId && data.role) {
-        store.addMessage({ type: 'system', text: `你的角色是：${data.role}` });
+        // Private notification — only the player sees their own role
+        toast(`你的角色：${data.role}`, 'info');
       }
       refreshState();
       break;
     }
 
     case 'phase.first_night':
-      store.addMessage({ type: 'announcement', text: '🌙 第一个夜晚降临...' });
-      refreshState();
-      break;
-
     case 'phase.night':
-      store.addMessage({ type: 'announcement', text: '🌙 夜幕降临...' });
-      refreshState();
-      break;
-
     case 'phase.day':
-      store.addMessage({ type: 'announcement', text: '☀️ 天亮了！' });
-      store.update({ nightActionPending: false, nightResult: '' });
-      refreshState();
-      break;
-
     case 'phase.nomination':
-      store.addMessage({ type: 'announcement', text: '📢 提名阶段开始' });
+      // Phase changes — no verbose text, the phase banner already shows the phase
+      if (eventType === 'phase.day') {
+        store.update({ nightActionPending: false, nightResult: '' });
+      }
       refreshState();
       break;
 
@@ -325,49 +315,58 @@ function handleGameEvent(event) {
       });
       break;
 
-    case 'whisper.sent':
+    case 'whisper.sent': {
+      const myId = store.get('userId');
+      // Only show whispers where I'm the sender or receiver
+      const isSender = event.actor_user_id === myId;
+      const isReceiver = data.to_user_id === myId;
+      if (isSender || isReceiver) {
+        store.addMessage({
+          type: 'whisper',
+          sender: data.sender_name || '未知',
+          text: data.message,
+          to: data.to_user_id,
+          fromMe: isSender,
+        });
+      }
+      break;
+    }
+
+    case 'evil_team.chat': {
+      // Evil team group chat
       store.addMessage({
-        type: 'whisper',
+        type: 'evil_team',
         sender: data.sender_name || '未知',
+        senderSeat: data.sender_seat,
         text: data.message,
-        to: data.to_user_id,
       });
       break;
+    }
 
     case 'nomination.created':
       store.addMessage({
         type: 'system',
-        text: `提名发起！座位${data.nominator_seat} → 座位${data.nominee_seat}`,
+        text: `座位${data.nominator_seat} 提名 → 座位${data.nominee_seat}`,
       });
       refreshState();
       break;
 
     case 'defense.ended':
-      store.addMessage({ type: 'system', text: '辩护结束，开始投票！' });
       refreshState();
       break;
 
     case 'vote.cast':
-      store.addMessage({
-        type: 'system',
-        text: `座位${data.voter_seat} 投出了 ${data.vote === 'yes' ? '✅ 赞成' : '❌ 反对'} 票`,
-      });
       refreshState();
       break;
 
     case 'nomination.resolved':
-      store.addMessage({
-        type: 'announcement',
-        text: data.result === 'executed' ? '⚖️ 提名通过！处决执行！' :
-              data.result === 'cancelled' ? '❌ 提名被取消' : '⚖️ 提名未通过',
-      });
+      if (data.result === 'executed') {
+        store.addMessage({ type: 'system', text: '提名通过，处决执行' });
+      }
       refreshState();
       break;
 
     case 'execution.resolved':
-      if (data.result === 'executed') {
-        store.addMessage({ type: 'death', text: `💀 一名玩家被处决！` });
-      }
       refreshState();
       break;
 
@@ -383,18 +382,14 @@ function handleGameEvent(event) {
       break;
 
     case 'slayer.shot':
-      store.addMessage({
-        type: 'announcement',
-        text: `🔫 杀手开枪了！`,
-      });
+      store.addMessage({ type: 'system', text: '杀手开枪了！' });
       refreshState();
       break;
 
     case 'ability.resolved': {
-      // Show result to the player who used the ability
+      // Private: only set nightResult for the player's action panel, no chat message
       if (data.result) {
         store.set('nightResult', data.result);
-        store.addMessage({ type: 'system', text: `能力结果：${data.result}` });
       }
       refreshState();
       break;
@@ -402,14 +397,13 @@ function handleGameEvent(event) {
 
     case 'game.ended':
       store.addMessage({
-        type: 'announcement',
-        text: `🏆 游戏结束！${data.winner === 'good' ? '善良阵营' : '邪恶阵营'}获胜！原因：${data.reason}`,
+        type: 'system',
+        text: `游戏结束 - ${data.winner === 'good' ? '善良阵营' : '邪恶阵营'}获胜`,
       });
       refreshState();
       break;
 
     default:
-      // For events we don't handle specifically, still refresh state
       refreshState();
   }
 }

@@ -1,5 +1,5 @@
 // ============================================
-// 游戏主界面 (Town Square + Chat + Controls)
+// 游戏主界面 - 三栏布局 (通知 | 座位 | 聊天)
 // ============================================
 
 import { store } from '../store.js';
@@ -11,34 +11,46 @@ import { getRoleData, getRoleName, getRoleIcon } from '../roles.js';
 let stateUnsub = null;
 let msgUnsub = null;
 let timerInterval = null;
+let activeChatTab = 'public'; // 'public' | 'private' | 'evil_team'
+let whisperTargetId = '';
 
-// ---- Render ----
+// ---- Main Render ----
 
 export function renderGame() {
   return `
     <div class="game-page phase-${store.getPhase()}" id="game-page">
       ${renderPhaseBanner()}
-      <div class="game-layout">
-        <div class="townsquare-container">
-          ${renderTownSquare()}
-        </div>
-        <div class="side-panel">
-          ${renderActionPanel()}
-          <div class="chat-panel">
-            <div class="chat-header">💬 消息</div>
-            <div class="chat-messages" id="chat-messages">
-              ${renderMessages()}
-            </div>
-            <div class="chat-input-area">
-              <input class="input" type="text" id="chat-input" placeholder="发送消息..." maxlength="500">
-              <button class="btn chat-send-btn" id="chat-send-btn">发送</button>
-            </div>
+      <div class="game-layout-3col">
+        <div class="notif-panel" id="notif-panel">
+          <div class="panel-header">📢 广播通知</div>
+          <div class="notif-list" id="notif-list">
+            ${renderNotifications()}
           </div>
+        </div>
+        <div class="center-panel">
+          <div class="townsquare-container">
+            ${renderTownSquare()}
+          </div>
+          <div class="action-area" id="action-area">
+            ${renderActionPanel()}
+          </div>
+        </div>
+        <div class="chat-panel" id="chat-panel">
+          ${renderChatPanelInner()}
         </div>
       </div>
       ${renderGameOverOverlay()}
     </div>
   `;
+}
+
+function renderPlayerOptions() {
+  const players = store.getPlayerList();
+  const myId = store.get('userId');
+  return players
+    .filter(p => p.user_id !== myId)
+    .map(p => `<option value="${p.user_id}" ${whisperTargetId === p.user_id ? 'selected' : ''}>${p.seat_number}. ${p.name || '玩家'}</option>`)
+    .join('');
 }
 
 function renderPhaseBanner() {
@@ -359,26 +371,52 @@ function renderDayActionPanel(gs, myPlayer) {
   `;
 }
 
-// ---- Messages ----
+// ---- Notifications (Left Panel) ----
 
-function renderMessages() {
+function renderNotifications() {
   const messages = store.get('messages') || [];
-  return messages.map(msg => {
-    switch (msg.type) {
-      case 'system':
-        return `<div class="chat-msg system">${escapeHtml(msg.text)}</div>`;
-      case 'announcement':
-        return `<div class="chat-msg announcement">${escapeHtml(msg.text)}</div>`;
-      case 'death':
-        return `<div class="chat-msg death">${escapeHtml(msg.text)}</div>`;
-      case 'public':
-        return `<div class="chat-msg public"><span class="chat-sender">[${msg.senderSeat || '?'}] ${escapeHtml(msg.sender)}</span>${escapeHtml(msg.text)}</div>`;
-      case 'whisper':
-        return `<div class="chat-msg whisper"><span class="chat-sender">🔒 ${escapeHtml(msg.sender)} (私聊)</span> ${escapeHtml(msg.text)}</div>`;
-      default:
-        return `<div class="chat-msg system">${escapeHtml(msg.text || '')}</div>`;
-    }
-  }).join('');
+  return messages
+    .filter(m => ['system', 'announcement', 'death'].includes(m.type))
+    .map(msg => {
+      switch (msg.type) {
+        case 'announcement':
+          return `<div class="notif-item announcement">${escapeHtml(msg.text)}</div>`;
+        case 'death':
+          return `<div class="notif-item death">${escapeHtml(msg.text)}</div>`;
+        default:
+          return `<div class="notif-item system">${escapeHtml(msg.text)}</div>`;
+      }
+    }).join('');
+}
+
+// ---- Chat Messages (Right Panel) ----
+
+function renderChatMessages() {
+  const messages = store.get('messages') || [];
+  if (activeChatTab === 'public') {
+    const filtered = messages.filter(m => m.type === 'public');
+    if (filtered.length === 0) return '<div class="chat-empty">暂无公共消息</div>';
+    return filtered
+      .map(msg => `<div class="chat-msg public"><span class="chat-sender">[${msg.senderSeat || '?'}] ${escapeHtml(msg.sender)}</span>${escapeHtml(msg.text)}</div>`)
+      .join('');
+  } else if (activeChatTab === 'evil_team') {
+    const filtered = messages.filter(m => m.type === 'evil_team');
+    if (filtered.length === 0) return '<div class="chat-empty">坏人群聊 — 只有恶魔和爪牙能看到</div>';
+    return filtered
+      .map(msg => `<div class="chat-msg evil-team"><span class="chat-sender">😈 [${msg.senderSeat || '?'}] ${escapeHtml(msg.sender)}</span>${escapeHtml(msg.text)}</div>`)
+      .join('');
+  } else {
+    // Private tab - show whisper messages
+    const filtered = messages.filter(m => m.type === 'whisper');
+    if (filtered.length === 0) return '<div class="chat-empty">暂无私聊消息</div>';
+    return filtered
+      .map(msg => {
+        const dirClass = msg.fromMe ? 'whisper-sent' : 'whisper-received';
+        const label = msg.fromMe ? `→ ${escapeHtml(msg.sender)}` : `← ${escapeHtml(msg.sender)}`;
+        return `<div class="chat-msg whisper ${dirClass}"><span class="chat-sender">🔒 ${label}</span> ${escapeHtml(msg.text)}</div>`;
+      })
+      .join('');
+  }
 }
 
 // ---- Game Over ----
@@ -405,8 +443,53 @@ function renderGameOverOverlay() {
             </div>
           `).join('')}
         </div>
+        ${renderAIDecisionLog(gs)}
         <button class="btn btn-primary btn-lg" id="game-over-back-btn">返回大厅</button>
       </div>
+    </div>
+  `;
+}
+
+function renderAIDecisionLog(gs) {
+  const log = gs.ai_decision_log;
+  if (!log || log.length === 0) return '';
+
+  return `
+    <div class="ai-decision-log">
+      <h3 class="ai-log-title">📋 说书人决策记录</h3>
+      <table class="ai-log-table">
+        <thead>
+          <tr>
+            <th>夜晚</th>
+            <th>玩家</th>
+            <th>角色</th>
+            <th>目标</th>
+            <th>真实结果</th>
+            <th>给出结果</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${log.map(entry => {
+            const statusTags = [];
+            if (entry.is_poisoned) statusTags.push('<span class="ai-tag poisoned">中毒</span>');
+            if (entry.is_drunk) statusTags.push('<span class="ai-tag drunk">酒鬼</span>');
+            if (!entry.is_poisoned && !entry.is_drunk) statusTags.push('<span class="ai-tag normal">正常</span>');
+            const modified = entry.true_result !== entry.given_result;
+            return `
+              <tr class="${modified ? 'ai-modified' : ''}">
+                <td>${entry.night}</td>
+                <td>${entry.player_name}</td>
+                <td>${getRoleName(entry.role)}</td>
+                <td>${entry.targets || '-'}</td>
+                <td>${entry.true_result || '-'}</td>
+                <td>${entry.given_result || '-'}</td>
+                <td>${statusTags.join('')}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -420,21 +503,56 @@ export function mountGame() {
   refreshState();
 
   // Chat send
-  const chatInput = document.getElementById('chat-input');
-  const chatSendBtn = document.getElementById('chat-send-btn');
-
   function sendChat() {
-    const msg = chatInput.value.trim();
+    const chatInput = document.getElementById('chat-input');
+    const msg = chatInput?.value.trim();
     if (!msg) return;
     chatInput.value = '';
-    wsSendCommand(roomId, 'public_chat', { message: msg }).catch(err => {
-      toast('发送失败', 'error');
-    });
+
+    if (activeChatTab === 'private') {
+      const target = whisperTargetId || document.getElementById('whisper-target')?.value;
+      if (!target) {
+        toast('请先选择私聊对象', 'warning');
+        return;
+      }
+      wsSendCommand(roomId, 'whisper', { to_user_id: target, message: msg }).catch(err => {
+        toast('发送失败', 'error');
+      });
+    } else if (activeChatTab === 'evil_team') {
+      wsSendCommand(roomId, 'evil_team_chat', { message: msg }).catch(err => {
+        toast('发送失败', 'error');
+      });
+    } else {
+      wsSendCommand(roomId, 'public_chat', { message: msg }).catch(err => {
+        toast('发送失败', 'error');
+      });
+    }
   }
 
-  chatSendBtn?.addEventListener('click', sendChat);
-  chatInput?.addEventListener('keydown', (e) => {
+  document.getElementById('chat-send-btn')?.addEventListener('click', sendChat);
+  document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendChat();
+  });
+
+  // Chat tab switching
+  document.getElementById('chat-tabs')?.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-tab]');
+    if (!tab) return;
+    activeChatTab = tab.dataset.tab;
+    // Re-render the chat panel
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatPanel) {
+      const temp = document.createElement('div');
+      temp.innerHTML = renderChatPanelInner();
+      chatPanel.innerHTML = temp.innerHTML;
+      // Re-bind chat events
+      bindChatEvents(roomId);
+    }
+  });
+
+  // Whisper target change
+  document.getElementById('whisper-target')?.addEventListener('change', (e) => {
+    whisperTargetId = e.target.value;
   });
 
   // Delegated event listeners for dynamic content
@@ -447,11 +565,78 @@ export function mountGame() {
 
   // Subscribe to message changes
   msgUnsub = store.subscribe('messages', () => {
+    updateNotifications();
     updateChatMessages();
   });
 
   // Timer update
   startTimer();
+}
+
+function renderChatPanelInner() {
+  const myPlayer = store.getMyPlayer();
+  const isEvil = myPlayer && myPlayer.team === 'evil';
+  const chatPlaceholders = { public: '发送公共消息...', private: '发送私聊...', evil_team: '发送坏人群聊...' };
+
+  return `
+    <div class="chat-tabs" id="chat-tabs">
+      <button class="chat-tab ${activeChatTab === 'public' ? 'active' : ''}" data-tab="public">💬 公共</button>
+      <button class="chat-tab ${activeChatTab === 'private' ? 'active' : ''}" data-tab="private">🔒 私聊</button>
+      ${isEvil ? `<button class="chat-tab evil-tab ${activeChatTab === 'evil_team' ? 'active' : ''}" data-tab="evil_team">😈 坏人</button>` : ''}
+    </div>
+    ${activeChatTab === 'private' ? `
+    <div class="chat-target-bar">
+      <select id="whisper-target" class="input whisper-select">
+        <option value="">-- 选择玩家 --</option>
+        ${renderPlayerOptions()}
+      </select>
+    </div>` : ''}
+    <div class="chat-messages" id="chat-messages">
+      ${renderChatMessages()}
+    </div>
+    <div class="chat-input-area">
+      <input class="input" type="text" id="chat-input"
+             placeholder="${chatPlaceholders[activeChatTab] || '发送消息...'}"
+             maxlength="500">
+      <button class="btn chat-send-btn" id="chat-send-btn">发送</button>
+    </div>
+  `;
+}
+
+function bindChatEvents(roomId) {
+  function sendChat() {
+    const chatInput = document.getElementById('chat-input');
+    const msg = chatInput?.value.trim();
+    if (!msg) return;
+    chatInput.value = '';
+
+    if (activeChatTab === 'private') {
+      const target = whisperTargetId || document.getElementById('whisper-target')?.value;
+      if (!target) {
+        toast('请先选择私聊对象', 'warning');
+        return;
+      }
+      wsSendCommand(roomId, 'whisper', { to_user_id: target, message: msg }).catch(() => toast('发送失败', 'error'));
+    } else if (activeChatTab === 'evil_team') {
+      wsSendCommand(roomId, 'evil_team_chat', { message: msg }).catch(() => toast('发送失败', 'error'));
+    } else {
+      wsSendCommand(roomId, 'public_chat', { message: msg }).catch(() => toast('发送失败', 'error'));
+    }
+  }
+
+  document.getElementById('chat-send-btn')?.addEventListener('click', sendChat);
+  document.getElementById('chat-input')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  document.getElementById('chat-tabs')?.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-tab]');
+    if (!tab) return;
+    activeChatTab = tab.dataset.tab;
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatPanel) {
+      chatPanel.innerHTML = renderChatPanelInner();
+      bindChatEvents(roomId);
+    }
+  });
+  document.getElementById('whisper-target')?.addEventListener('change', (e) => { whisperTargetId = e.target.value; });
 }
 
 function handleGameClick(e) {
@@ -619,33 +804,34 @@ function updateGameUI() {
 }
 
 function updateActionPanel() {
-  // Find the action/nomination panel and replace it
-  const sidePanel = document.querySelector('.side-panel');
-  if (!sidePanel) return;
-
-  const existingAction = sidePanel.querySelector('.action-panel, .nomination-panel');
-  const newHtml = renderActionPanel();
-
-  if (existingAction) {
-    const temp = document.createElement('div');
-    temp.innerHTML = newHtml;
-    if (temp.firstElementChild) {
-      existingAction.replaceWith(temp.firstElementChild);
+  const actionArea = document.getElementById('action-area');
+  if (!actionArea) {
+    // Fallback: try old side-panel approach
+    const sidePanel = document.querySelector('.side-panel');
+    if (!sidePanel) return;
+    const existingAction = sidePanel.querySelector('.action-panel, .nomination-panel');
+    const newHtml = renderActionPanel();
+    if (existingAction) {
+      const temp = document.createElement('div');
+      temp.innerHTML = newHtml;
+      if (temp.firstElementChild) existingAction.replaceWith(temp.firstElementChild);
     }
-  } else if (newHtml) {
-    const temp = document.createElement('div');
-    temp.innerHTML = newHtml;
-    if (temp.firstElementChild) {
-      sidePanel.insertBefore(temp.firstElementChild, sidePanel.querySelector('.chat-panel'));
-    }
+    return;
   }
+  actionArea.innerHTML = renderActionPanel();
+}
+
+function updateNotifications() {
+  const container = document.getElementById('notif-list');
+  if (!container) return;
+  container.innerHTML = renderNotifications();
+  container.scrollTop = container.scrollHeight;
 }
 
 function updateChatMessages() {
   const container = document.getElementById('chat-messages');
   if (!container) return;
-  container.innerHTML = renderMessages();
-  // Auto-scroll to bottom
+  container.innerHTML = renderChatMessages();
   container.scrollTop = container.scrollHeight;
 }
 

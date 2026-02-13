@@ -335,6 +335,13 @@ func (a *AutoDM) OnEvent(ctx context.Context, ev types.Event, state interface{})
 		(ev.EventType == "public.chat" || ev.EventType == "whisper.sent") {
 		return
 	}
+
+	// Skip non-game events that don't need AI narration
+	switch ev.EventType {
+	case "player.joined", "player.left", "seat.claimed", "room.settings.changed":
+		return
+	}
+
 	a.updateGameStateFromEngineState(state)
 
 	if a.publishAsyncTask(ctx, ev) {

@@ -17,6 +17,7 @@ export function renderAuth() {
         </div>
         <div class="auth-card">
           <h2 style="text-align:center; margin-bottom: 1.5rem; color: var(--text-primary);">设置你的名字</h2>
+          ${window.__BOTC_AS ? `<div style="text-align:center; margin-bottom:0.5rem; color:var(--text-secondary); font-size:0.85rem;">🔹 小号 #${window.__BOTC_AS}</div>` : ''}
           <form class="auth-form" id="auth-form">
             <div class="form-group">
               <label>用户名</label>

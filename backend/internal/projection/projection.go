@@ -27,6 +27,9 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 	switch event.EventType {
 	case "bluffs.assigned", "night.action.queued", "night.action.completed", "player.poisoned", "player.protected", "demon.changed":
 		return false
+	case "ai.decision":
+		// Only visible after game ends (for post-game review)
+		return state.Phase == engine.PhaseEnded
 	case "whisper.sent":
 		var payload map[string]string
 		_ = json.Unmarshal(event.Payload, &payload)
@@ -42,6 +45,12 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 		_ = json.Unmarshal(event.Payload, &payload)
 		target := payload["target_user_id"]
 		return viewer.UserID == event.ActorUserID || viewer.UserID == target
+	case "evil_team.chat":
+		p, ok := state.Players[viewer.UserID]
+		if !ok {
+			return false
+		}
+		return p.Team == "evil"
 	default:
 		return true
 	}
@@ -69,6 +78,11 @@ func ProjectedState(state engine.State, viewer types.Viewer) engine.State {
 		cp.DemonID = ""
 		cp.MinionIDs = nil
 		cp.BluffRoles = nil
+
+		// AI decision log is only visible after game ends
+		if cp.Phase != engine.PhaseEnded {
+			cp.AIDecisionLog = nil
+		}
 
 		for id, p := range cp.Players {
 			p.TrueRole = ""

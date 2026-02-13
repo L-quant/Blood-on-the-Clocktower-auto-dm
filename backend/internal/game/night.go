@@ -135,31 +135,33 @@ func (na *NightAgent) resolveWasherwoman(req AbilityRequest, malfunctioning bool
 		return &AbilityResult{Success: false, Message: "洗衣妇只在首夜行动"}, nil
 	}
 
-	// Find a townsfolk and create the pair
-	var townsfolkID, wrongID, townfolkRole string
-
+	// Collect ALL townsfolk (excluding self) and randomly pick one —
+	// the storyteller decides which townsfolk to reveal.
+	var townsfolk []*PlayerState
+	var others []*PlayerState
 	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleTownsfolk {
-				townsfolkID = p.UserID
-				townfolkRole = p.TrueRole
-				break
-			}
+		if !p.IsAlive || p.UserID == req.UserID {
+			continue
+		}
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleTownsfolk {
+			townsfolk = append(townsfolk, p)
+		} else {
+			others = append(others, p)
 		}
 	}
-
-	// Find a wrong player (not the townsfolk)
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID && p.UserID != townsfolkID {
-			wrongID = p.UserID
-			break
-		}
-	}
-
-	if townsfolkID == "" || wrongID == "" {
+	if len(townsfolk) == 0 || len(others) == 0 {
 		return &AbilityResult{Success: false, Message: "无法找到足够的玩家"}, nil
 	}
+
+	// Randomly select one correct townsfolk and one decoy
+	tfIdx, _ := randInt(len(townsfolk))
+	chosen := townsfolk[tfIdx]
+	townsfolkID := chosen.UserID
+	townfolkRole := chosen.TrueRole
+
+	wrongIdx, _ := randInt(len(others))
+	wrongID := others[wrongIdx].UserID
 
 	result := &AbilityResult{
 		Success:    true,
@@ -194,17 +196,18 @@ func (na *NightAgent) resolveLibrarian(req AbilityRequest, malfunctioning bool) 
 		return &AbilityResult{Success: false, Message: "图书管理员只在首夜行动"}, nil
 	}
 
-	// Find an outsider
-	var outsiderID, wrongID, outsiderRole string
-
+	// Collect ALL outsiders and others, randomly pick
+	var outsiders []*PlayerState
+	var others []*PlayerState
 	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleOutsider {
-				outsiderID = p.UserID
-				outsiderRole = p.TrueRole
-				break
-			}
+		if !p.IsAlive || p.UserID == req.UserID {
+			continue
+		}
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleOutsider {
+			outsiders = append(outsiders, p)
+		} else {
+			others = append(others, p)
 		}
 	}
 
@@ -213,10 +216,11 @@ func (na *NightAgent) resolveLibrarian(req AbilityRequest, malfunctioning bool) 
 		IsPoisoned: malfunctioning,
 	}
 
-	if outsiderID == "" {
+	var outsiderID, wrongID, outsiderRole string
+
+	if len(outsiders) == 0 {
 		// No outsiders in play
 		if malfunctioning {
-			// Might falsely claim there's an outsider
 			result.Message = "你得知：场上可能有外来者"
 		} else {
 			result.Message = "你得知：场上没有外来者"
@@ -227,12 +231,15 @@ func (na *NightAgent) resolveLibrarian(req AbilityRequest, malfunctioning bool) 
 			IsFalse: malfunctioning,
 		}
 	} else {
-		// Find a wrong player
-		for _, p := range na.ctx.Players {
-			if p.IsAlive && p.UserID != req.UserID && p.UserID != outsiderID {
-				wrongID = p.UserID
-				break
-			}
+		// Randomly select one outsider and one decoy
+		oidx, _ := randInt(len(outsiders))
+		chosen := outsiders[oidx]
+		outsiderID = chosen.UserID
+		outsiderRole = chosen.TrueRole
+
+		if len(others) > 0 {
+			widx, _ := randInt(len(others))
+			wrongID = others[widx].UserID
 		}
 
 		if malfunctioning {
@@ -263,30 +270,35 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 		return &AbilityResult{Success: false, Message: "调查员只在首夜行动"}, nil
 	}
 
-	// Find a minion
-	var minionID, wrongID, minionRole string
-
+	// Collect all minions and others, randomly pick
+	var minions []*PlayerState
+	var others []*PlayerState
 	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleMinion {
-				minionID = p.UserID
-				minionRole = p.TrueRole
-				break
-			}
+		if !p.IsAlive || p.UserID == req.UserID {
+			continue
+		}
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleMinion {
+			minions = append(minions, p)
+		} else {
+			others = append(others, p)
 		}
 	}
 
-	if minionID == "" {
+	if len(minions) == 0 {
 		return &AbilityResult{Success: false, Message: "无法找到爪牙"}, nil
 	}
 
-	// Find a wrong player
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID && p.UserID != minionID {
-			wrongID = p.UserID
-			break
-		}
+	// Randomly select one minion and one decoy
+	midx, _ := randInt(len(minions))
+	chosenMinion := minions[midx]
+	minionID := chosenMinion.UserID
+	minionRole := chosenMinion.TrueRole
+
+	var wrongID string
+	if len(others) > 0 {
+		widx, _ := randInt(len(others))
+		wrongID = others[widx].UserID
 	}
 
 	result := &AbilityResult{
@@ -702,32 +714,47 @@ func (na *NightAgent) getPlayerName(userID string) string {
 
 func (na *NightAgent) getRandomTownsfolkRole(exclude string) string {
 	roles := GetRolesByType(RoleTownsfolk)
+	var candidates []string
 	for _, r := range roles {
 		if r.ID != exclude {
-			return r.ID
+			candidates = append(candidates, r.ID)
 		}
 	}
-	return "washerwoman"
+	if len(candidates) == 0 {
+		return "washerwoman"
+	}
+	idx, _ := randInt(len(candidates))
+	return candidates[idx]
 }
 
 func (na *NightAgent) getRandomOutsiderRole(exclude string) string {
 	roles := GetRolesByType(RoleOutsider)
+	var candidates []string
 	for _, r := range roles {
 		if r.ID != exclude {
-			return r.ID
+			candidates = append(candidates, r.ID)
 		}
 	}
-	return "drunk"
+	if len(candidates) == 0 {
+		return "drunk"
+	}
+	idx, _ := randInt(len(candidates))
+	return candidates[idx]
 }
 
 func (na *NightAgent) getRandomMinionRole(exclude string) string {
 	roles := GetRolesByType(RoleMinion)
+	var candidates []string
 	for _, r := range roles {
 		if r.ID != exclude {
-			return r.ID
+			candidates = append(candidates, r.ID)
 		}
 	}
-	return "poisoner"
+	if len(candidates) == 0 {
+		return "poisoner"
+	}
+	idx, _ := randInt(len(candidates))
+	return candidates[idx]
 }
 
 func (na *NightAgent) getRandomRole() string {
