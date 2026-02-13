@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -82,6 +83,7 @@ func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager,
 	// Auth endpoints
 	r.Post("/v1/auth/register", s.register)
 	r.Post("/v1/auth/login", s.login)
+	r.Post("/v1/auth/quick", s.quickLogin)
 
 	// Room endpoints (protected)
 	r.Route("/v1/rooms", func(r chi.Router) {
@@ -95,6 +97,14 @@ func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager,
 
 	// WebSocket endpoint
 	r.Handle("/ws", wsServer)
+
+	// Serve frontend static files from ../web directory
+	webDir := "../web"
+	if _, err := os.Stat(webDir); err == nil {
+		fileServer := http.FileServer(http.Dir(webDir))
+		r.Handle("/*", fileServer)
+	}
+
 	return s
 }
 
@@ -163,6 +173,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, _ := s.jwt.Generate(u.ID)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(AuthResponse{Token: token, UserID: u.ID})
 }
 
@@ -199,7 +210,48 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, _ := s.jwt.Generate(u.ID)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(AuthResponse{Token: token, UserID: u.ID})
+}
+
+// QuickLoginRequest represents a quick login with just a display name.
+type QuickLoginRequest struct {
+	Name string `json:"name" example:"Alice"`
+}
+
+// QuickLoginResponse represents the quick login response.
+type QuickLoginResponse struct {
+	Token  string `json:"token" example:"eyJhbGciOiJIUzI1NiIs..."`
+	UserID string `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name   string `json:"name" example:"Alice"`
+}
+
+// quickLogin godoc
+// @Summary Quick login with just a display name
+// @Description Create a temporary user with a display name and return JWT token (no password needed)
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body QuickLoginRequest true "Display name"
+// @Success 200 {object} QuickLoginResponse
+// @Failure 400 {string} string "invalid json or empty name"
+// @Router /v1/auth/quick [post]
+func (s *Server) quickLogin(w http.ResponseWriter, r *http.Request) {
+	var req QuickLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	userID := uuid.NewString()
+	u := store.User{ID: userID, Email: req.Name, PasswordHash: "", CreatedAt: time.Now().UTC()}
+	_ = s.store.CreateUser(r.Context(), u)
+	token, _ := s.jwt.Generate(userID)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(QuickLoginResponse{Token: token, UserID: userID, Name: req.Name})
 }
 
 // CreateRoomResponse represents the room creation response.
@@ -225,6 +277,7 @@ func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: rm.ID, UserID: userID, Role: "dm", Joined: time.Now().UTC()})
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(CreateRoomResponse{RoomID: rm.ID})
 }
 
@@ -248,6 +301,7 @@ func (s *Server) joinRoom(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(userIDKey).(string)
 	roomID := chi.URLParam(r, "room_id")
 	_ = s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: roomID, UserID: userID, Role: "player", Joined: time.Now().UTC()})
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JoinRoomResponse{Status: "joined"})
 }
 
@@ -276,6 +330,7 @@ func (s *Server) fetchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, _ := s.store.LoadEventsAfter(r.Context(), roomID, afterSeq, 200)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
 }
 
@@ -307,6 +362,7 @@ func (s *Server) fetchState(w http.ResponseWriter, r *http.Request) {
 	state := ra.GetState()
 	viewer := types.Viewer{UserID: userID, IsDM: role == "dm"}
 	projected := projection.ProjectedState(state, viewer)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(projected)
 }
 
@@ -349,6 +405,7 @@ func (s *Server) replay(w http.ResponseWriter, r *http.Request) {
 	}
 	viewer := types.Viewer{UserID: viewerParam, IsDM: isDM}
 	projected := projection.ProjectedState(state, viewer)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(projected)
 }
 

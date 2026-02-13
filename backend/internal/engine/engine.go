@@ -36,6 +36,8 @@ func HandleCommand(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		return handleLeave(state, cmd)
 	case "claim_seat":
 		return handleClaimSeat(state, cmd)
+	case "room_settings":
+		return handleRoomSettings(state, cmd)
 	case "start_game":
 		return handleStartGame(state, cmd)
 	case "public_chat":
@@ -112,6 +114,34 @@ func handleClaimSeat(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 	}
 
 	return []types.Event{newEvent(cmd, "seat.claimed", map[string]string{"seat_number": seatNum})}, acceptedResult(cmd.CommandID), nil
+}
+
+func handleRoomSettings(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	if state.Phase != PhaseLobby {
+		return nil, nil, fmt.Errorf("cannot change settings after game started")
+	}
+
+	// Only the room creator (DM) can change settings
+	// Check if the actor is the DM
+	if p, ok := state.Players[cmd.ActorUserID]; ok && !p.IsDM {
+		// Also check if they're the first player (host)
+		if len(state.SeatOrder) > 0 && state.SeatOrder[0] != cmd.ActorUserID {
+			return nil, nil, fmt.Errorf("only the host can change room settings")
+		}
+	}
+
+	var payload map[string]string
+	_ = json.Unmarshal(cmd.Payload, &payload)
+
+	eventPayload := map[string]string{}
+	if ed, ok := payload["edition"]; ok {
+		eventPayload["edition"] = ed
+	}
+	if mp, ok := payload["max_players"]; ok {
+		eventPayload["max_players"] = mp
+	}
+
+	return []types.Event{newEvent(cmd, "room.settings.changed", eventPayload)}, acceptedResult(cmd.CommandID), nil
 }
 
 func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {

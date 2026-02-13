@@ -81,6 +81,7 @@ type PendingDeath struct {
 type State struct {
 	RoomID          string            `json:"room_id"`
 	Edition         string            `json:"edition"` // tb, bmr, snv
+	MaxPlayers      int               `json:"max_players"`
 	Phase           Phase             `json:"phase"`
 	SubPhase        SubPhase          `json:"sub_phase"`
 	DayCount        int               `json:"day_count"`
@@ -127,6 +128,7 @@ func NewState(roomID string) State {
 		RoomID:          roomID,
 		Phase:           PhaseLobby,
 		Edition:         "tb",
+		MaxPlayers:      7,
 		Players:         make(map[string]Player),
 		SeatOrder:       []string{},
 		NominationQueue: []Nomination{},
@@ -241,6 +243,16 @@ func (s *State) Reduce(event EventPayload) {
 					p.SeatNumber = int(parsed)
 					s.Players[event.Actor] = p
 				}
+			}
+		}
+
+	case "room.settings.changed":
+		if ed, ok := event.Payload["edition"]; ok && ed != "" {
+			s.Edition = ed
+		}
+		if mp, ok := event.Payload["max_players"]; ok && mp != "" {
+			if parsed, err := json.Number(mp).Int64(); err == nil {
+				s.MaxPlayers = int(parsed)
 			}
 		}
 
