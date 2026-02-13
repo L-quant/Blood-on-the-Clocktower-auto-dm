@@ -1,7 +1,12 @@
 class LiveSession {
   constructor(store) {
-    // 使用环境变量或默认本地后端
-    this._wss = process.env.VUE_APP_WS_URL || "ws://localhost:8080/ws";
+    // Dynamic WebSocket URL based on current host
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.hostname;
+    const defaultUrl = `${protocol}//${host}:8080/ws`;
+    
+    // Use environment variable if set, otherwise default to dynamic calculation
+    this._wss = process.env.VUE_APP_WS_URL || defaultUrl;
     this._useLocalBackend = true; // 使用本地后端
     // this._wss = "wss://live.clocktower.online:8080/"; // 原始 townsquare 服务器
     // this._useLocalBackend = false;
@@ -75,6 +80,7 @@ class LiveSession {
           request_id: Math.random().toString(36).substr(2),
           payload: {
             command_id: Math.random().toString(36).substr(2),
+            room_id: this._store.state.session.sessionId,
             type: command,
             data: params
           }
@@ -244,7 +250,8 @@ class LiveSession {
    * @private
    */
   _processBackendGameEvent(event) {
-    const { type, data } = event;
+    const type = event.type || event.event_type;
+    const data = event.data || event.payload;
     
     switch (type) {
       case "player.joined":
@@ -301,13 +308,26 @@ class LiveSession {
       }
         
       case "public.chat":
-        // 公共聊天消息（可以显示在某个地方）
-        console.log("[Chat]", data.sender, ":", data.message);
+        // Public Chat
+        console.log("[Chat] Received public chat:", data);
+        this._store.commit("chat/addMessage", {
+          type: "public",
+          sender: data.sender_name || data.sender || "System",
+          message: data.message || "",
+          timestamp: new Date()
+        });
         break;
-        
+
+      case "whisper.sent":
       case "whisper.received":
-        // 私信（可以显示通知）
-        console.log("[Whisper]", data.sender, ":", data.message);
+        // Whisper
+        console.log("[Chat] Received whisper:", data);
+        this._store.commit("chat/addMessage", {
+          type: "whisper",
+          sender: data.sender_name || data.sender || "Unknown",
+          message: data.message,
+          timestamp: new Date()
+        });
         break;
         
       default:
@@ -1054,6 +1074,21 @@ class LiveSession {
   }
 
   /**
+   * Send a chat message.
+   * @param payload {type, message}
+   */
+  sendChat({ type, message }) {
+    if (type === "public") {
+      this._send("public_chat", { message });
+    } else if (type === "whisper") {
+      // For whisper, we might need a target. Assuming simplified for now or handled by backend parsing
+      // But looking at backend ws.go might reveal what it expects.
+      // Based on typical implementation:
+      this._send("whisper", { message });
+    }
+  }
+
+  /**
    * Swap two player seats. ST only
    * @param payload
    */
@@ -1158,6 +1193,9 @@ export default store => {
         } else {
           session.sendPlayer(payload);
         }
+        break;
+      case "chat/triggerSend":
+        session.sendChat(payload);
         break;
     }
   });

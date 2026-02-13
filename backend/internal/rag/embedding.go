@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -173,4 +174,144 @@ func (e *LocalEmbedding) EmbedBatch(ctx context.Context, texts []string) ([][]fl
 // Dimensions returns the embedding dimension size.
 func (e *LocalEmbedding) Dimensions() int {
 	return e.dimensions
+}
+
+// GeminiEmbedding uses Google Gemini API for embeddings.
+type GeminiEmbedding struct {
+	apiKey     string
+	model      string
+	dimensions int
+	httpClient *http.Client
+}
+
+// GeminiEmbeddingConfig holds configuration for Gemini embeddings.
+type GeminiEmbeddingConfig struct {
+	APIKey     string
+	Model      string
+	HTTPSProxy string
+}
+
+// NewGeminiEmbedding creates a new Gemini embedding provider.
+func NewGeminiEmbedding(cfg GeminiEmbeddingConfig) *GeminiEmbedding {
+	if cfg.Model == "" {
+		cfg.Model = "embedding-001"
+	}
+
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	if cfg.HTTPSProxy != "" {
+		if u, err := url.Parse(cfg.HTTPSProxy); err == nil {
+			httpClient.Transport = &http.Transport{
+				Proxy: http.ProxyURL(u),
+			}
+		}
+	}
+
+	return &GeminiEmbedding{
+		apiKey:     cfg.APIKey,
+		model:      cfg.Model,
+		dimensions: 768, // text-embedding-004 defaults to 768
+		httpClient: httpClient,
+	}
+}
+
+func (e *GeminiEmbedding) Dimensions() int {
+	return e.dimensions
+}
+
+func (e *GeminiEmbedding) Embed(ctx context.Context, text string) ([]float64, error) {
+	batch, err := e.EmbedBatch(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+	if len(batch) == 0 {
+		return nil, fmt.Errorf("no embeddings returned")
+	}
+	return batch[0], nil
+}
+
+type geminiEmbedRequest struct {
+	Requests []geminiEmbedContentRequest `json:"requests"`
+}
+
+type geminiEmbedContentRequest struct {
+	Model   string        `json:"model"`
+	Content geminiContent `json:"content"`
+}
+
+type geminiContent struct {
+	Parts []geminiPart `json:"parts"`
+}
+
+type geminiPart struct {
+	Text string `json:"text"`
+}
+
+type geminiEmbedResponse struct {
+	Embeddings []geminiEmbeddingValues `json:"embeddings"`
+}
+
+type geminiEmbeddingValues struct {
+	Values []float64 `json:"values"`
+}
+
+func (e *GeminiEmbedding) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:batchEmbedContents?key=%s", e.model, e.apiKey)
+
+	reqRequests := make([]geminiEmbedContentRequest, len(texts))
+	for i, text := range texts {
+		reqRequests[i] = geminiEmbedContentRequest{
+			Model: "models/" + e.model,
+			Content: geminiContent{
+				Parts: []geminiPart{
+					{Text: text},
+				},
+			},
+		}
+	}
+
+	reqBody := geminiEmbedRequest{
+		Requests: reqRequests,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// DEBUG: Print details
+	fmt.Printf("[Gemini Embed] URL: %s\n", url)
+	// fmt.Printf("[Gemini Embed] Body: %s\n", string(jsonBody))
+
+	resp, err := e.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		fmt.Printf("[Gemini Embed] Error Body: %s\n", string(bodyBytes))
+		return nil, fmt.Errorf("gemini embedding failed: %s - %s", resp.Status, string(bodyBytes))
+	}
+
+	var geminiResp geminiEmbedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return nil, err
+	}
+
+	results := make([][]float64, len(geminiResp.Embeddings))
+	for i, emb := range geminiResp.Embeddings {
+		results[i] = emb.Values
+	}
+
+	return results, nil
 }

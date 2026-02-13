@@ -211,7 +211,17 @@ func handlePublicChat(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 
 	player := state.Players[cmd.ActorUserID]
 	payload["sender_name"] = player.Name
-	payload["sender_seat"] = fmt.Sprintf("%d", player.SeatNumber)
+	if payload["sender_name"] == "" {
+		// Fallback to ActorUserID if player not found in state (e.g. guest or DM)
+		payload["sender_name"] = cmd.ActorUserID
+		// Try to fix guest seat number
+		if player.SeatNumber == 0 {
+			// Find max seat? Or just leave as 0 (spectator)
+			payload["sender_seat"] = "0"
+		}
+	} else {
+		payload["sender_seat"] = fmt.Sprintf("%d", player.SeatNumber)
+	}
 
 	return []types.Event{newEvent(cmd, "public.chat", payload)}, acceptedResult(cmd.CommandID), nil
 }
@@ -689,7 +699,7 @@ func checkWinCondition(state State, cmd types.CommandEnvelope) []types.Event {
 		// Find a living Scarlet Woman
 		for uid, p := range stateCopy.Players {
 			if p.TrueRole == "scarlet_woman" && p.Alive {
-				// We also check alive count >= 5 to be safe, though CheckWinCondition 
+				// We also check alive count >= 5 to be safe, though CheckWinCondition
 				// already implicitly checked this by returning ended=false.
 				if stateCopy.GetAliveCount() >= 5 {
 					return []types.Event{

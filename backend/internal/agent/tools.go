@@ -33,14 +33,11 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "send_public_message",
-				Description: "Send a public message to all players in the room. Use this for announcements, narration, and game information.",
+				Description: "Send a public message to all players. Use this for announcements and game information.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"message": {
-							"type": "string",
-							"description": "The message to send to all players"
-						}
+						"message": { "type": "string" }
 					},
 					"required": ["message"]
 				}`),
@@ -50,18 +47,12 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "send_whisper",
-				Description: "Send a private message to a specific player. Use this for role information, night ability results, or private hints.",
+				Description: "Send a private message to a specific player.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"to_user_id": {
-							"type": "string",
-							"description": "The user ID of the recipient"
-						},
-						"message": {
-							"type": "string",
-							"description": "The private message content"
-						}
+						"to_user_id": { "type": "string" },
+						"message": { "type": "string" }
 					},
 					"required": ["to_user_id", "message"]
 				}`),
@@ -71,19 +62,12 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "advance_phase",
-				Description: "Advance the game to the next phase. Call this when the current phase activities are complete.",
+				Description: "Advance game phase (day/night).",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"to_phase": {
-							"type": "string",
-							"enum": ["day", "night", "ended"],
-							"description": "The phase to advance to"
-						},
-						"reason": {
-							"type": "string",
-							"description": "Explanation for the phase transition"
-						}
+						"to_phase": { "type": "string", "enum": ["day", "night"] },
+						"reason": { "type": "string" }
 					},
 					"required": ["to_phase"]
 				}`),
@@ -93,14 +77,11 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "start_nomination",
-				Description: "Announce that nominations are now open. Call this during the day phase.",
+				Description: "Announce nominations open.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"announcement": {
-							"type": "string",
-							"description": "The nomination opening announcement"
-						}
+						"announcement": { "type": "string" }
 					},
 					"required": ["announcement"]
 				}`),
@@ -110,20 +91,28 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 			Type: "function",
 			Function: ToolFunction{
 				Name:        "resolve_execution",
-				Description: "Resolve an execution after voting completes. Announce the result and any consequences.",
+				Description: "Resolve current nomination/vote. If votes > threshold, target is executed.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"executed_user_id": {
-							"type": "string",
-							"description": "The user ID of the executed player, or empty if no execution"
-						},
-						"announcement": {
-							"type": "string",
-							"description": "The execution result announcement"
-						}
+						"announcement": { "type": "string" }
 					},
 					"required": ["announcement"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
+				Name:        "kill_player",
+				Description: "Force kill a player (e.g. night death).",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"user_id": { "type": "string" },
+						"cause": { "type": "string" }
+					},
+					"required": ["user_id", "cause"]
 				}`),
 			},
 		},
@@ -167,9 +156,51 @@ func (t *GameTools) ExecuteTool(ctx context.Context, toolName string, args json.
 		return t.resolveExecution(ctx, args, roomID)
 	case "end_game":
 		return t.endGame(ctx, args, roomID)
+	// New Tools
+	case "kill_player":
+		return t.killPlayer(ctx, args, roomID)
+	case "vote_for_player":
+		return t.voteForPlayer(ctx, args, roomID)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
+}
+
+func (t *GameTools) killPlayer(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
+	var a struct {
+		UserID string `json:"user_id"`
+		Cause  string `json:"cause"`
+	}
+	if err := json.Unmarshal(args, &a); err != nil {
+		return nil, err
+	}
+
+	payload := map[string]interface{}{
+		"event_type": "player.died",
+		"data": map[string]string{
+			"user_id": a.UserID,
+			"cause":   a.Cause,
+		},
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	cmd := types.CommandEnvelope{
+		RoomID:      roomID,
+		Type:        "write_event", // Admin override
+		ActorUserID: "autodm",
+		Payload:     json.RawMessage(payloadBytes),
+	}
+
+	if err := t.dispatcher.DispatchAsync(cmd); err != nil {
+		return nil, err
+	}
+	res, err := json.Marshal(map[string]string{"status": "killed"})
+	return json.RawMessage(res), err
+}
+
+func (t *GameTools) voteForPlayer(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
+	res, err := json.Marshal(map[string]string{"status": "not_implemented_use_ui"})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) sendPublicMessage(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
@@ -191,7 +222,8 @@ func (t *GameTools) sendPublicMessage(ctx context.Context, args json.RawMessage,
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "sent"})
+	res, err := json.Marshal(map[string]string{"status": "sent"})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) sendWhisper(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
@@ -214,7 +246,8 @@ func (t *GameTools) sendWhisper(ctx context.Context, args json.RawMessage, roomI
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "sent"})
+	res, err := json.Marshal(map[string]string{"status": "sent"})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) advancePhase(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
@@ -237,7 +270,8 @@ func (t *GameTools) advancePhase(ctx context.Context, args json.RawMessage, room
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "phase_advanced", "to": a.ToPhase})
+	res, err := json.Marshal(map[string]string{"status": "phase_advanced", "to": a.ToPhase})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) startNomination(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
@@ -260,10 +294,12 @@ func (t *GameTools) startNomination(ctx context.Context, args json.RawMessage, r
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "nominations_open"})
+	res, err := json.Marshal(map[string]string{"status": "nominations_open"})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) resolveExecution(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
+	// First announce
 	var a struct {
 		ExecutedUserID string `json:"executed_user_id"`
 		Announcement   string `json:"announcement"`
@@ -272,19 +308,28 @@ func (t *GameTools) resolveExecution(ctx context.Context, args json.RawMessage, 
 		return nil, err
 	}
 
-	// Send announcement
-	cmd := types.CommandEnvelope{
+	chatCmd := types.CommandEnvelope{
 		RoomID:      roomID,
 		Type:        "public_chat",
 		ActorUserID: "autodm",
 		Payload:     json.RawMessage(fmt.Sprintf(`{"message": %q}`, a.Announcement)),
+	}
+	t.dispatcher.DispatchAsync(chatCmd)
+
+	// Then actually execute logic
+	cmd := types.CommandEnvelope{
+		RoomID:      roomID,
+		Type:        "resolve_nomination",
+		ActorUserID: "autodm",
+		Payload:     json.RawMessage("{}"),
 	}
 
 	if err := t.dispatcher.DispatchAsync(cmd); err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "resolved", "executed": a.ExecutedUserID})
+	res, err := json.Marshal(map[string]string{"status": "resolved"})
+	return json.RawMessage(res), err
 }
 
 func (t *GameTools) endGame(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
@@ -308,5 +353,6 @@ func (t *GameTools) endGame(ctx context.Context, args json.RawMessage, roomID st
 		return nil, err
 	}
 
-	return json.Marshal(map[string]string{"status": "game_ended", "winner": a.Winner})
+	res, err := json.Marshal(map[string]string{"status": "game_ended", "winner": a.Winner})
+	return json.RawMessage(res), err
 }

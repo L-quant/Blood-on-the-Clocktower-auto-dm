@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -21,9 +22,10 @@ type GeminiClient struct {
 
 // GeminiConfig holds Gemini client configuration.
 type GeminiConfig struct {
-	APIKey  string
-	Model   string
-	Timeout time.Duration
+	APIKey     string
+	Model      string
+	Timeout    time.Duration
+	HTTPSProxy string
 }
 
 // NewGeminiClient creates a new Gemini client.
@@ -34,13 +36,26 @@ func NewGeminiClient(cfg GeminiConfig) *GeminiClient {
 	if cfg.Model == "" {
 		cfg.Model = "gemini-2.0-flash"
 	}
+
+	httpClient := &http.Client{
+		Timeout: cfg.Timeout,
+	}
+
+	if cfg.HTTPSProxy != "" {
+		if u, err := url.Parse(cfg.HTTPSProxy); err == nil {
+			httpClient.Transport = &http.Transport{
+				Proxy: http.ProxyURL(u),
+			}
+		} else {
+			fmt.Printf("[Gemini] Invalid Proxy URL: %s\n", cfg.HTTPSProxy)
+		}
+	}
+
 	return &GeminiClient{
-		apiKey: cfg.APIKey,
-		model:  cfg.Model,
-		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
-		},
-		baseURL: "https://generativelanguage.googleapis.com/v1beta",
+		apiKey:     cfg.APIKey,
+		model:      cfg.Model,
+		httpClient: httpClient,
+		baseURL:    "https://generativelanguage.googleapis.com/v1beta",
 	}
 }
 
@@ -211,6 +226,7 @@ func (c *GeminiClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		fmt.Printf("[Gemini] Request Error: %v\n", err)
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -221,11 +237,16 @@ func (c *GeminiClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("[Gemini] API Error Status: %d, Body: %s\n", resp.StatusCode, string(respBody))
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
 	}
 
+	// Debug log
+	// fmt.Printf("[Gemini] Response: %s\n", string(respBody))
+
 	var geminiResp GeminiResponse
 	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+		fmt.Printf("[Gemini] JSON Error: %v\n", err)
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 

@@ -64,16 +64,75 @@ func NewWSServer(jwt *auth.JWTManager, st *store.Store, roomMgr *room.RoomManage
 }
 
 func (ws *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var userID string
 	token := r.URL.Query().Get("token")
+
+	// Support anonymous login via player_id
 	if token == "" {
-		http.Error(w, "missing token", http.StatusUnauthorized)
-		return
+		playerID := r.URL.Query().Get("player_id")
+		if playerID == "" {
+			http.Error(w, "missing token or player_id", http.StatusUnauthorized)
+			return
+		}
+		userID = playerID
+
+		// Auto-register user if not exists (Guest mode)
+		if _, err := ws.store.GetUserByID(r.Context(), userID); err != nil {
+			// Assume error means not found, create guest user
+			u := store.User{
+				ID:           userID,
+				Email:        userID + "@guest.local",
+				PasswordHash: "", // No password for guests
+				CreatedAt:    time.Now().UTC(),
+			}
+			if err := ws.store.CreateUser(r.Context(), u); err != nil {
+				// Ignore error, might be race condition or db issue
+				ws.logger.Warn("failed to auto-create guest user", zap.Error(err))
+			}
+		}
+
+		// Auto-create room if room_id is provided and doesn't exist
+		roomID := r.URL.Query().Get("room_id")
+		if roomID != "" {
+			if _, err := ws.store.GetRoom(r.Context(), roomID); err != nil {
+				// Assume error means not found
+				newRoom := store.Room{
+					ID:        roomID,
+					CreatedBy: userID,
+					DMUserID:  userID, // First joiner becomes DM? or just guest room
+					Status:    "lobby",
+					CreatedAt: time.Now().UTC(),
+				}
+				if err := ws.store.CreateRoom(r.Context(), newRoom); err != nil {
+					ws.logger.Warn("failed to auto-create guest room", zap.Error(err))
+				}
+				// Force add member
+				_ = ws.store.AddRoomMember(r.Context(), store.RoomMember{
+					RoomID: roomID,
+					UserID: userID,
+					Role:   "player", // Could determine DM based on 'host' string in frontend logic
+					Joined: time.Now().UTC(),
+				})
+			} else {
+				// Room exists, ensure membership
+				_ = ws.store.AddRoomMember(r.Context(), store.RoomMember{
+					RoomID: roomID,
+					UserID: userID,
+					Role:   "player",
+					Joined: time.Now().UTC(),
+				})
+			}
+		}
+
+	} else {
+		claims, err := ws.jwt.Parse(token)
+		if err != nil {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		userID = claims.UserID
 	}
-	claims, err := ws.jwt.Parse(token)
-	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
+
 	conn, err := ws.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		ws.logger.Warn("upgrade failed", zap.Error(err))
@@ -81,11 +140,11 @@ func (ws *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	session := &Session{
 		id:      uuid.NewString(),
-		userID:  claims.UserID,
+		userID:  userID,
 		conn:    conn,
 		store:   ws.store,
 		roomMgr: ws.roomMgr,
-		logger:  ws.logger.With(zap.String("session_id", uuid.NewString()), zap.String("user_id", claims.UserID)),
+		logger:  ws.logger.With(zap.String("session_id", uuid.NewString()), zap.String("user_id", userID)),
 		metrics: ws.metrics,
 		send:    make(chan []byte, 64),
 		limiter: NewTokenBucket(10, 2),

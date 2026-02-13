@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -31,6 +32,14 @@ import (
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Warning: .env file not found")
+	}
+
+	fmt.Println("==================================================")
+	fmt.Println("   BACKEND SERVER STARTING - WATCH THIS CONSOLE   ")
+	fmt.Println("==================================================")
+
 	cfg := config.Load()
 	logger, err := observability.SetupLogger()
 	if err != nil {
@@ -48,24 +57,33 @@ func main() {
 	defer tp.Shutdown(ctx)
 
 	db, err := store.ConnectMySQL(cfg.DBDSN)
+	var st *store.Store
 	if err != nil {
-		logger.Fatal("cannot connect db", zap.Error(err))
+		logger.Warn("cannot connect db, falling back to IN-MEMORY MODE", zap.Error(err))
+		st = store.NewMemoryStore()
+	} else {
+		defer db.Close()
+		st = store.New(db)
 	}
-	defer db.Close()
-	st := store.New(db)
 
 	metrics := observability.NewMetrics(prometheus.DefaultRegisterer.(*prometheus.Registry))
 	jwtMgr := auth.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
 
 	// Initialize RAG system
 	var retriever *rag.RuleRetriever
-	if cfg.QdrantHost != "" {
+	// RAG Disabled temporarily to bypass embedding errors:
+	// Google's embedding models are not available for this API Key / Region.
+	// if cfg.QdrantHost != "" { ... }
+	if false && cfg.QdrantHost != "" {
 		qdrantClient := rag.NewQdrantClient(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection)
-		embedder := rag.NewOpenAIEmbedding(rag.OpenAIEmbeddingConfig{
-			APIKey:     cfg.AutoDMLLMAPIKey,
-			BaseURL:    cfg.AutoDMLLMBaseURL,
-			Dimensions: 1536,
+
+		// Always use Gemini for Embeddings
+		embedder := rag.NewGeminiEmbedding(rag.GeminiEmbeddingConfig{
+			APIKey:     cfg.GeminiAPIKey,
+			Model:      "embedding-001",
+			HTTPSProxy: cfg.HTTPSProxy,
 		})
+
 		retriever = rag.NewRuleRetriever(qdrantClient, embedder)
 
 		// Initialize with rules from assets/rules directory
@@ -113,12 +131,14 @@ func main() {
 		Enabled: cfg.AutoDMEnabled,
 		LLM: agent.LLMRoutingConfig{
 			Default: agent.LLMClientConfig{
-				BaseURL: cfg.AutoDMLLMBaseURL,
-				APIKey:  cfg.AutoDMLLMAPIKey,
-				Model:   cfg.AutoDMLLMModel,
-				Timeout: cfg.AutoDMLLMTimeout,
+				BaseURL:    cfg.AutoDMLLMBaseURL,
+				APIKey:     cfg.AutoDMLLMAPIKey,
+				Model:      cfg.AutoDMLLMModel,
+				Timeout:    cfg.AutoDMLLMTimeout,
+				HTTPSProxy: cfg.HTTPSProxy,
 			},
 		},
+
 		Logger:    slogLogger,
 		Retriever: retrieverAdapter,
 		TaskQueue: taskQueueAdapter,

@@ -28,10 +28,12 @@ type Config struct {
 	// AutoDM configuration
 	AutoDMEnabled     bool
 	AutoDMLLMProvider string // "openai" or "gemini"
-	AutoDMLLMBaseURL  string
-	AutoDMLLMAPIKey   string
-	AutoDMLLMModel    string
-	AutoDMLLMTimeout  time.Duration
+	HTTPSProxy        string // Proxy URL, e.g., "http://127.0.0.1:7890"
+
+	AutoDMLLMBaseURL string
+	AutoDMLLMAPIKey  string
+	AutoDMLLMModel   string
+	AutoDMLLMTimeout time.Duration
 
 	// Google Gemini specific configuration
 	GeminiAPIKey string
@@ -76,20 +78,21 @@ func getEnvBool(key string, def bool) bool {
 }
 
 func Load() Config {
-	// Determine LLM provider - prefer Gemini if key is set
+	// Determine LLM provider - Default to Gemini
 	geminiKey := getEnv("GEMINI_API_KEY", "")
-	openaiKey := getEnv("AUTODM_LLM_API_KEY", "")
 
-	provider := "openai"
-	apiKey := openaiKey
-	model := getEnv("AUTODM_LLM_MODEL", "gpt-4o")
-	baseURL := getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1")
+	// Force Gemini defaults
+	provider := "gemini"
+	apiKey := geminiKey
+	model := getEnv("AUTODM_LLM_MODEL", "gemini-2.0-flash")
+	baseURL := "https://generativelanguage.googleapis.com/v1beta"
 
-	if geminiKey != "" {
-		provider = "gemini"
-		apiKey = geminiKey
-		model = getEnv("AUTODM_LLM_MODEL", "gemini-2.0-flash")
-		baseURL = "https://generativelanguage.googleapis.com/v1beta"
+	// Only fallback to OpenAI if explicitly configured via older env vars (legacy support)
+	if getEnv("AUTODM_LLM_PROVIDER", "") == "openai" {
+		provider = "openai"
+		apiKey = getEnv("AUTODM_LLM_API_KEY", "")
+		model = getEnv("AUTODM_LLM_MODEL", "gpt-4o")
+		baseURL = getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1")
 	}
 
 	return Config{
@@ -106,13 +109,14 @@ func Load() Config {
 		// RabbitMQ
 		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://botc:botc_password@localhost:5672/"),
 
-		// Qdrant Vector DB
-		QdrantHost:       getEnv("QDRANT_HOST", "localhost"),
+		// Qdrant Vector DB (RAG)
+		// Default to empty (disabled) to prevent startup errors if not configured or API fails
+		QdrantHost:       getEnv("QDRANT_HOST", ""),
 		QdrantPort:       getEnvInt("QDRANT_PORT", 6333),
 		QdrantCollection: getEnv("QDRANT_COLLECTION", "botc_rules"),
 
 		// AutoDM: AI Storyteller configuration
-		AutoDMEnabled:     getEnvBool("AUTODM_ENABLED", false),
+		AutoDMEnabled:     getEnvBool("AUTODM_ENABLED", true),
 		AutoDMLLMProvider: provider,
 		AutoDMLLMBaseURL:  baseURL,
 		AutoDMLLMAPIKey:   apiKey,
@@ -121,6 +125,8 @@ func Load() Config {
 
 		// Google Gemini specific
 		GeminiAPIKey: geminiKey,
+
+		HTTPSProxy: getEnv("HTTPS_PROXY", ""), // Reads standard HTTPS_PROXY env, or can be set in .env
 
 		// Game timing configuration
 		DefaultNominationTimeout:  time.Duration(getEnvInt("NOMINATION_TIMEOUT_SEC", 10)) * time.Second,

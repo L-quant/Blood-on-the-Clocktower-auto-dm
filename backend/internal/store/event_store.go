@@ -19,6 +19,15 @@ type StoredEvent struct {
 }
 
 func (s *Store) GetDedupRecord(ctx context.Context, roomID, actorUserID, idempotencyKey, commandType string) (*DedupRecord, error) {
+	if s.MemoryMode {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		key := roomID + ":" + idempotencyKey
+		if r, exists := s.dedups[key]; exists {
+			return &r, nil
+		}
+		return nil, nil // Not found
+	}
 	row := s.DB.QueryRowContext(ctx, `SELECT room_id,actor_user_id,idempotency_key,command_type,command_id,status,result_json,created_at FROM commands_dedup WHERE room_id=? AND actor_user_id=? AND idempotency_key=? AND command_type=?`, roomID, actorUserID, idempotencyKey, commandType)
 	var r DedupRecord
 	if err := row.Scan(&r.RoomID, &r.ActorUserID, &r.IdempotencyKey, &r.CommandType, &r.CommandID, &r.Status, &r.ResultJSON, &r.CreatedAt); err != nil {
@@ -31,12 +40,27 @@ func (s *Store) GetDedupRecord(ctx context.Context, roomID, actorUserID, idempot
 }
 
 func (s *Store) SaveDedupRecord(ctx context.Context, tx *sql.Tx, r DedupRecord) error {
+	if s.MemoryMode {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		key := r.RoomID + ":" + r.IdempotencyKey
+		s.dedups[key] = r
+		return nil
+	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO commands_dedup (room_id,actor_user_id,idempotency_key,command_type,command_id,status,result_json,created_at) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE status=VALUES(status),result_json=VALUES(result_json)`,
 		r.RoomID, r.ActorUserID, r.IdempotencyKey, r.CommandType, r.CommandID, r.Status, r.ResultJSON, r.CreatedAt)
 	return err
 }
 
 func (s *Store) GetLatestSnapshot(ctx context.Context, roomID string) (*Snapshot, error) {
+	if s.MemoryMode {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		if snap, exists := s.snapshots[roomID]; exists {
+			return &snap, nil
+		}
+		return nil, nil
+	}
 	row := s.DB.QueryRowContext(ctx, `SELECT room_id,last_seq,state_json,created_at FROM snapshots WHERE room_id=? ORDER BY last_seq DESC LIMIT 1`, roomID)
 	var snap Snapshot
 	if err := row.Scan(&snap.RoomID, &snap.LastSeq, &snap.StateJSON, &snap.CreatedAt); err != nil {
@@ -54,6 +78,22 @@ func (s *Store) SaveSnapshot(ctx context.Context, tx *sql.Tx, snap Snapshot) err
 }
 
 func (s *Store) LoadEventsAfter(ctx context.Context, roomID string, afterSeq int64, limit int) ([]StoredEvent, error) {
+	if s.MemoryMode {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		var res []StoredEvent
+		events := s.events[roomID]
+		for _, e := range events {
+			if e.Seq > afterSeq {
+				res = append(res, e)
+				if limit > 0 && len(res) >= limit {
+					break
+				}
+			}
+		}
+		return res, nil
+	}
+	// ... existing implementation
 	if limit <= 0 {
 		limit = 200
 	}
@@ -74,6 +114,19 @@ func (s *Store) LoadEventsAfter(ctx context.Context, roomID string, afterSeq int
 }
 
 func (s *Store) LoadEventsUpTo(ctx context.Context, roomID string, toSeq int64) ([]StoredEvent, error) {
+	if s.MemoryMode {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		var res []StoredEvent
+		events := s.events[roomID]
+		for _, e := range events {
+			if toSeq == 0 || e.Seq <= toSeq {
+				res = append(res, e)
+			}
+		}
+		return res, nil
+	}
+	// ... existing implementation
 	var (
 		rows *sql.Rows
 		err  error
@@ -107,6 +160,31 @@ func (s *Store) LoadEventsUpTo(ctx context.Context, roomID string, toSeq int64) 
 }
 
 func (s *Store) AppendEvents(ctx context.Context, roomID string, events []StoredEvent, dedup *DedupRecord, snap *Snapshot) error {
+	if s.MemoryMode {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		existing := s.events[roomID]
+		current := int64(len(existing)) + 1
+
+		for i := range events {
+			events[i].Seq = current + int64(i)
+		}
+
+		s.events[roomID] = append(existing, events...)
+
+		if dedup != nil {
+			key := dedup.RoomID + ":" + dedup.IdempotencyKey
+			s.dedups[key] = *dedup
+		}
+
+		if snap != nil {
+			s.snapshots[snap.RoomID] = *snap
+		}
+
+		return nil
+	}
+
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		var current int64
 		row := tx.QueryRowContext(ctx, `SELECT next_seq FROM room_sequences WHERE room_id=? FOR UPDATE`, roomID)

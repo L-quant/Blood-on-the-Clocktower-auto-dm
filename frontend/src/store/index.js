@@ -4,6 +4,7 @@ import persistence from "./persistence";
 import socket from "./socket";
 import players from "./modules/players";
 import session from "./modules/session";
+import chat from "./modules/chat";
 import editionJSON from "../editions.json";
 import rolesJSON from "../roles.json";
 import fabledJSON from "../fabled.json";
@@ -94,7 +95,8 @@ const customRole = {
 export default new Vuex.Store({
   modules: {
     players,
-    session
+    session,
+    chat
   },
   state: {
     grimoire: {

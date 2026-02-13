@@ -8,15 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
 // Config holds LLM client configuration.
 type Config struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Timeout time.Duration
+	BaseURL    string
+	APIKey     string
+	Model      string
+	Timeout    time.Duration
+	HTTPSProxy string // Proxy URL
 }
 
 // Client provides LLM API access.
@@ -25,20 +27,44 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// Provider defines the interface for LLM providers.
+type Provider interface {
+	Chat(ctx context.Context, messages []Message, tools []Tool) (*ChatResponse, error)
+	SimpleChat(ctx context.Context, systemPrompt, userMessage string) (string, error)
+	Model() string
+}
+
 // NewClient creates a new LLM client.
-func NewClient(cfg Config) *Client {
+// It automatically selects the provider based on the BaseURL or configuration.
+func NewClient(cfg Config) Provider {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 60 * time.Second
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
 	}
+
+	// Detect Gemini
+	if isGemini(cfg.BaseURL) {
+		return NewGeminiClient(GeminiConfig{
+			APIKey:     cfg.APIKey,
+			Model:      cfg.Model,
+			Timeout:    cfg.Timeout,
+			HTTPSProxy: cfg.HTTPSProxy,
+		})
+	}
+
 	return &Client{
 		cfg: cfg,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
 	}
+}
+
+func isGemini(url string) bool {
+	// Simple check, or check if url contains googleapis
+	return strings.Contains(url, "generativelanguage.googleapis.com")
 }
 
 // Message represents a chat message.
