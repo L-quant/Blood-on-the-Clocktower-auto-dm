@@ -43,16 +43,18 @@ type AbilityRequest struct {
 
 // GameContext provides game state for ability resolution.
 type GameContext struct {
-	Players      map[string]*PlayerState
-	SeatOrder    []string // UserIDs in seat order
-	PoisonedIDs  map[string]bool
-	DrunkID      string
-	ProtectedIDs map[string]bool
-	DeadIDs      map[string]bool
-	DemonID      string
-	MinionIDs    []string
-	NightNumber  int
-	RedHerringID string // For fortune teller
+	Players            map[string]*PlayerState
+	SeatOrder          []string // UserIDs in seat order
+	PoisonedIDs        map[string]bool
+	DrunkID            string
+	ProtectedIDs       map[string]bool
+	DeadIDs            map[string]bool
+	DemonID            string
+	MinionIDs          []string
+	NightNumber        int
+	RedHerringID       string // For fortune teller
+	ExecutedToday      string // UserID of player executed today (for undertaker)
+	RecluseRegisterEvil bool  // Whether recluse registers as evil this night (storyteller decision)
 }
 
 // PlayerState represents a player's current state.
@@ -263,7 +265,7 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 		return &AbilityResult{Success: false, Message: "调查员只在首夜行动"}, nil
 	}
 
-	// Find a minion
+	// Find a minion (or Recluse registering as minion)
 	var minionID, wrongID, minionRole string
 
 	for _, p := range na.ctx.Players {
@@ -272,6 +274,18 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 			if role != nil && role.Type == RoleMinion {
 				minionID = p.UserID
 				minionRole = p.TrueRole
+				break
+			}
+		}
+	}
+
+	// Recluse might appear as the minion instead
+	if minionID != "" && na.ctx.RecluseRegisterEvil {
+		for _, p := range na.ctx.Players {
+			if p.TrueRole == "recluse" && p.IsAlive && !na.ctx.PoisonedIDs[p.UserID] {
+				// Recluse shows up as the minion; the pair includes recluse + wrong player
+				minionID = p.UserID
+				// Keep the minionRole the same (what they "register as")
 				break
 			}
 		}
@@ -321,7 +335,7 @@ func (na *NightAgent) resolveChef(req AbilityRequest, malfunctioning bool) (*Abi
 		return &AbilityResult{Success: false, Message: "厨师只在首夜行动"}, nil
 	}
 
-	// Count evil pairs
+	// Count evil pairs (accounts for Recluse registering as evil)
 	evilPairs := 0
 	for i := 0; i < len(na.ctx.SeatOrder); i++ {
 		current := na.ctx.SeatOrder[i]
@@ -331,7 +345,7 @@ func (na *NightAgent) resolveChef(req AbilityRequest, malfunctioning bool) (*Abi
 		nextPlayer := na.ctx.Players[next]
 
 		if currentPlayer != nil && nextPlayer != nil &&
-			currentPlayer.Team == TeamEvil && nextPlayer.Team == TeamEvil {
+			na.registersAsEvil(current) && na.registersAsEvil(next) {
 			evilPairs++
 		}
 	}
@@ -385,28 +399,28 @@ func (na *NightAgent) resolveEmpath(req AbilityRequest, malfunctioning bool) (*A
 		return nil, fmt.Errorf("player not in seat order")
 	}
 
-	// Find left alive neighbor
+	// Find left alive neighbor (accounts for Recluse)
 	leftEvil := 0
 	for i := 1; i < len(na.ctx.SeatOrder); i++ {
 		leftIdx := (seatIdx - i + len(na.ctx.SeatOrder)) % len(na.ctx.SeatOrder)
 		leftUID := na.ctx.SeatOrder[leftIdx]
 		leftPlayer := na.ctx.Players[leftUID]
 		if leftPlayer != nil && leftPlayer.IsAlive {
-			if leftPlayer.Team == TeamEvil {
+			if na.registersAsEvil(leftUID) {
 				leftEvil = 1
 			}
 			break
 		}
 	}
 
-	// Find right alive neighbor
+	// Find right alive neighbor (accounts for Recluse)
 	rightEvil := 0
 	for i := 1; i < len(na.ctx.SeatOrder); i++ {
 		rightIdx := (seatIdx + i) % len(na.ctx.SeatOrder)
 		rightUID := na.ctx.SeatOrder[rightIdx]
 		rightPlayer := na.ctx.Players[rightUID]
 		if rightPlayer != nil && rightPlayer.IsAlive {
-			if rightPlayer.Team == TeamEvil {
+			if na.registersAsEvil(rightUID) {
 				rightEvil = 1
 			}
 			break
@@ -448,7 +462,7 @@ func (na *NightAgent) resolveFortuneTeller(req AbilityRequest, malfunctioning bo
 	target1 := req.TargetIDs[0]
 	target2 := req.TargetIDs[1]
 
-	// Check if either target is the demon
+	// Check if either target is the demon (or red herring, or Recluse registering as demon)
 	hasDemon := false
 	for _, tid := range req.TargetIDs {
 		if tid == na.ctx.DemonID {
@@ -457,6 +471,12 @@ func (na *NightAgent) resolveFortuneTeller(req AbilityRequest, malfunctioning bo
 		}
 		// Check for red herring
 		if tid == na.ctx.RedHerringID {
+			hasDemon = true
+			break
+		}
+		// Recluse might register as demon
+		p := na.ctx.Players[tid]
+		if p != nil && p.TrueRole == "recluse" && na.ctx.RecluseRegisterEvil && !na.ctx.PoisonedIDs[tid] {
 			hasDemon = true
 			break
 		}
@@ -496,12 +516,48 @@ func (na *NightAgent) resolveUndertaker(req AbilityRequest, malfunctioning bool)
 		return &AbilityResult{Success: false, Message: "掘墓人不在首夜行动"}, nil
 	}
 
-	// This would need the executed player from the day
-	// For now, return a placeholder
+	executedID := na.ctx.ExecutedToday
+	if executedID == "" {
+		return &AbilityResult{
+			Success:    true,
+			Message:    "今天没有玩家被处决",
+			IsPoisoned: malfunctioning,
+			Information: &AbilityInfo{
+				Type:    "undertaker",
+				Content: map[string]interface{}{"no_execution": true},
+				IsFalse: false,
+			},
+		}, nil
+	}
+
+	executedPlayer := na.ctx.Players[executedID]
+	if executedPlayer == nil {
+		return &AbilityResult{
+			Success: true,
+			Message: "今天没有玩家被处决",
+		}, nil
+	}
+
 	result := &AbilityResult{
 		Success:    true,
-		Message:    "今天没有玩家被处决",
 		IsPoisoned: malfunctioning,
+	}
+
+	if malfunctioning {
+		fakeRole := na.getRandomRole()
+		result.Message = fmt.Sprintf("你得知今天被处决的玩家是 %s", getRoleDisplayName(fakeRole))
+		result.Information = &AbilityInfo{
+			Type:    "undertaker",
+			Content: map[string]interface{}{"player": executedID, "role": fakeRole},
+			IsFalse: true,
+		}
+	} else {
+		result.Message = fmt.Sprintf("你得知今天被处决的玩家是 %s", getRoleDisplayName(executedPlayer.TrueRole))
+		result.Information = &AbilityInfo{
+			Type:    "undertaker",
+			Content: map[string]interface{}{"player": executedID, "role": executedPlayer.TrueRole},
+			IsFalse: false,
+		}
 	}
 
 	return result, nil
@@ -674,6 +730,23 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 			result.Message = fmt.Sprintf("你试图杀死 %s，但他们被保护了", na.getPlayerName(targetID))
 		} else if na.ctx.Players[targetID] != nil && na.ctx.Players[targetID].TrueRole == "soldier" && !na.ctx.PoisonedIDs[targetID] {
 			result.Message = fmt.Sprintf("你试图杀死 %s，但他们是士兵", na.getPlayerName(targetID))
+		} else if na.ctx.Players[targetID] != nil && na.ctx.Players[targetID].TrueRole == "mayor" && !na.ctx.PoisonedIDs[targetID] {
+			// Mayor death bounce: another player dies instead
+			bounceTarget := na.findMayorBounceTarget(targetID)
+			if bounceTarget != "" {
+				result.Message = fmt.Sprintf("你杀死了 %s（市长能力：另一名玩家代替死亡）", na.getPlayerName(bounceTarget))
+				result.Effects = append(result.Effects, AbilityEffect{
+					Type:     "kill",
+					TargetID: bounceTarget,
+				})
+			} else {
+				// No valid bounce target, mayor dies
+				result.Message = fmt.Sprintf("你杀死了 %s", na.getPlayerName(targetID))
+				result.Effects = append(result.Effects, AbilityEffect{
+					Type:     "kill",
+					TargetID: targetID,
+				})
+			}
 		} else {
 			result.Message = fmt.Sprintf("你杀死了 %s", na.getPlayerName(targetID))
 			result.Effects = append(result.Effects, AbilityEffect{
@@ -687,6 +760,38 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 }
 
 // === HELPER FUNCTIONS ===
+
+// registersAsEvil returns true if the player should register as evil for detection abilities.
+// This accounts for the Recluse ability (might register as evil).
+func (na *NightAgent) registersAsEvil(userID string) bool {
+	p := na.ctx.Players[userID]
+	if p == nil {
+		return false
+	}
+	if p.Team == TeamEvil {
+		return true
+	}
+	// Recluse might register as evil (storyteller decision for this night)
+	if p.TrueRole == "recluse" && na.ctx.RecluseRegisterEvil && !na.ctx.PoisonedIDs[userID] {
+		return true
+	}
+	return false
+}
+
+// findMayorBounceTarget picks a random alive non-demon player to die instead of the mayor.
+func (na *NightAgent) findMayorBounceTarget(mayorID string) string {
+	var candidates []string
+	for uid, p := range na.ctx.Players {
+		if uid != mayorID && p.IsAlive && uid != na.ctx.DemonID {
+			candidates = append(candidates, uid)
+		}
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	idx, _ := randInt(len(candidates))
+	return candidates[idx]
+}
 
 func (na *NightAgent) getPlayerName(userID string) string {
 	if p := na.ctx.Players[userID]; p != nil {

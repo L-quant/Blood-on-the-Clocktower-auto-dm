@@ -28,6 +28,14 @@
     </transition>
     <TownSquare></TownSquare>
     <Menu ref="menu"></Menu>
+    <ChatPanel />
+    <GameStatus />
+    <SoloMode
+      :showSoloMode="showSoloMode"
+      :roomId="session.sessionId || ''"
+      @close="showSoloMode = false"
+      @bots-added="onBotsAdded"
+    />
     <EditionModal />
     <FabledModal />
     <RolesModal />
@@ -56,6 +64,9 @@ import NightOrderModal from "./components/modals/NightOrderModal";
 import FabledModal from "@/components/modals/FabledModal";
 import VoteHistoryModal from "@/components/modals/VoteHistoryModal";
 import GameStateModal from "@/components/modals/GameStateModal";
+import ChatPanel from "./components/ChatPanel";
+import GameStatus from "./components/GameStatus";
+import SoloMode from "./components/SoloMode";
 
 export default {
   components: {
@@ -71,7 +82,10 @@ export default {
     Menu,
     EditionModal,
     RolesModal,
-    Gradients
+    Gradients,
+    ChatPanel,
+    GameStatus,
+    SoloMode
   },
   computed: {
     ...mapState(["grimoire", "session"]),
@@ -79,10 +93,14 @@ export default {
   },
   data() {
     return {
-      version
+      version,
+      showSoloMode: false
     };
   },
   methods: {
+    onBotsAdded(data) {
+      console.log("Bots added:", data);
+    },
     keyup({ key, ctrlKey, metaKey }) {
       if (ctrlKey || metaKey) return;
       switch (key.toLocaleLowerCase()) {

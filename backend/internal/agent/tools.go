@@ -130,6 +130,27 @@ func (t *GameTools) GetToolDefinitions() []Tool {
 		{
 			Type: "function",
 			Function: ToolFunction{
+				Name:        "kill_player",
+				Description: "Kill a player (e.g. night death, ability effect). Use this to enforce game state changes.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"user_id": {
+							"type": "string",
+							"description": "The user ID of the player to kill"
+						},
+						"cause": {
+							"type": "string",
+							"description": "The cause of death (e.g. demon, ability, execution)"
+						}
+					},
+					"required": ["user_id", "cause"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFunction{
 				Name:        "end_game",
 				Description: "End the game and announce the winner.",
 				Parameters: json.RawMessage(`{
@@ -167,9 +188,42 @@ func (t *GameTools) ExecuteTool(ctx context.Context, toolName string, args json.
 		return t.resolveExecution(ctx, args, roomID)
 	case "end_game":
 		return t.endGame(ctx, args, roomID)
+	case "kill_player":
+		return t.killPlayer(ctx, args, roomID)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
+}
+
+func (t *GameTools) killPlayer(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {
+	var a struct {
+		UserID string `json:"user_id"`
+		Cause  string `json:"cause"`
+	}
+	if err := json.Unmarshal(args, &a); err != nil {
+		return nil, err
+	}
+
+	payload := map[string]interface{}{
+		"event_type": "player.died",
+		"data": map[string]string{
+			"user_id": a.UserID,
+			"cause":   a.Cause,
+		},
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	cmd := types.CommandEnvelope{
+		RoomID:      roomID,
+		Type:        "write_event",
+		ActorUserID: "autodm",
+		Payload:     json.RawMessage(payloadBytes),
+	}
+
+	if err := t.dispatcher.DispatchAsync(cmd); err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]string{"status": "killed"})
 }
 
 func (t *GameTools) sendPublicMessage(ctx context.Context, args json.RawMessage, roomID string) (json.RawMessage, error) {

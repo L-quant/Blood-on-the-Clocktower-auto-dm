@@ -269,10 +269,14 @@ class LiveSession {
         
       case "phase.changed":
         // 阶段变化
-        if (data.phase === "night") {
+        if (data.phase === "night" || data.phase === "first_night") {
           this._store.commit("toggleNight", true);
         } else {
           this._store.commit("toggleNight", false);
+        }
+        this._store.commit("session/setPhase", data.phase || "");
+        if (data.day_count !== undefined) {
+          this._store.commit("session/setDayCount", data.day_count);
         }
         break;
         
@@ -301,13 +305,27 @@ class LiveSession {
       }
         
       case "public.chat":
-        // 公共聊天消息（可以显示在某个地方）
-        console.log("[Chat]", data.sender, ":", data.message);
+        this._store.commit("session/addChatMessage", {
+          from: data.sender === "auto-dm" ? "auto-dm" : "other",
+          displayName: data.sender_name || data.sender || "Unknown",
+          text: data.message || data.text || "",
+          timestamp: Date.now()
+        });
         break;
-        
+
       case "whisper.received":
-        // 私信（可以显示通知）
-        console.log("[Whisper]", data.sender, ":", data.message);
+        this._store.commit("session/addChatMessage", {
+          from: "system",
+          displayName: "Whisper from " + (data.sender_name || data.sender),
+          text: data.message || data.text || "",
+          timestamp: Date.now()
+        });
+        break;
+
+      case "game.ended":
+        this._store.commit("session/setPhase", "ended");
+        this._store.commit("session/setWinner", data.winner || "");
+        this._store.commit("session/setWinReason", data.reason || "");
         break;
         
       default:
@@ -1079,6 +1097,15 @@ class LiveSession {
     if (this._isSpectator) return;
     this._send("remove", payload);
   }
+
+  /**
+   * Send a chat message.
+   * @param text
+   */
+  sendChat(text) {
+    if (!text) return;
+    this._send("chat", { message: text });
+  }
 }
 
 export default store => {
@@ -1158,6 +1185,9 @@ export default store => {
         } else {
           session.sendPlayer(payload);
         }
+        break;
+      case "session/sendChat":
+        session.sendChat(payload);
         break;
     }
   });

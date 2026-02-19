@@ -22,14 +22,14 @@ const (
 // Router routes requests to appropriate models based on task type.
 type Router struct {
 	mu       sync.RWMutex
-	models   map[TaskType]*Client
-	fallback *Client
+	models   map[TaskType]Provider
+	fallback Provider
 }
 
 // NewRouter creates a new model router.
 func NewRouter(defaultCfg Config) *Router {
 	return &Router{
-		models:   make(map[TaskType]*Client),
+		models:   make(map[TaskType]Provider),
 		fallback: NewClient(defaultCfg),
 	}
 }
@@ -42,7 +42,7 @@ func (r *Router) RegisterModel(taskType TaskType, cfg Config) {
 }
 
 // GetClient returns the appropriate client for a task type.
-func (r *Router) GetClient(taskType TaskType) *Client {
+func (r *Router) GetClient(taskType TaskType) Provider {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

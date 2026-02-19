@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/bot"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/engine"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/projection"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/realtime"
@@ -53,9 +54,19 @@ type Server struct {
 	jwt     *auth.JWTManager
 	roomMgr *room.RoomManager
 	logger  *zap.Logger
+	llmInfo *LLMInfo
+	botMgr  *bot.Manager
 }
 
-func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager, wsServer *realtime.WSServer, logger *zap.Logger) *Server {
+// LLMInfo holds LLM provider information for the health endpoint.
+type LLMInfo struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	BaseURL  string `json:"base_url"`
+	Enabled  bool   `json:"enabled"`
+}
+
+func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager, wsServer *realtime.WSServer, logger *zap.Logger, opts ...ServerOption) *Server {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -70,9 +81,14 @@ func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager,
 		logger:  logger,
 	}
 
+	for _, opt := range opts {
+		opt(s)
+	}
+
 	// Health & Metrics
 	r.Get("/health", s.health)
 	r.Handle("/metrics", promhttp.Handler())
+	r.Get("/v1/llm/health", s.llmHealth)
 
 	// Swagger documentation
 	r.Get("/swagger/*", httpSwagger.Handler(
@@ -82,6 +98,7 @@ func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager,
 	// Auth endpoints
 	r.Post("/v1/auth/register", s.register)
 	r.Post("/v1/auth/login", s.login)
+	r.Post("/v1/auth/quick", s.quickLogin)
 
 	// Room endpoints (protected)
 	r.Route("/v1/rooms", func(r chi.Router) {
@@ -91,6 +108,7 @@ func NewServer(st *store.Store, jwt *auth.JWTManager, roomMgr *room.RoomManager,
 		r.Get("/{room_id}/events", s.fetchEvents)
 		r.Get("/{room_id}/state", s.fetchState)
 		r.Get("/{room_id}/replay", s.replay)
+		r.Post("/{room_id}/bots", s.addBots)
 	})
 
 	// WebSocket endpoint
@@ -163,6 +181,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, _ := s.jwt.Generate(u.ID)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(AuthResponse{Token: token, UserID: u.ID})
 }
 
@@ -199,7 +218,52 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, _ := s.jwt.Generate(u.ID)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(AuthResponse{Token: token, UserID: u.ID})
+}
+
+// QuickLoginRequest represents a quick login with just a display name.
+type QuickLoginRequest struct {
+	Name string `json:"name" example:"Alice"`
+}
+
+// QuickLoginResponse represents the quick login response.
+type QuickLoginResponse struct {
+	Token  string `json:"token" example:"eyJhbGciOiJIUzI1NiIs..."`
+	UserID string `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name   string `json:"name" example:"Alice"`
+}
+
+// quickLogin godoc
+// @Summary Quick login with just a display name
+// @Description Create a temporary user with a display name and return JWT token (no password needed)
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body QuickLoginRequest true "Display name"
+// @Success 200 {object} QuickLoginResponse
+// @Failure 400 {string} string "invalid json or empty name"
+// @Router /v1/auth/quick [post]
+func (s *Server) quickLogin(w http.ResponseWriter, r *http.Request) {
+	var req QuickLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	userID := uuid.NewString()
+	uniqueEmail := userID + "@quick.local"
+	u := store.User{ID: userID, Email: uniqueEmail, PasswordHash: "", CreatedAt: time.Now().UTC()}
+	if err := s.store.CreateUser(r.Context(), u); err != nil {
+		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		return
+	}
+	token, _ := s.jwt.Generate(userID)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(QuickLoginResponse{Token: token, UserID: userID, Name: req.Name})
 }
 
 // CreateRoomResponse represents the room creation response.
@@ -225,6 +289,7 @@ func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: rm.ID, UserID: userID, Role: "dm", Joined: time.Now().UTC()})
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(CreateRoomResponse{RoomID: rm.ID})
 }
 
@@ -247,7 +312,11 @@ type JoinRoomResponse struct {
 func (s *Server) joinRoom(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(userIDKey).(string)
 	roomID := chi.URLParam(r, "room_id")
-	_ = s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: roomID, UserID: userID, Role: "player", Joined: time.Now().UTC()})
+	if err := s.store.AddRoomMember(r.Context(), store.RoomMember{RoomID: roomID, UserID: userID, Role: "player", Joined: time.Now().UTC()}); err != nil {
+		http.Error(w, "failed to join room", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JoinRoomResponse{Status: "joined"})
 }
 
@@ -276,6 +345,7 @@ func (s *Server) fetchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, _ := s.store.LoadEventsAfter(r.Context(), roomID, afterSeq, 200)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
 }
 
@@ -307,6 +377,7 @@ func (s *Server) fetchState(w http.ResponseWriter, r *http.Request) {
 	state := ra.GetState()
 	viewer := types.Viewer{UserID: userID, IsDM: role == "dm"}
 	projected := projection.ProjectedState(state, viewer)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(projected)
 }
 
@@ -349,7 +420,111 @@ func (s *Server) replay(w http.ResponseWriter, r *http.Request) {
 	}
 	viewer := types.Viewer{UserID: viewerParam, IsDM: isDM}
 	projected := projection.ProjectedState(state, viewer)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(projected)
+}
+
+// ServerOption configures optional Server settings.
+type ServerOption func(*Server)
+
+// WithLLMInfo sets the LLM provider info for the health endpoint.
+func WithLLMInfo(info *LLMInfo) ServerOption {
+	return func(s *Server) {
+		s.llmInfo = info
+	}
+}
+
+// WithBotManager sets the bot manager for bot endpoints.
+func WithBotManager(mgr *bot.Manager) ServerOption {
+	return func(s *Server) {
+		s.botMgr = mgr
+	}
+}
+
+// llmHealth godoc
+// @Summary LLM provider health check
+// @Description Returns the configured LLM provider information and connectivity status
+// @Tags System
+// @Produce json
+// @Success 200 {object} LLMInfo
+// @Router /v1/llm/health [get]
+// AddBotsRequest is the request body for adding bots.
+type AddBotsRequest struct {
+	Count       int    `json:"count" example:"6"`
+	Personality string `json:"personality,omitempty" example:"random"`
+}
+
+// AddBotsResponse is the response after adding bots.
+type AddBotsResponse struct {
+	BotIDs []string `json:"bot_ids"`
+	Count  int      `json:"count"`
+}
+
+// addBots godoc
+// @Summary Add bot players to a room
+// @Description Add AI bot players to a game room for solo testing
+// @Tags Rooms
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param room_id path string true "Room ID"
+// @Param request body AddBotsRequest true "Bot configuration"
+// @Success 200 {object} AddBotsResponse
+// @Failure 400 {string} string "invalid request"
+// @Failure 500 {string} string "failed to add bots"
+// @Router /v1/rooms/{room_id}/bots [post]
+func (s *Server) addBots(w http.ResponseWriter, r *http.Request) {
+	if s.botMgr == nil {
+		http.Error(w, "bot system not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	roomID := chi.URLParam(r, "room_id")
+	var req AddBotsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.Count <= 0 {
+		req.Count = 6 // Default for a 7-player game (1 human + 6 bots)
+	}
+
+	ra, err := s.roomMgr.GetOrCreate(r.Context(), roomID)
+	if err != nil {
+		http.Error(w, "room error", http.StatusInternalServerError)
+		return
+	}
+
+	botIDs, err := s.botMgr.AddBots(r.Context(), bot.AddBotsRequest{
+		RoomID:      roomID,
+		Count:       req.Count,
+		Personality: bot.Personality(req.Personality),
+	}, ra)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(AddBotsResponse{BotIDs: botIDs, Count: len(botIDs)})
+}
+
+func (s *Server) llmHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if s.llmInfo == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "unconfigured",
+			"enabled": false,
+		})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   "ok",
+		"provider": s.llmInfo.Provider,
+		"model":    s.llmInfo.Model,
+		"base_url": s.llmInfo.BaseURL,
+		"enabled":  s.llmInfo.Enabled,
+	})
 }
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {

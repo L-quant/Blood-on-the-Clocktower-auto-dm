@@ -27,11 +27,13 @@ type Config struct {
 
 	// AutoDM configuration
 	AutoDMEnabled     bool
-	AutoDMLLMProvider string // "openai" or "gemini"
-	AutoDMLLMBaseURL  string
-	AutoDMLLMAPIKey   string
-	AutoDMLLMModel    string
-	AutoDMLLMTimeout  time.Duration
+	AutoDMLLMProvider string // "openai", "gemini", "deepseek", or "custom"
+	HTTPSProxy        string // Proxy URL, e.g., "http://127.0.0.1:7890"
+
+	AutoDMLLMBaseURL string
+	AutoDMLLMAPIKey  string
+	AutoDMLLMModel   string
+	AutoDMLLMTimeout time.Duration
 
 	// Google Gemini specific configuration
 	GeminiAPIKey string
@@ -76,20 +78,42 @@ func getEnvBool(key string, def bool) bool {
 }
 
 func Load() Config {
-	// Determine LLM provider - prefer Gemini if key is set
+	// Determine LLM provider
 	geminiKey := getEnv("GEMINI_API_KEY", "")
-	openaiKey := getEnv("AUTODM_LLM_API_KEY", "")
+	explicitProvider := getEnv("AUTODM_LLM_PROVIDER", "")
 
-	provider := "openai"
-	apiKey := openaiKey
-	model := getEnv("AUTODM_LLM_MODEL", "gpt-4o")
-	baseURL := getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1")
+	provider := "gemini"
+	apiKey := geminiKey
+	model := getEnv("AUTODM_LLM_MODEL", "gemini-2.0-flash")
+	baseURL := "https://generativelanguage.googleapis.com/v1beta"
 
-	if geminiKey != "" {
-		provider = "gemini"
-		apiKey = geminiKey
-		model = getEnv("AUTODM_LLM_MODEL", "gemini-2.0-flash")
-		baseURL = "https://generativelanguage.googleapis.com/v1beta"
+	switch explicitProvider {
+	case "openai":
+		provider = "openai"
+		apiKey = getEnv("AUTODM_LLM_API_KEY", "")
+		model = getEnv("AUTODM_LLM_MODEL", "gpt-4o")
+		baseURL = getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1")
+	case "deepseek":
+		provider = "deepseek"
+		apiKey = getEnv("AUTODM_LLM_API_KEY", "")
+		model = getEnv("AUTODM_LLM_MODEL", "deepseek-chat")
+		baseURL = getEnv("AUTODM_LLM_BASE_URL", "https://api.deepseek.com/v1")
+	case "custom":
+		provider = "custom"
+		apiKey = getEnv("AUTODM_LLM_API_KEY", "")
+		model = getEnv("AUTODM_LLM_MODEL", "")
+		baseURL = getEnv("AUTODM_LLM_BASE_URL", "")
+	default:
+		// Default: use Gemini if key set, else OpenAI
+		if geminiKey == "" {
+			openaiKey := getEnv("AUTODM_LLM_API_KEY", "")
+			if openaiKey != "" {
+				provider = "openai"
+				apiKey = openaiKey
+				model = getEnv("AUTODM_LLM_MODEL", "gpt-4o")
+				baseURL = getEnv("AUTODM_LLM_BASE_URL", "https://api.openai.com/v1")
+			}
+		}
 	}
 
 	return Config{
@@ -107,12 +131,12 @@ func Load() Config {
 		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://botc:botc_password@localhost:5672/"),
 
 		// Qdrant Vector DB
-		QdrantHost:       getEnv("QDRANT_HOST", "localhost"),
+		QdrantHost:       getEnv("QDRANT_HOST", ""),
 		QdrantPort:       getEnvInt("QDRANT_PORT", 6333),
 		QdrantCollection: getEnv("QDRANT_COLLECTION", "botc_rules"),
 
 		// AutoDM: AI Storyteller configuration
-		AutoDMEnabled:     getEnvBool("AUTODM_ENABLED", false),
+		AutoDMEnabled:     getEnvBool("AUTODM_ENABLED", true),
 		AutoDMLLMProvider: provider,
 		AutoDMLLMBaseURL:  baseURL,
 		AutoDMLLMAPIKey:   apiKey,
@@ -121,6 +145,8 @@ func Load() Config {
 
 		// Google Gemini specific
 		GeminiAPIKey: geminiKey,
+
+		HTTPSProxy: getEnv("HTTPS_PROXY", ""),
 
 		// Game timing configuration
 		DefaultNominationTimeout:  time.Duration(getEnvInt("NOMINATION_TIMEOUT_SEC", 10)) * time.Second,

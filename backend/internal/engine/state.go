@@ -81,6 +81,7 @@ type PendingDeath struct {
 type State struct {
 	RoomID          string            `json:"room_id"`
 	Edition         string            `json:"edition"` // tb, bmr, snv
+	MaxPlayers      int               `json:"max_players"`
 	Phase           Phase             `json:"phase"`
 	SubPhase        SubPhase          `json:"sub_phase"`
 	DayCount        int               `json:"day_count"`
@@ -95,6 +96,8 @@ type State struct {
 	DemonID         string            `json:"demon_id"`
 	MinionIDs       []string          `json:"minion_ids"`
 	BluffRoles      []string          `json:"bluff_roles"`      // 3 bluffs for demon
+	ExecutedToday   string            `json:"executed_today"`   // UserID of player executed today (for undertaker)
+	RedHerringID    string            `json:"red_herring_id"`   // Good player that registers as demon to fortune teller
 	Winner          string            `json:"winner,omitempty"` // "good" or "evil"
 	WinReason       string            `json:"win_reason,omitempty"`
 	ChatSeq         int64             `json:"chat_seq"`
@@ -102,6 +105,20 @@ type State struct {
 	PhaseStartedAt  int64             `json:"phase_started_at"`
 	PhaseEndsAt     int64             `json:"phase_ends_at"`
 	Config          GameConfig        `json:"config"`
+	AIDecisionLog   []AIDecisionEntry `json:"ai_decision_log"`
+}
+
+type AIDecisionEntry struct {
+	Night       int    `json:"night"`
+	UserID      string `json:"user_id"`
+	PlayerName  string `json:"player_name"`
+	Role        string `json:"role"`
+	Targets     string `json:"targets,omitempty"`
+	TrueResult  string `json:"true_result"`
+	GivenResult string `json:"given_result"`
+	IsPoisoned  bool   `json:"is_poisoned"`
+	IsDrunk     bool   `json:"is_drunk"`
+	Timestamp   int64  `json:"timestamp"`
 }
 
 type GameConfig struct {
@@ -127,6 +144,7 @@ func NewState(roomID string) State {
 		RoomID:          roomID,
 		Phase:           PhaseLobby,
 		Edition:         "tb",
+		MaxPlayers:      7,
 		Players:         make(map[string]Player),
 		SeatOrder:       []string{},
 		NominationQueue: []Nomination{},
@@ -135,6 +153,7 @@ func NewState(roomID string) State {
 		MinionIDs:       []string{},
 		BluffRoles:      []string{},
 		Config:          DefaultGameConfig(),
+		AIDecisionLog:   []AIDecisionEntry{},
 	}
 }
 
@@ -172,6 +191,9 @@ func (s State) Copy() State {
 
 	cp.PendingDeaths = make([]PendingDeath, len(s.PendingDeaths))
 	copy(cp.PendingDeaths, s.PendingDeaths)
+
+	cp.AIDecisionLog = make([]AIDecisionEntry, len(s.AIDecisionLog))
+	copy(cp.AIDecisionLog, s.AIDecisionLog)
 
 	if s.Nomination != nil {
 		votes := make(map[string]bool, len(s.Nomination.Votes))
@@ -244,6 +266,16 @@ func (s *State) Reduce(event EventPayload) {
 			}
 		}
 
+	case "room.settings.changed":
+		if ed, ok := event.Payload["edition"]; ok && ed != "" {
+			s.Edition = ed
+		}
+		if mp, ok := event.Payload["max_players"]; ok && mp != "" {
+			if parsed, err := json.Number(mp).Int64(); err == nil {
+				s.MaxPlayers = int(parsed)
+			}
+		}
+
 	case "game.started":
 		s.Phase = PhaseFirstNight
 		s.NightCount = 1
@@ -275,6 +307,9 @@ func (s *State) Reduce(event EventPayload) {
 			s.BluffRoles = bluffList
 		}
 
+	case "red_herring.assigned":
+		s.RedHerringID = event.Payload["user_id"]
+
 	case "phase.first_night":
 		s.Phase = PhaseFirstNight
 		s.NightCount = 1
@@ -301,6 +336,7 @@ func (s *State) Reduce(event EventPayload) {
 		s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.DiscussionDurationSec) * time.Second).UnixMilli()
 		s.Nomination = nil
 		s.NominationQueue = []Nomination{}
+		s.ExecutedToday = ""
 
 	case "phase.nomination":
 		s.Phase = PhaseNomination
@@ -381,6 +417,7 @@ func (s *State) Reduce(event EventPayload) {
 	case "execution.resolved":
 		if event.Payload["result"] == "executed" {
 			executedID := event.Payload["executed"]
+			s.ExecutedToday = executedID
 			if p, ok := s.Players[executedID]; ok {
 				p.Alive = false
 				s.Players[executedID] = p
@@ -459,8 +496,45 @@ func (s *State) Reduce(event EventPayload) {
 		}
 		s.MinionIDs = append(s.MinionIDs, oldDemonID)
 
-	case "public.chat", "whisper.sent":
+	case "public.chat", "whisper.sent", "evil_team.chat":
 		// Just increment chat seq
+
+	case "ai.decision":
+		night := 0
+		if n, ok := event.Payload["night"]; ok {
+			if parsed, err := json.Number(n).Int64(); err == nil {
+				night = int(parsed)
+			}
+		}
+		var ts int64
+		if t, ok := event.Payload["timestamp"]; ok {
+			if parsed, err := json.Number(t).Int64(); err == nil {
+				ts = parsed
+			}
+		}
+		entry := AIDecisionEntry{
+			Night:       night,
+			UserID:      event.Payload["user_id"],
+			PlayerName:  event.Payload["player_name"],
+			Role:        event.Payload["role"],
+			Targets:     event.Payload["targets"],
+			TrueResult:  event.Payload["true_result"],
+			GivenResult: event.Payload["given_result"],
+			IsPoisoned:  event.Payload["is_poisoned"] == "true",
+			IsDrunk:     event.Payload["is_drunk"] == "true",
+			Timestamp:   ts,
+		}
+		s.AIDecisionLog = append(s.AIDecisionLog, entry)
+
+	case "reminder.added":
+		if uid, ok := event.Payload["user_id"]; ok {
+			if p, pOk := s.Players[uid]; pOk {
+				if reminder, rOk := event.Payload["reminder"]; rOk {
+					p.Reminders = append(p.Reminders, reminder)
+					s.Players[uid] = p
+				}
+			}
+		}
 
 	case "game.ended":
 		s.Phase = PhaseEnded
@@ -541,6 +615,15 @@ func (s *State) GetAliveNeighbors(userID string) (left, right string) {
 
 // CheckWinCondition checks if the game has ended.
 func (s *State) CheckWinCondition() (ended bool, winner, reason string) {
+	// Check for Saint execution
+	for _, nom := range s.NominationQueue {
+		if nom.Result == "executed" {
+			if p, ok := s.Players[nom.Nominee]; ok && p.TrueRole == "saint" && !p.IsPoisoned {
+				return true, "evil", "圣徒被处决"
+			}
+		}
+	}
+
 	// Check if demon is dead
 	if demon, ok := s.Players[s.DemonID]; ok && !demon.Alive {
 		// Check for Scarlet Woman takeover (5+ players alive)
@@ -557,27 +640,28 @@ func (s *State) CheckWinCondition() (ended bool, winner, reason string) {
 		}
 	}
 
-	// Check if only 2 players remain
-	if s.GetAliveCount() <= 2 {
-		// Check for Mayor win condition
-		for _, p := range s.Players {
-			if p.TrueRole == "mayor" && p.Alive {
-				// If no execution happened today and 3 players alive, good wins
-				if s.GetAliveCount() == 3 && len(s.NominationQueue) == 0 {
+	// Mayor win: exactly 3 alive, no execution today, mayor alive and not poisoned
+	aliveCount := s.GetAliveCount()
+	if aliveCount == 3 {
+		hasExecutionToday := false
+		for _, nom := range s.NominationQueue {
+			if nom.Result == "executed" {
+				hasExecutionToday = true
+				break
+			}
+		}
+		if !hasExecutionToday {
+			for _, p := range s.Players {
+				if p.TrueRole == "mayor" && p.Alive && !p.IsPoisoned {
 					return true, "good", "市长在最后三人时达成胜利条件"
 				}
 			}
 		}
-		return true, "evil", "只剩2名玩家存活"
 	}
 
-	// Check for Saint execution
-	for _, nom := range s.NominationQueue {
-		if nom.Result == "executed" {
-			if p, ok := s.Players[nom.Nominee]; ok && p.TrueRole == "saint" {
-				return true, "evil", "圣徒被处决"
-			}
-		}
+	// Check if only 2 players remain - evil wins
+	if aliveCount <= 2 {
+		return true, "evil", "只剩2名玩家存活"
 	}
 
 	return false, "", ""

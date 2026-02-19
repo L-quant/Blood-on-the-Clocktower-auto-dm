@@ -27,7 +27,12 @@ const state = () => ({
   voteHistory: [],
   markedPlayer: -1,
   isVoteHistoryAllowed: true,
-  isRolesDistributed: false
+  isRolesDistributed: false,
+  // Game status fields
+  phase: "",
+  dayCount: 0,
+  winner: "",
+  winReason: ""
 });
 
 const getters = {};
@@ -104,6 +109,18 @@ const mutations = {
   voteSync: handleVote,
   lockVote(state, lock) {
     state.lockedVote = lock !== undefined ? lock : state.lockedVote + 1;
+  },
+  // Game status mutations
+  setPhase: set("phase"),
+  setDayCount: set("dayCount"),
+  setWinner: set("winner"),
+  setWinReason: set("winReason"),
+  // Chat mutations (payload passed through to subscribers)
+  sendChat() {
+    // noop - handled by socket.js subscriber
+  },
+  addChatMessage() {
+    // noop - ChatPanel subscribes to this mutation directly
   }
 };
 

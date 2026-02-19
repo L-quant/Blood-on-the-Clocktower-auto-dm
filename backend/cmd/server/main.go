@@ -17,6 +17,7 @@ import (
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/api"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/bot"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/config"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
@@ -113,10 +114,11 @@ func main() {
 		Enabled: cfg.AutoDMEnabled,
 		LLM: agent.LLMRoutingConfig{
 			Default: agent.LLMClientConfig{
-				BaseURL: cfg.AutoDMLLMBaseURL,
-				APIKey:  cfg.AutoDMLLMAPIKey,
-				Model:   cfg.AutoDMLLMModel,
-				Timeout: cfg.AutoDMLLMTimeout,
+				BaseURL:    cfg.AutoDMLLMBaseURL,
+				APIKey:     cfg.AutoDMLLMAPIKey,
+				Model:      cfg.AutoDMLLMModel,
+				Timeout:    cfg.AutoDMLLMTimeout,
+				HTTPSProxy: cfg.HTTPSProxy,
 			},
 		},
 		Logger:    slogLogger,
@@ -126,6 +128,7 @@ func main() {
 
 	if autoDM.Enabled() {
 		logger.Info("AutoDM enabled",
+			zap.String("provider", cfg.AutoDMLLMProvider),
 			zap.String("model", cfg.AutoDMLLMModel),
 			zap.String("base_url", cfg.AutoDMLLMBaseURL))
 	}
@@ -177,8 +180,18 @@ func main() {
 		}
 	}
 
+	botMgr := bot.NewManager(observability.ZapToSlog(logger))
+
 	wsServer := realtime.NewWSServer(jwtMgr, st, roomMgr, logger, metrics)
-	server := api.NewServer(st, jwtMgr, roomMgr, wsServer, logger)
+	server := api.NewServer(st, jwtMgr, roomMgr, wsServer, logger,
+		api.WithLLMInfo(&api.LLMInfo{
+			Provider: cfg.AutoDMLLMProvider,
+			Model:    cfg.AutoDMLLMModel,
+			BaseURL:  cfg.AutoDMLLMBaseURL,
+			Enabled:  cfg.AutoDMEnabled,
+		}),
+		api.WithBotManager(botMgr),
+	)
 
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: server.Router}
 	go func() {

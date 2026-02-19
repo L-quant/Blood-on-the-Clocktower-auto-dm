@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -21,9 +22,10 @@ type GeminiClient struct {
 
 // GeminiConfig holds Gemini client configuration.
 type GeminiConfig struct {
-	APIKey  string
-	Model   string
-	Timeout time.Duration
+	APIKey     string
+	Model      string
+	Timeout    time.Duration
+	HTTPSProxy string
 }
 
 // NewGeminiClient creates a new Gemini client.
@@ -34,13 +36,24 @@ func NewGeminiClient(cfg GeminiConfig) *GeminiClient {
 	if cfg.Model == "" {
 		cfg.Model = "gemini-2.0-flash"
 	}
+
+	httpClient := &http.Client{
+		Timeout: cfg.Timeout,
+	}
+
+	if cfg.HTTPSProxy != "" {
+		if u, err := url.Parse(cfg.HTTPSProxy); err == nil {
+			httpClient.Transport = &http.Transport{
+				Proxy: http.ProxyURL(u),
+			}
+		}
+	}
+
 	return &GeminiClient{
-		apiKey: cfg.APIKey,
-		model:  cfg.Model,
-		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
-		},
-		baseURL: "https://generativelanguage.googleapis.com/v1beta",
+		apiKey:     cfg.APIKey,
+		model:      cfg.Model,
+		httpClient: httpClient,
+		baseURL:    "https://generativelanguage.googleapis.com/v1beta",
 	}
 }
 
