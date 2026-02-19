@@ -19,13 +19,13 @@ func buildScarletWomanState() State {
 	s.SeatOrder = []string{"p1", "p2", "p3", "imp-player", "sw-player", "poisoner-player", "p4"}
 
 	s.Players = map[string]Player{
-		"p1":               {UserID: "p1", SeatNumber: 1, Role: "washerwoman", TrueRole: "washerwoman", Team: "good", Alive: true},
-		"p2":               {UserID: "p2", SeatNumber: 2, Role: "empath", TrueRole: "empath", Team: "good", Alive: true},
-		"p3":               {UserID: "p3", SeatNumber: 3, Role: "fortune_teller", TrueRole: "fortune_teller", Team: "good", Alive: true},
-		"imp-player":       {UserID: "imp-player", SeatNumber: 4, Role: "imp", TrueRole: "imp", Team: "evil", Alive: true},
-		"sw-player":        {UserID: "sw-player", SeatNumber: 5, Role: "scarlet_woman", TrueRole: "scarlet_woman", Team: "evil", Alive: true},
-		"poisoner-player":  {UserID: "poisoner-player", SeatNumber: 6, Role: "poisoner", TrueRole: "poisoner", Team: "evil", Alive: true},
-		"p4":               {UserID: "p4", SeatNumber: 7, Role: "monk", TrueRole: "monk", Team: "good", Alive: true},
+		"p1":              {UserID: "p1", SeatNumber: 1, Role: "washerwoman", TrueRole: "washerwoman", Team: "good", Alive: true},
+		"p2":              {UserID: "p2", SeatNumber: 2, Role: "empath", TrueRole: "empath", Team: "good", Alive: true},
+		"p3":              {UserID: "p3", SeatNumber: 3, Role: "fortune_teller", TrueRole: "fortune_teller", Team: "good", Alive: true},
+		"imp-player":      {UserID: "imp-player", SeatNumber: 4, Role: "imp", TrueRole: "imp", Team: "evil", Alive: true},
+		"sw-player":       {UserID: "sw-player", SeatNumber: 5, Role: "scarlet_woman", TrueRole: "scarlet_woman", Team: "evil", Alive: true},
+		"poisoner-player": {UserID: "poisoner-player", SeatNumber: 6, Role: "poisoner", TrueRole: "poisoner", Team: "evil", Alive: true},
+		"p4":              {UserID: "p4", SeatNumber: 7, Role: "monk", TrueRole: "monk", Team: "good", Alive: true},
 	}
 
 	return s

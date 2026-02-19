@@ -17,8 +17,8 @@ import (
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/api"
-	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/bot"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/auth"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/bot"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/config"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/queue"

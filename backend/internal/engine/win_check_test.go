@@ -154,19 +154,19 @@ func TestReduceRoomSettingsChanged(t *testing.T) {
 func TestReduceAIDecision(t *testing.T) {
 	s := NewState("room-ai")
 	s.Reduce(EventPayload{
-		Seq:  1,
-		Type: "ai.decision",
+		Seq:   1,
+		Type:  "ai.decision",
 		Actor: "system",
 		Payload: map[string]string{
-			"night":       "1",
-			"user_id":     "p1",
-			"player_name": "Alice",
-			"role":        "empath",
-			"true_result": "1",
+			"night":        "1",
+			"user_id":      "p1",
+			"player_name":  "Alice",
+			"role":         "empath",
+			"true_result":  "1",
 			"given_result": "1",
-			"is_poisoned": "false",
-			"is_drunk":    "false",
-			"timestamp":   "1700000000000",
+			"is_poisoned":  "false",
+			"is_drunk":     "false",
+			"timestamp":    "1700000000000",
 		},
 	})
 
