@@ -659,6 +659,11 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 					p.Alive = false
 					state.Players[death.UserID] = p
 				}
+				// Update local state for immediate win check
+				if p, ok := state.Players[death.UserID]; ok {
+					p.Alive = false
+					state.Players[death.UserID] = p
+				}
 			}
 		}
 		// Clear poison

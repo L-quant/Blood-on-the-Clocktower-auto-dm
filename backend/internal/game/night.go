@@ -43,18 +43,18 @@ type AbilityRequest struct {
 
 // GameContext provides game state for ability resolution.
 type GameContext struct {
-	Players            map[string]*PlayerState
-	SeatOrder          []string // UserIDs in seat order
-	PoisonedIDs        map[string]bool
-	DrunkID            string
-	ProtectedIDs       map[string]bool
-	DeadIDs            map[string]bool
-	DemonID            string
-	MinionIDs          []string
-	NightNumber        int
-	RedHerringID       string // For fortune teller
-	ExecutedToday      string // UserID of player executed today (for undertaker)
-	RecluseRegisterEvil bool  // Whether recluse registers as evil this night (storyteller decision)
+	Players             map[string]*PlayerState
+	SeatOrder           []string // UserIDs in seat order
+	PoisonedIDs         map[string]bool
+	DrunkID             string
+	ProtectedIDs        map[string]bool
+	DeadIDs             map[string]bool
+	DemonID             string
+	MinionIDs           []string
+	NightNumber         int
+	RedHerringID        string // For fortune teller
+	ExecutedToday       string // UserID of player executed today (for undertaker)
+	RecluseRegisterEvil bool   // Whether recluse registers as evil this night (storyteller decision)
 }
 
 // PlayerState represents a player's current state.
@@ -727,7 +727,9 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 	} else {
 		// Check if target is protected
 		if na.ctx.ProtectedIDs[targetID] {
-			result.Message = fmt.Sprintf("你试图杀死 %s，但他们被保护了", na.getPlayerName(targetID))
+			// Case 1: Target is protected (e.g. by Monk)
+			// The demon should NOT know why the attack failed, so we give a generic message.
+			result.Message = fmt.Sprintf("你选择了攻击 %s", na.getPlayerName(targetID))
 		} else if na.ctx.Players[targetID] != nil && na.ctx.Players[targetID].TrueRole == "soldier" && !na.ctx.PoisonedIDs[targetID] {
 			result.Message = fmt.Sprintf("你试图杀死 %s，但他们是士兵", na.getPlayerName(targetID))
 		} else if na.ctx.Players[targetID] != nil && na.ctx.Players[targetID].TrueRole == "mayor" && !na.ctx.PoisonedIDs[targetID] {
@@ -748,7 +750,8 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 				})
 			}
 		} else {
-			result.Message = fmt.Sprintf("你杀死了 %s", na.getPlayerName(targetID))
+			// Case 3: Successful attack
+			result.Message = fmt.Sprintf("你选择了攻击 %s", na.getPlayerName(targetID))
 			result.Effects = append(result.Effects, AbilityEffect{
 				Type:     "kill",
 				TargetID: targetID,

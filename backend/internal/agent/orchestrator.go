@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/game"
 )
 
 // Orchestrator coordinates the AutoDM agent system with the control loop:
@@ -316,7 +318,15 @@ func (o *Orchestrator) sense(ctx context.Context, runID string) (*AgentContext, 
 	// Build pending inputs from timers
 	var pendingInputs []PendingInput
 	for userID, player := range roomState.Players {
-		if player.Alive && !player.IsDM {
+		shouldInclude := player.Alive
+		if !shouldInclude && player.Role != "" {
+			role := game.GetRoleByID(player.Role)
+			if role != nil && role.AbilityType == game.AbilityOnDeath {
+				shouldInclude = true
+			}
+		}
+
+		if shouldInclude && !player.IsDM {
 			pendingInputs = append(pendingInputs, PendingInput{
 				UserID:     userID,
 				ActionType: "awaiting_action",
