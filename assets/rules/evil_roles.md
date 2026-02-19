@@ -5,9 +5,10 @@
 ### Poisoner
 - **Alignment**: Evil (Minion)
 - **Night Ability**: Each night
-- **Effect**: Choose a player - they are poisoned until next dusk
-- **Timing**: Early in night order
+- **Effect**: Choose a player - they are poisoned tonight and tomorrow day (until next dusk)
+- **Timing**: Early in night order (acts before most information roles)
 - **Tips**: Poison key information roles to spread misinformation
+- **Duration**: Poison lasts from night through the following day, clearing at dusk
 
 ### Spy
 - **Alignment**: Evil (Minion)
@@ -26,9 +27,10 @@
 ### Scarlet Woman
 - **Alignment**: Evil (Minion)
 - **Passive Ability**: Triggered
-- **Effect**: If the Demon dies and 5+ players live, you become the Demon
-- **Timing**: When Demon dies
+- **Effect**: If there are 5 or more players alive (excluding Travellers) and the Demon dies, you become the Demon
+- **Timing**: When Demon dies (by execution, ability, or any cause)
 - **Tips**: Encourage risky votes early when player count is high
+- **Starpass priority**: If the Imp kills themselves at night, the Scarlet Woman MUST become the new Imp before any other Minion
 
 ## Demon Roles
 

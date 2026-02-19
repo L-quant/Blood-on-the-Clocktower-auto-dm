@@ -45,22 +45,24 @@ Blood on the Clocktower is a social deduction game for 5-20 players. The game al
 4. Votes are counted immediately
 
 ### Execution Threshold
-- A player is executed if they receive votes equal to or greater than half the living players (rounded up)
-- Ties go to the player nominated first
+- A player is executed if they receive votes equal to or greater than 50% of the alive players (rounded up)
+- On a tie, neither player is executed
 - If no one reaches threshold, no execution occurs
 
 ## Death and Dead Players
 
 ### Death Effects
 - Dead players remain in the game
-- Dead players may not vote (except with ghost vote)
+- Dead players may not nominate
 - Dead players may speak freely
 - Dead players do not wake at night (usually)
+- Dead players lose their character ability
 
 ### Ghost Vote
-- Each dead player gets one ghost vote for the rest of the game
+- Each dead player gets exactly one ghost vote for the rest of the game
 - Ghost votes count the same as living votes
-- Once used, the ghost vote is gone
+- Once used, the ghost vote is permanently gone
+- Dead players may still vote "no" freely (only "yes" consumes the ghost vote)
 
 ## Role Categories
 

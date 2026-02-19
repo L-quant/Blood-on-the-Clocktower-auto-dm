@@ -394,10 +394,19 @@ func handleVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.C
 		return nil, nil, ErrNoGhostVote
 	}
 
-	// Butler check
+	// Butler check: butler may only vote if their master is also voting yes
 	if voter.TrueRole == "butler" && voter.ButlerMaster != "" {
-		if _, masterVoted := state.Nomination.Votes[voter.ButlerMaster]; !masterVoted {
+		masterVote, masterVoted := state.Nomination.Votes[voter.ButlerMaster]
+		if !masterVoted {
 			return nil, nil, fmt.Errorf("butler must wait for master to vote first")
+		}
+		if !masterVote {
+			// Master voted no — butler may only vote no
+			var p map[string]string
+			_ = json.Unmarshal(cmd.Payload, &p)
+			if p["vote"] == "yes" {
+				return nil, nil, fmt.Errorf("butler cannot vote yes unless master votes yes")
+			}
 		}
 	}
 
@@ -460,7 +469,8 @@ func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.
 	}
 
 	aliveCount := state.GetAliveCount()
-	threshold := (aliveCount / 2) + 1
+	// Official rule: votes >= 50% of alive (i.e. ceil(alive/2))
+	threshold := (aliveCount + 1) / 2
 
 	result := "not_executed"
 	if yesVotes >= threshold {
@@ -659,18 +669,13 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 					p.Alive = false
 					state.Players[death.UserID] = p
 				}
-				// Update local state for immediate win check
-				if p, ok := state.Players[death.UserID]; ok {
-					p.Alive = false
-					state.Players[death.UserID] = p
-				}
 			}
 		}
-		// Clear poison
-		events = append(events, newEvent(cmd, "poison.cleared", nil))
 		events = append(events, newEvent(cmd, "phase.day", nil))
 
 	case "night":
+		// Clear poison at dusk (official rule: poisoned "tonight and tomorrow day")
+		events = append(events, newEvent(cmd, "poison.cleared", nil))
 		events = append(events, newEvent(cmd, "phase.night", nil))
 
 	case "nomination":

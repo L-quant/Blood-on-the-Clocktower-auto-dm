@@ -200,6 +200,7 @@ func TestHandleWriteEventRejectNonDM(t *testing.T) {
 	}
 }
 
+// toEventPayload converts a types.Event to an EventPayload for state reduction.
 func toEventPayload(e types.Event) EventPayload {
 	var payload map[string]string
 	_ = json.Unmarshal(e.Payload, &payload)

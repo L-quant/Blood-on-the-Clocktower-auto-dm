@@ -49,9 +49,9 @@ The Storyteller says: "Dawn breaks. [Player name(s)] died in the night."
 ### Information Timing
 - Info is given when player wakes
 - Info reflects current game state
-- Poisoned players get false info
+- Poisoned/drunk players receive false information (Storyteller chooses)
+- Poison lasts from night through the following day, clearing at dusk
 
 ### Bluffs
-- Demon receives 3 roles not in play
-- These are safe roles to claim
-- Bluffs change based on player count
+- Demon receives 3 roles not in play as safe bluffs
+- In games of 6 or fewer players, the Demon does NOT receive bluffs and does not learn their Minion

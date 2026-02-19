@@ -357,7 +357,8 @@ func (s *State) Reduce(event EventPayload) {
 				aliveCount++
 			}
 		}
-		threshold := (aliveCount / 2) + 1
+		// Official rule: votes >= 50% of alive (i.e. ceil(alive/2))
+		threshold := (aliveCount + 1) / 2
 
 		now := time.Now().UnixMilli()
 		s.Nomination = &Nomination{

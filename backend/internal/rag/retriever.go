@@ -3,13 +3,20 @@ package rag
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 )
+
+// hashToUUID converts a sha256 hash to a valid UUID v4-like string for Qdrant.
+func hashToUUID(hash [32]byte) string {
+	// Format as UUID: xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx
+	hash[6] = (hash[6] & 0x0f) | 0x40 // version 4
+	hash[8] = (hash[8] & 0x3f) | 0x80 // variant 1
+	return fmt.Sprintf("%x-%x-%x-%x-%x", hash[0:4], hash[4:6], hash[6:8], hash[8:10], hash[10:16])
+}
 
 // Document represents a document chunk for RAG.
 type Document struct {
@@ -119,7 +126,7 @@ func (r *RuleRetriever) splitIntoChunks(content, source string) []Document {
 
 		// Generate unique ID
 		hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%s", source, i, section[:min(100, len(section))])))
-		id := hex.EncodeToString(hash[:8])
+		id := hashToUUID(hash)
 
 		docs = append(docs, Document{
 			ID:      id,
@@ -278,7 +285,7 @@ func (r *RuleRetriever) IndexRoleRules(ctx context.Context, roleID, roleName, ru
 	defer r.mu.Unlock()
 
 	hash := sha256.Sum256([]byte(roleID + rules))
-	id := hex.EncodeToString(hash[:8])
+	id := hashToUUID(hash)
 
 	embedding, err := r.embedder.Embed(ctx, rules)
 	if err != nil {

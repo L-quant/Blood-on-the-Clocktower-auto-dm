@@ -78,10 +78,11 @@
 
 ### Mayor
 - **Alignment**: Good (Townsfolk)
-- **Passive Ability**: End game
-- **Effect**: If you survive the final 3, and no execution occurs, Good wins
+- **Passive Ability**: End game / Bounce
+- **Effect**: If only 3 players live and no execution occurs, Good wins. If you die at night, another player might die instead
 - **Timing**: Passive
-- **Tips**: May survive Demon attacks (Storyteller discretion)
+- **Bounce**: When the Demon attacks the Mayor, the Storyteller may choose another player to die instead
+- **Tips**: Travellers count as players for the victory condition, so they must be exiled first
 
 ### Virgin
 - **Alignment**: Good (Townsfolk)

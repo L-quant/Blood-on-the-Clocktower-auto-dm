@@ -62,11 +62,21 @@ func main() {
 	var retriever *rag.RuleRetriever
 	if cfg.QdrantHost != "" {
 		qdrantClient := rag.NewQdrantClient(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection)
-		embedder := rag.NewOpenAIEmbedding(rag.OpenAIEmbeddingConfig{
-			APIKey:     cfg.AutoDMLLMAPIKey,
-			BaseURL:    cfg.AutoDMLLMBaseURL,
-			Dimensions: 1536,
-		})
+
+		var embedder rag.EmbeddingProvider
+		if cfg.AutoDMLLMProvider == "gemini" {
+			embedder = rag.NewGeminiEmbedding(rag.GeminiEmbeddingConfig{
+				APIKey:     cfg.GeminiAPIKey,
+				BaseURL:    cfg.AutoDMLLMBaseURL,
+				Dimensions: 768,
+			})
+		} else {
+			embedder = rag.NewOpenAIEmbedding(rag.OpenAIEmbeddingConfig{
+				APIKey:     cfg.AutoDMLLMAPIKey,
+				BaseURL:    cfg.AutoDMLLMBaseURL,
+				Dimensions: 1536,
+			})
+		}
 		retriever = rag.NewRuleRetriever(qdrantClient, embedder)
 
 		// Initialize with rules from assets/rules directory

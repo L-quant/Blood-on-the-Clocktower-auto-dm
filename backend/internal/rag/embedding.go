@@ -130,6 +130,154 @@ type LocalEmbedding struct {
 	dimensions int
 }
 
+// GeminiEmbedding uses Gemini API for text embeddings.
+type GeminiEmbedding struct {
+	apiKey     string
+	baseURL    string
+	model      string
+	dimensions int
+	httpClient *http.Client
+}
+
+// GeminiEmbeddingConfig configures the Gemini embedding provider.
+type GeminiEmbeddingConfig struct {
+	APIKey     string
+	BaseURL    string // e.g. "https://generativelanguage.googleapis.com/v1beta"
+	Model      string // e.g. "gemini-embedding-001"
+	Dimensions int    // 768 by default
+}
+
+// NewGeminiEmbedding creates a new Gemini embedding provider.
+func NewGeminiEmbedding(cfg GeminiEmbeddingConfig) *GeminiEmbedding {
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "https://generativelanguage.googleapis.com/v1beta"
+	}
+	if cfg.Model == "" {
+		cfg.Model = "gemini-embedding-001"
+	}
+	if cfg.Dimensions == 0 {
+		cfg.Dimensions = 768
+	}
+	return &GeminiEmbedding{
+		apiKey:     cfg.APIKey,
+		baseURL:    cfg.BaseURL,
+		model:      cfg.Model,
+		dimensions: cfg.Dimensions,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// Embed generates an embedding for a single text using Gemini API.
+func (g *GeminiEmbedding) Embed(ctx context.Context, text string) ([]float64, error) {
+	url := fmt.Sprintf("%s/models/%s:embedContent?key=%s", g.baseURL, g.model, g.apiKey)
+
+	reqBody := map[string]interface{}{
+		"model": fmt.Sprintf("models/%s", g.model),
+		"content": map[string]interface{}{
+			"parts": []map[string]string{
+				{"text": text},
+			},
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("gemini embedding request failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Embedding struct {
+			Values []float64 `json:"values"`
+		} `json:"embedding"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.Embedding.Values, nil
+}
+
+// EmbedBatch generates embeddings for multiple texts using Gemini batch API.
+func (g *GeminiEmbedding) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	url := fmt.Sprintf("%s/models/%s:batchEmbedContents?key=%s", g.baseURL, g.model, g.apiKey)
+
+	requests := make([]map[string]interface{}, len(texts))
+	for i, text := range texts {
+		requests[i] = map[string]interface{}{
+			"model": fmt.Sprintf("models/%s", g.model),
+			"content": map[string]interface{}{
+				"parts": []map[string]string{
+					{"text": text},
+				},
+			},
+		}
+	}
+
+	reqBody := map[string]interface{}{
+		"requests": requests,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("gemini batch embedding request failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Embeddings []struct {
+			Values []float64 `json:"values"`
+		} `json:"embeddings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	embeddings := make([][]float64, len(result.Embeddings))
+	for i, emb := range result.Embeddings {
+		embeddings[i] = emb.Values
+	}
+
+	return embeddings, nil
+}
+
+// Dimensions returns the Gemini embedding dimension size.
+func (g *GeminiEmbedding) Dimensions() int {
+	return g.dimensions
+}
+
 // NewLocalEmbedding creates a local embedding provider.
 func NewLocalEmbedding(dimensions int) *LocalEmbedding {
 	return &LocalEmbedding{dimensions: dimensions}

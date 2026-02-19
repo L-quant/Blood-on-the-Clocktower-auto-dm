@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS commands_dedup (
     actor_user_id VARCHAR(36) NOT NULL,
     idempotency_key VARCHAR(255) NOT NULL,
     command_type VARCHAR(64) NOT NULL,
-    command_id VARCHAR(36) NOT NULL,
+    command_id VARCHAR(255) NOT NULL,
     status VARCHAR(32) NOT NULL,
     result_json TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS events (
     event_id VARCHAR(36) NOT NULL UNIQUE,
     event_type VARCHAR(64) NOT NULL,
     actor_user_id VARCHAR(36) NOT NULL,
-    causation_command_id VARCHAR(36),
+    causation_command_id VARCHAR(255),
     payload_json TEXT,
     server_ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (room_id, seq)
