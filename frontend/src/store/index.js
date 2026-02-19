@@ -109,14 +109,11 @@ export default new Vuex.Store({
       background: ""
     },
     modals: {
-      edition: false,
-      fabled: false,
       gameState: false,
       nightOrder: false,
       reference: false,
       reminder: false,
       role: false,
-      roles: false,
       voteHistory: false
     },
     edition: editionJSONbyId.get("tb"),

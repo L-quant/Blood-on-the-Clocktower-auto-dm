@@ -8,12 +8,12 @@
       @click="toggleModal('nightOrder')"
       icon="cloud-moon"
       class="toggle"
-      title="Show Night Order"
+      :title="$t('reference.showNightOrder')"
     />
     <h3>
-      Character Reference
+      {{ $t('reference.title') }}
       <font-awesome-icon icon="address-card" />
-      {{ edition.name || "Custom Script" }}
+      {{ edition.name || $t('reference.customScript') }}
     </h3>
     <div
       v-for="(teamRoles, team) in rolesGrouped"
@@ -53,7 +53,7 @@
 
     <div class="team jinxed" v-if="jinxed.length">
       <aside>
-        <h4>Jinxed</h4>
+        <h4>{{ $t('reference.jinxed') }}</h4>
       </aside>
       <ul>
         <li v-for="(jinx, index) in jinxed" :key="index">

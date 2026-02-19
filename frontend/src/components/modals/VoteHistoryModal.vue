@@ -8,11 +8,11 @@
       @click="clearVoteHistory"
       icon="trash-alt"
       class="clear"
-      title="Clear vote history"
+      :title="$t('voteHistoryModal.clearHistory')"
       v-if="session.isSpectator"
     />
 
-    <h3>Vote history</h3>
+    <h3>{{ $t('voteHistoryModal.title') }}</h3>
 
     <template v-if="!session.isSpectator">
       <div class="options">
@@ -23,26 +23,26 @@
               session.isVoteHistoryAllowed ? 'check-square' : 'square'
             ]"
           />
-          Accessible to players
+          {{ $t('voteHistoryModal.accessible') }}
         </div>
         <div class="option" @click="clearVoteHistory">
           <font-awesome-icon icon="trash-alt" />
-          Clear for everyone
+          {{ $t('voteHistoryModal.clearForEveryone') }}
         </div>
       </div>
     </template>
     <table>
       <thead>
         <tr>
-          <td>Time</td>
-          <td>Nominator</td>
-          <td>Nominee</td>
-          <td>Type</td>
-          <td>Votes</td>
-          <td>Majority</td>
+          <td>{{ $t('voteHistoryModal.time') }}</td>
+          <td>{{ $t('voteHistoryModal.nominator') }}</td>
+          <td>{{ $t('voteHistoryModal.nominee') }}</td>
+          <td>{{ $t('voteHistoryModal.type') }}</td>
+          <td>{{ $t('voteHistoryModal.votes') }}</td>
+          <td>{{ $t('voteHistoryModal.majority') }}</td>
           <td>
             <font-awesome-icon icon="user-friends" />
-            Voters
+            {{ $t('voteHistoryModal.voters') }}
           </td>
         </tr>
       </thead>

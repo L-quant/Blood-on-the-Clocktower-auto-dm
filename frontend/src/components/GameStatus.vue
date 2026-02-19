@@ -7,7 +7,7 @@
       </div>
       <div class="status-info">
         <span class="status-day" v-if="dayCount > 0">
-          Day {{ dayCount }}
+          {{ $t('game.day') }} {{ dayCount }}
         </span>
         <span class="status-alive">
           <font-awesome-icon icon="heartbeat" />
@@ -18,7 +18,7 @@
     <transition name="fade">
       <div v-if="winner" class="status-winner" :class="winner">
         <span class="winner-text">
-          {{ winner === 'good' ? 'Good wins!' : 'Evil wins!' }}
+          {{ winner === 'good' ? $t('game.goodWins') : $t('game.evilWins') }}
         </span>
         <span class="winner-reason">{{ winReason }}</span>
       </div>
@@ -55,20 +55,20 @@ export default {
     },
     phaseIcon() {
       const phase = this.sessionPhase || "";
-      if (phase.includes("night")) return "moon";
-      if (phase.includes("nomination")) return "gavel";
-      if (phase === "ended") return "flag-checkered";
-      return "sun";
+      if (phase.includes("night")) return "cloud-moon";
+      if (phase.includes("nomination")) return "hand-point-right";
+      if (phase === "ended") return "skull";
+      return "heartbeat";
     },
     phaseText() {
       const phase = this.sessionPhase || "";
       switch (phase) {
-        case "first_night": return "First Night";
-        case "night": return "Night";
-        case "day": return "Day";
-        case "nomination": return "Nomination";
-        case "voting": return "Voting";
-        case "ended": return "Game Over";
+        case "first_night": return this.$t("game.firstNight");
+        case "night": return this.$t("game.night");
+        case "day": return this.$t("game.day");
+        case "nomination": return this.$t("game.nomination");
+        case "voting": return this.$t("game.voting");
+        case "ended": return this.$t("game.gameOver");
         default: return phase;
       }
     }

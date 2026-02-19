@@ -47,13 +47,13 @@
         <font-awesome-icon
           icon="hand-paper"
           class="vote"
-          title="Hand UP"
+          :title="$t('player.handUp')"
           @click="vote()"
         />
         <font-awesome-icon
           icon="times"
           class="vote"
-          title="Hand DOWN"
+          :title="$t('player.handDown')"
           @click="vote()"
         />
         <font-awesome-icon
@@ -66,19 +66,19 @@
           icon="exchange-alt"
           class="swap"
           @click="swapPlayer(player)"
-          title="Swap seats with this player"
+          :title="$t('player.swapSeats')"
         />
         <font-awesome-icon
           icon="redo-alt"
           class="move"
           @click="movePlayer(player)"
-          title="Move player to this seat"
+          :title="$t('player.movePlayer')"
         />
         <font-awesome-icon
           icon="hand-point-right"
           class="nominate"
           @click="nominatePlayer(player)"
-          title="Nominate this player"
+          :title="$t('player.nomination')"
         />
       </div>
 
@@ -96,7 +96,7 @@
         class="has-vote"
         v-if="player.isDead && !player.isVoteless"
         @click="updatePlayer('isVoteless', true)"
-        title="Ghost vote"
+        :title="$t('player.nomination')"
       />
 
       <!-- On block icon -->
@@ -124,35 +124,35 @@
                 (session.isSpectator && player.id === session.playerId)
             "
           >
-            <font-awesome-icon icon="venus-mars" />Change Pronouns
+            <font-awesome-icon icon="venus-mars" />{{ $t('player.changePronouns') }}
           </li>
           <template v-if="!session.isSpectator">
             <li @click="changeName">
-              <font-awesome-icon icon="user-edit" />Rename
+              <font-awesome-icon icon="user-edit" />{{ $t('player.rename') }}
             </li>
             <li @click="movePlayer()" :class="{ disabled: session.lockedVote }">
               <font-awesome-icon icon="redo-alt" />
-              Move player
+              {{ $t('player.movePlayer') }}
             </li>
             <li @click="swapPlayer()" :class="{ disabled: session.lockedVote }">
               <font-awesome-icon icon="exchange-alt" />
-              Swap seats
+              {{ $t('player.swapSeats') }}
             </li>
             <li @click="removePlayer" :class="{ disabled: session.lockedVote }">
               <font-awesome-icon icon="times-circle" />
-              Remove
+              {{ $t('player.remove') }}
             </li>
             <li
               @click="updatePlayer('id', '', true)"
               v-if="player.id && session.sessionId"
             >
               <font-awesome-icon icon="chair" />
-              Empty seat
+              {{ $t('player.emptySeat') }}
             </li>
             <template v-if="!session.nomination">
               <li @click="nominatePlayer()">
                 <font-awesome-icon icon="hand-point-right" />
-                Nomination
+                {{ $t('player.nomination') }}
               </li>
             </template>
           </template>
@@ -163,12 +163,12 @@
           >
             <font-awesome-icon icon="chair" />
             <template v-if="!player.id">
-              Claim seat
+              {{ $t('player.claimSeat') }}
             </template>
             <template v-else-if="player.id === session.playerId">
-              Vacate seat
+              {{ $t('player.vacateSeat') }}
             </template>
-            <template v-else> Seat occupied</template>
+            <template v-else>{{ $t('player.seatOccupied') }}</template>
           </li>
         </ul>
       </transition>
@@ -256,7 +256,7 @@ export default {
     changePronouns() {
       if (this.session.isSpectator && this.player.id !== this.session.playerId)
         return;
-      const pronouns = prompt("Player pronouns", this.player.pronouns);
+      const pronouns = prompt(this.$t("prompt.playerPronouns"), this.player.pronouns);
       //Only update pronouns if not null (prompt was not cancelled)
       if (pronouns !== null) {
         this.updatePlayer("pronouns", pronouns, true);
@@ -287,7 +287,7 @@ export default {
     },
     changeName() {
       if (this.session.isSpectator) return;
-      const name = prompt("Player name", this.player.name) || this.player.name;
+      const name = prompt(this.$t("prompt.playerName"), this.player.name) || this.player.name;
       this.updatePlayer("name", name, true);
     },
     removeReminder(reminder) {

@@ -1,0 +1,163 @@
+{
+  "intro": {
+    "welcome": "欢迎来到血染钟楼 — AI 自动说书人！",
+    "description": "请通过右上角的{menu}添加玩家，或按 {addKey} 键。也可以按 {joinKey} 键加入游戏。",
+    "footer": "由 AI Agent 驱动，游戏视觉基于开源项目 townsquare。"
+  },
+  "menu": {
+    "grimoire": "魔典",
+    "hide": "隐藏",
+    "show": "显示",
+    "switchToNight": "切换到夜晚",
+    "switchToDay": "切换到白天",
+    "nightOrder": "夜晚顺序",
+    "zoom": "缩放",
+    "background": "背景图片",
+    "showCustomImages": "显示自定义图片",
+    "disableAnimations": "禁用动画",
+    "muteSounds": "静音",
+    "session": "在线会话",
+    "hosting": "主持中",
+    "playing": "游戏中",
+    "host": "主持人",
+    "players": "玩家",
+    "copyLink": "复制玩家链接",
+    "sendCharacters": "分发角色",
+    "voteHistory": "投票记录",
+    "leaveSession": "离开会话",
+    "playersTab": "玩家",
+    "add": "添加",
+    "randomize": "随机排座",
+    "removeAll": "全部移除",
+    "help": "帮助",
+    "referenceSheet": "角色参考表",
+    "nightOrderSheet": "夜晚顺序表",
+    "gameStateJSON": "游戏状态 JSON",
+    "sourceCode": "源代码",
+    "hostSession": "主持 (说书人)",
+    "joinSession": "加入 (玩家)"
+  },
+  "game": {
+    "day": "白天",
+    "firstNight": "首夜",
+    "night": "夜晚",
+    "nomination": "提名",
+    "voting": "投票中",
+    "gameOver": "游戏结束",
+    "goodWins": "善方获胜！",
+    "evilWins": "邪方获胜！",
+    "nightPhase": "夜晚阶段"
+  },
+  "chat": {
+    "title": "聊天",
+    "empty": "暂无消息，打个招呼吧！",
+    "placeholder": "输入消息...",
+    "you": "我"
+  },
+  "vote": {
+    "nominated": "提名了",
+    "votesInFavor": "{n} 票赞成",
+    "majorityIs": "多数票为 {n}",
+    "timePerPlayer": "每人投票时间：",
+    "countdown": "倒计时",
+    "start": "开始",
+    "restart": "重新开始",
+    "pause": "暂停",
+    "resume": "继续",
+    "reset": "重置",
+    "close": "关闭",
+    "handDown": "放下手",
+    "handUp": "举手",
+    "markForExecution": "标记处决",
+    "clearMark": "取消标记",
+    "secondsBetweenVotes": "每人 {n} 秒",
+    "claimSeatToVote": "请先选择座位才能投票。"
+  },
+  "townInfo": {
+    "addMorePlayers": "请添加更多玩家！"
+  },
+  "player": {
+    "changePronouns": "修改称谓",
+    "rename": "重命名",
+    "movePlayer": "移动玩家",
+    "swapSeats": "交换座位",
+    "remove": "移除",
+    "emptySeat": "空出座位",
+    "nomination": "提名",
+    "claimSeat": "选择座位",
+    "vacateSeat": "离开座位",
+    "seatOccupied": "座位已被占用"
+  },
+  "solo": {
+    "title": "单人测试模式",
+    "description": "与 AI 机器人一起进行测试游戏。",
+    "botCount": "机器人数量：",
+    "personality": "性格：",
+    "random": "随机",
+    "aggressive": "激进",
+    "cautious": "谨慎",
+    "smart": "聪明",
+    "startGame": "开始单人游戏",
+    "addingBots": "正在添加机器人...",
+    "cancel": "取消",
+    "noRoom": "未选择房间，请先创建房间。",
+    "bots4": "4 个机器人 (5人局)",
+    "bots5": "5 个机器人 (6人局)",
+    "bots6": "6 个机器人 (7人局)",
+    "bots7": "7 个机器人 (8人局)",
+    "bots9": "9 个机器人 (10人局)"
+  },
+  "reference": {
+    "title": "角色参考表",
+    "showNightOrder": "显示夜晚顺序",
+    "customScript": "自定义剧本",
+    "jinxed": "互斥"
+  },
+  "nightOrderModal": {
+    "title": "夜晚顺序",
+    "showReference": "显示角色参考表",
+    "firstNight": "首夜",
+    "otherNights": "其他夜晚",
+    "minionInfo": "爪牙信息",
+    "demonInfo": "恶魔信息 & 伪装"
+  },
+  "voteHistoryModal": {
+    "title": "投票记录",
+    "clearHistory": "清除投票记录",
+    "accessible": "玩家可见",
+    "clearForEveryone": "清除所有人的记录",
+    "time": "时间",
+    "nominator": "提名者",
+    "nominee": "被提名者",
+    "type": "类型",
+    "votes": "票数",
+    "majority": "多数",
+    "voters": "投票人"
+  },
+  "gameState": {
+    "title": "当前游戏状态",
+    "copyJSON": "复制 JSON",
+    "loadState": "加载状态"
+  },
+  "townSquare": {
+    "otherCharacters": "其他角色",
+    "demonBluffs": "恶魔伪装",
+    "fabled": "传说"
+  },
+  "confirm": {
+    "leaveSession": "确定要离开当前游戏吗？",
+    "distributeRoles": "是否向所有已就座的玩家分发角色？",
+    "randomizeSeating": "确定要随机排列座位吗？",
+    "removeAllPlayers": "确定要移除所有玩家吗？",
+    "removeAllRoles": "确定要移除所有玩家的角色吗？",
+    "removePlayer": "确定要移除 {name} 吗？",
+    "customImages": "确定要允许自定义图片吗？恶意脚本作者可能通过此方式追踪你的 IP 地址。"
+  },
+  "prompt": {
+    "backgroundUrl": "请输入自定义背景图片 URL",
+    "sessionChannel": "输入会话房间号",
+    "joinChannel": "输入要加入的会话房间号",
+    "playerName": "玩家名字",
+    "playerPronouns": "玩家称谓"
+  }
+}

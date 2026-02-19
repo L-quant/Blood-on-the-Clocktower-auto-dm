@@ -41,3 +41,10 @@ frontend/.vite/
 # .vscode/
 
 bin/
+
+# Dev artifacts
+backend/*.py
+backend/*.json
+backend/tools/
+townsquare/
+loadtest_*.json

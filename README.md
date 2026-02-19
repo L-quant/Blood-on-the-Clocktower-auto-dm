@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go" alt="Go" />
+  <img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go" alt="Go" />
   <img src="https://img.shields.io/badge/Vue-2.6-4FC08D?style=flat-square&logo=vue.js" alt="Vue 2" />
   <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql" alt="MySQL" />
   <img src="https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis" alt="Redis" />
@@ -96,7 +96,7 @@ UI 设计参考了开源项目 [bra1n/townsquare](https://github.com/bra1n/towns
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              客户端层                                    │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │                    Vue 3 + Vite + Pinia                           │  │
+│  │                    Vue 2 + Vue CLI + Vuex                          │  │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────────┐   │  │
 │  │  │TownSquare│ │  Player  │ │   Vote   │ │    Modal System    │   │  │
 │  │  │ (座位圈) │ │ (令牌)   │ │ (投票)   │ │(角色/版本/提醒等)   │   │  │
@@ -261,9 +261,11 @@ write_event      → 写入事件流
 | 士兵 | 不会被恶魔杀死 |
 | 镇长 | 三人存活时若没有被处决则善方胜利 |
 
-**外来者（2 个）**
+**外来者（4 个）**
 - 管家：每夜选择主人，只能在主人投票时投票
 - 酒鬼：以为自己是村民但实际中毒，能力无效
+- 隐士：可能被视为邪恶阵营（会被调查类角色误认为爪牙或恶魔）
+- 圣徒：若被处决则邪恶阵营获胜
 
 **爪牙（4 个）**
 - 投毒者：每夜选择一名玩家中毒
@@ -351,7 +353,7 @@ AUTODM_ENABLED=true
 ### 3. 启动基础设施（数据库 & 中间件）
 
 ```bash
-docker-compose up -d
+docker-compose up -d 
 ```
 
 等待所有容器健康检查通过（约 30 秒）：
@@ -878,8 +880,7 @@ Blood-on-the-Clocktower-auto-dm/
 │   └── public/                # 公共资源
 │
 ├── assets/rules/              # 游戏规则文档
-├── docs/                      # 项目文档
-└── townsquare/                # UI 参考项目
+└── docs/                      # 项目文档
 ```
 
 ### 常用命令
@@ -920,7 +921,7 @@ This project is an automated system for the tabletop game "Blood on the Clocktow
 
 | Technology | Purpose |
 |------------|---------|
-| **Go 1.21+** | Server language |
+| **Go 1.25+** | Server language |
 | **Chi** | HTTP routing |
 | **Gorilla WebSocket** | Real-time communication |
 | **MySQL 8.0** | Event persistence |
@@ -928,16 +929,15 @@ This project is an automated system for the tabletop game "Blood on the Clocktow
 | **RabbitMQ 3.12** | Async task queue |
 | **Qdrant** | Vector database (RAG) |
 
-### Frontend (Vue 3)
+### Frontend (Vue 2)
 
 | Technology | Purpose |
 |------------|---------|
-| **Vue 3.4** | Frontend framework |
-| **Vite 5.0** | Build tool |
-| **Pinia 2.1** | State management |
-| **TypeScript 5.3** | Type system |
+| **Vue 2.6** | Frontend framework |
+| **Vue CLI 5.0** | Build tool |
+| **Vuex 3.6** | State management |
 | **SCSS** | Style preprocessing |
-| **FontAwesome 6** | Icons |
+| **FontAwesome 5** | Icons |
 
 ## Technical Highlights
 
@@ -985,9 +985,10 @@ Strict information isolation per player identity:
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Go 1.21+
-- Node.js 18+
+- **Docker & Docker Compose** (for MySQL, Redis, RabbitMQ, Qdrant)
+- **Go 1.25+** (for compiling the backend)
+- **Node.js 18+** (for frontend development)
+- **Google Gemini API Key** (for AI Agent features)
 
 ### 1. Clone Repository
 
@@ -996,35 +997,81 @@ git clone https://github.com/your-username/Blood-on-the-Clocktower-auto-dm.git
 cd Blood-on-the-Clocktower-auto-dm
 ```
 
-### 2. Start Infrastructure
+### 2. Configure API Key
+
+Create the environment config file:
 
 ```bash
 cd backend
+cp .env.example .env
+```
+
+Edit `.env` and fill in your Google Gemini API Key:
+
+```bash
+# .env
+GEMINI_API_KEY=your_Gemini_API_Key
+AUTODM_ENABLED=true
+```
+
+Get a free Gemini API Key: https://aistudio.google.com/apikey
+
+> **Note**: The API key is required to enable the AI Auto-Storyteller. Without it, the system still runs but AI Agent features will be disabled.
+
+### 3. Start Infrastructure
+
+```bash
 docker-compose up -d
 ```
 
-### 3. Start Backend
+Wait for all containers to pass health checks (~30 seconds):
 
 ```bash
+docker-compose ps
+```
+
+Confirm all services are `healthy`:
+- `botc_mysql` - MySQL 8.0 (port 3316)
+- `botc_redis` - Redis 7 (port 6389)
+- `botc_rabbitmq` - RabbitMQ 3.12 (port 5672, management UI 15672)
+- `botc_qdrant` - Qdrant vector database (port 6333)
+
+### 4. Start Backend
+
+```bash
+# In the backend directory
 make build
 ./bin/agentdm
 ```
 
+Or use the recommended one-command dev mode:
+
+```bash
+make dev
+```
+
 Backend runs at `http://localhost:8080`
 
-### 4. Start Frontend
+### 5. Start Frontend
+
+Open a new terminal:
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run serve
 ```
+
+> `npm run dev` also works as an alias.
 
 Frontend runs at `http://localhost:8081`
 
-### 5. Access Application
+### 6. Access Application
 
-Open `http://localhost:8081` in your browser!
+Open your browser:
+- **Game UI**: `http://localhost:8081`
+- **API Docs (Swagger)**: `http://localhost:8080/swagger/index.html`
+- **RabbitMQ Management**: `http://localhost:15672` (user: botc, pass: botc_password)
 
 ## Load Testing
 
@@ -1086,11 +1133,14 @@ To prevent excessive Gemini API consumption during load tests:
 ## Development
 
 ```bash
-# Backend
-cd backend && make build && make run
+# Backend (recommended one-command start)
+cd backend
+make dev
 
 # Frontend
-cd frontend && npm run dev
+cd frontend
+npm install
+npm run serve   # or npm run dev
 ```
 
 ---

@@ -1,7 +1,7 @@
 <template>
   <div class="chat-panel" :class="{ minimized: isMinimized }">
     <div class="chat-header" @click="toggleMinimize">
-      <span class="chat-title">Chat</span>
+      <span class="chat-title">{{ $t('chat.title') }}</span>
       <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount }}</span>
       <font-awesome-icon :icon="isMinimized ? 'chevron-up' : 'chevron-down'" />
     </div>
@@ -21,14 +21,14 @@
           <span class="msg-text">{{ msg.text }}</span>
         </div>
         <div v-if="messages.length === 0" class="chat-empty">
-          No messages yet. Say hello!
+          {{ $t('chat.empty') }}
         </div>
       </div>
       <div class="chat-input">
         <input
           v-model="inputText"
           @keyup.enter="sendMessage"
-          placeholder="Type a message..."
+          :placeholder="$t('chat.placeholder')"
           :disabled="!connected"
         />
         <button @click="sendMessage" :disabled="!inputText.trim() || !connected">
@@ -72,7 +72,7 @@ export default {
 
       this.messages.push({
         from: "self",
-        displayName: "You",
+        displayName: this.$t("chat.you"),
         text: text,
         timestamp: Date.now()
       });

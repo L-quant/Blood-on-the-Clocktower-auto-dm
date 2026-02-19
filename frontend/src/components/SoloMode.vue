@@ -1,37 +1,36 @@
 <template>
   <div class="solo-mode" v-if="showSoloMode">
     <div class="solo-card">
-      <h3>Solo Testing Mode</h3>
-      <p>Play a game with AI bot players to test and practice.</p>
+      <h3>{{ $t('solo.title') }}</h3>
+      <p>{{ $t('solo.description') }}</p>
 
       <div class="solo-config">
         <label>
-          Bot count:
+          {{ $t('solo.botCount') }}
           <select v-model.number="botCount">
-            <option :value="4">4 bots (5-player)</option>
-            <option :value="5">5 bots (6-player)</option>
-            <option :value="6" selected>6 bots (7-player)</option>
-            <option :value="7">7 bots (8-player)</option>
-            <option :value="9">9 bots (10-player)</option>
+            <option :value="4">{{ $t('solo.bots4') }}</option>
+            <option :value="5">{{ $t('solo.bots5') }}</option>
+            <option :value="6" selected>{{ $t('solo.bots6') }}</option>
+            <option :value="7">{{ $t('solo.bots7') }}</option>
+            <option :value="9">{{ $t('solo.bots9') }}</option>
           </select>
         </label>
         <label>
-          Personality:
+          {{ $t('solo.personality') }}
           <select v-model="personality">
-            <option value="random">Random</option>
-            <option value="aggressive">Aggressive</option>
-            <option value="cautious">Cautious</option>
-            <option value="smart">Smart</option>
+            <option value="random">{{ $t('solo.random') }}</option>
+            <option value="aggressive">{{ $t('solo.aggressive') }}</option>
+            <option value="cautious">{{ $t('solo.cautious') }}</option>
+            <option value="smart">{{ $t('solo.smart') }}</option>
           </select>
         </label>
       </div>
 
       <div class="solo-actions">
         <button class="btn-solo" @click="startSoloGame" :disabled="loading">
-          <font-awesome-icon icon="robot" />
-          {{ loading ? 'Adding bots...' : 'Start Solo Game' }}
+          {{ loading ? $t('solo.addingBots') : $t('solo.startGame') }}
         </button>
-        <button class="btn-cancel" @click="$emit('close')">Cancel</button>
+        <button class="btn-cancel" @click="$emit('close')">{{ $t('solo.cancel') }}</button>
       </div>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -63,7 +62,7 @@ export default {
   methods: {
     async startSoloGame() {
       if (!this.roomId) {
-        this.error = "No room selected. Create a room first.";
+        this.error = this.$t("solo.noRoom");
         return;
       }
 

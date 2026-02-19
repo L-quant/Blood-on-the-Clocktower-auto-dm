@@ -8,16 +8,16 @@
       @click="toggleModal('reference')"
       icon="address-card"
       class="toggle"
-      title="Show Character Reference"
+      :title="$t('nightOrderModal.showReference')"
     />
     <h3>
-      Night Order
+      {{ $t('nightOrderModal.title') }}
       <font-awesome-icon icon="cloud-moon" />
-      {{ edition.name || "Custom Script" }}
+      {{ edition.name || $t('reference.customScript') }}
     </h3>
     <div class="night">
       <ul class="first">
-        <li class="headline">First Night</li>
+        <li class="headline">{{ $t('nightOrderModal.firstNight') }}</li>
         <li
           v-for="role in rolesFirstNight"
           :key="role.name"
@@ -56,7 +56,7 @@
         </li>
       </ul>
       <ul class="other">
-        <li class="headline">Other Nights</li>
+        <li class="headline">{{ $t('nightOrderModal.otherNights') }}</li>
         <li
           v-for="role in rolesOtherNight"
           :key="role.name"
@@ -114,7 +114,7 @@ export default {
         rolesFirstNight.push(
           {
             id: "evil",
-            name: "Minion info",
+            name: this.$t("nightOrderModal.minionInfo"),
             firstNight: 5,
             team: "minion",
             players: this.players.filter(p => p.role.team === "minion"),
@@ -124,7 +124,7 @@ export default {
           },
           {
             id: "evil",
-            name: "Demon info & bluffs",
+            name: this.$t("nightOrderModal.demonInfo"),
             firstNight: 8,
             team: "demon",
             players: this.players.filter(p => p.role.team === "demon"),

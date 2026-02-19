@@ -36,14 +36,10 @@
       @close="showSoloMode = false"
       @bots-added="onBotsAdded"
     />
-    <EditionModal />
-    <FabledModal />
-    <RolesModal />
     <ReferenceModal />
     <NightOrderModal />
     <VoteHistoryModal />
     <GameStateModal />
-    <Gradients />
     <span id="version">v{{ version }}</span>
   </div>
 </template>
@@ -54,14 +50,10 @@ import { version } from "../package.json";
 import TownSquare from "./components/TownSquare";
 import TownInfo from "./components/TownInfo";
 import Menu from "./components/Menu";
-import RolesModal from "./components/modals/RolesModal";
-import EditionModal from "./components/modals/EditionModal";
 import Intro from "./components/Intro";
 import ReferenceModal from "./components/modals/ReferenceModal";
 import Vote from "./components/Vote";
-import Gradients from "./components/Gradients";
 import NightOrderModal from "./components/modals/NightOrderModal";
-import FabledModal from "@/components/modals/FabledModal";
 import VoteHistoryModal from "@/components/modals/VoteHistoryModal";
 import GameStateModal from "@/components/modals/GameStateModal";
 import ChatPanel from "./components/ChatPanel";
@@ -72,7 +64,6 @@ export default {
   components: {
     GameStateModal,
     VoteHistoryModal,
-    FabledModal,
     NightOrderModal,
     Vote,
     ReferenceModal,
@@ -80,9 +71,6 @@ export default {
     TownInfo,
     TownSquare,
     Menu,
-    EditionModal,
-    RolesModal,
-    Gradients,
     ChatPanel,
     GameStatus,
     SoloMode
@@ -121,14 +109,6 @@ export default {
           break;
         case "n":
           this.$store.commit("toggleModal", "nightOrder");
-          break;
-        case "e":
-          if (this.session.isSpectator) return;
-          this.$store.commit("toggleModal", "edition");
-          break;
-        case "c":
-          if (this.session.isSpectator) return;
-          this.$store.commit("toggleModal", "roles");
           break;
         case "v":
           if (this.session.voteHistory.length || !this.session.isSpectator) {
