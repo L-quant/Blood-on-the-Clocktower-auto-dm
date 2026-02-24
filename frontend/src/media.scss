@@ -1,84 +1,167 @@
 /*** Media queries ***/
-// Large devices (desktops, less than 1200px)
-@media screen and (max-width: 1199.98px) {
-  html,
-  body {
-    font-size: 1.1em;
-  }
-  .night-order em {
-    width: 30px;
-    height: 30px;
-  }
-  .fabled .night-order.first span {
-    left: 30px;
-  }
-}
 
-// Medium devices (tablets, less than 992px)
-@media screen and (max-width: 991.98px) {
-  html,
-  body {
-    font-size: 1em;
+// Desktop (≥1200px) — 3-column layout
+@media screen and (min-width: 1200px) {
+  html, body {
+    font-size: 1.2em;
   }
-  #controls svg {
-    font-size: 20px;
-  }
-  .night-order em {
-    width: 20px;
-    height: 20px;
-  }
-  .fabled .night-order.first span {
-    left: 20px;
-  }
-  #townsquare {
-    padding: 10px;
-  }
-}
 
-// Small devices (landscape phones, less than 768px)
-@media screen and (max-width: 767.98px) {
-  html,
-  body {
-    font-size: 0.9em;
+  // Hide bottom nav on desktop
+  .bottom-nav {
+    display: none !important;
   }
-  .player > .name {
-    top: 0;
+
+  // Remove bottom padding since no bottom nav
+  .app-content {
+    padding-bottom: 0 !important;
   }
-  .player > .menu {
-    bottom: 0;
-    &:before {
-      bottom: 0;
+
+  // Game screen: 3-column layout
+  .game-screen {
+    flex-direction: row !important;
+    height: 100%;
+  }
+
+  .game-screen__sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .game-screen__center {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .game-screen__right {
+    width: 360px;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-screen__right-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+
+  .game-screen__right-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 200ms;
+
+    &.active {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
     }
   }
+
+  .game-screen__right-content {
+    flex: 1;
+    overflow: hidden;
+  }
 }
 
-// Old phones
+// Tablet (768-1199px) — 2-column layout
+@media screen and (min-width: 768px) and (max-width: 1199.98px) {
+  html, body {
+    font-size: 1.1em;
+  }
+
+  // Game screen: 2-column layout
+  .game-screen {
+    flex-direction: row !important;
+    height: 100%;
+  }
+
+  .game-screen__center {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .game-screen__right {
+    width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-screen__right-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+
+  .game-screen__right-tab {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 200ms;
+
+    &.active {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+  }
+
+  .game-screen__right-content {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  // Sidebar hidden on tablet
+  .game-screen__sidebar {
+    display: none;
+  }
+}
+
+// Mobile (< 768px) — single column with bottom nav
+@media screen and (max-width: 767.98px) {
+  html, body {
+    font-size: 0.9em;
+  }
+
+  // Desktop-only elements hidden
+  .game-screen__sidebar,
+  .game-screen__right-tabs {
+    display: none;
+  }
+
+  // Player touch target minimum
+  .player-node {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
+// Small phones
 @media screen and (max-width: 575.98px) {
-  html,
-  body {
+  html, body {
     font-size: 0.8em;
   }
 }
 
-// odd aspect ratio
-@media (max-aspect-ratio: 11/7) {
-  .bluffs,
-  .fabled {
-    h3 {
-      max-width: 14vh;
-    }
-    ul {
-      flex-direction: column;
-    }
-  }
-}
-
-// touch devices
+// Touch devices
 @media (hover: none) {
-  .circle li .reminder.add {
-    opacity: 1;
-    top: 0;
-    width: 35%;
-    padding-bottom: 35%;
+  // Larger touch targets
+  .player-node {
+    min-width: 48px;
+    min-height: 48px;
   }
 }

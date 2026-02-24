@@ -1,263 +1,324 @@
 import Vue from "vue";
 import Vuex from "vuex";
-import persistence from "./persistence";
-import socket from "./socket";
+
+// Modules
+import game from "./modules/game";
 import players from "./modules/players";
-import session from "./modules/session";
+import annotations from "./modules/annotations";
+import chat from "./modules/chat";
+import timeline from "./modules/timeline";
+import night from "./modules/night";
+import vote from "./modules/vote";
+import ui from "./modules/ui";
+
+// Plugins
+import persistence from "./plugins/persistence";
+import websocket from "./plugins/websocket";
+
+// Services
+import apiService from "../services/ApiService";
+
+// Game data
 import editionJSON from "../editions.json";
 import rolesJSON from "../roles.json";
 import fabledJSON from "../fabled.json";
-import jinxesJSON from "../hatred.json";
 
 Vue.use(Vuex);
 
-// helper functions
-const getRolesByEdition = (edition = editionJSON[0]) => {
+// Build lookup maps
+const editionsByKey = new Map(editionJSON.map(e => [e.id, e]));
+const rolesByKey = new Map(rolesJSON.map(r => [r.id, r]));
+const fabledByKey = new Map(fabledJSON.map(f => [f.id, f]));
+
+const getRolesByEdition = (edition) => {
+  if (!edition) return new Map();
   return new Map(
     rolesJSON
-      .filter(r => r.edition === edition.id || edition.roles.includes(r.id))
+      .filter(r => r.edition === edition.id || (edition.roles && edition.roles.includes(r.id)))
       .sort((a, b) => b.team.localeCompare(a.team))
-      .map(role => [role.id, role])
+      .map(r => [r.id, r])
   );
-};
-
-const getTravelersNotInEdition = (edition = editionJSON[0]) => {
-  return new Map(
-    rolesJSON
-      .filter(
-        r =>
-          r.team === "traveler" &&
-          r.edition !== edition.id &&
-          !edition.roles.includes(r.id)
-      )
-      .map(role => [role.id, role])
-  );
-};
-
-const set = key => ({ grimoire }, val) => {
-  grimoire[key] = val;
-};
-
-const toggle = key => ({ grimoire }, val) => {
-  if (val === true || val === false) {
-    grimoire[key] = val;
-  } else {
-    grimoire[key] = !grimoire[key];
-  }
-};
-
-const clean = id => id.toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
-
-// global data maps
-const editionJSONbyId = new Map(
-  editionJSON.map(edition => [edition.id, edition])
-);
-const rolesJSONbyId = new Map(rolesJSON.map(role => [role.id, role]));
-const fabled = new Map(fabledJSON.map(role => [role.id, role]));
-
-// jinxes
-let jinxes = {};
-try {
-  // Note: can't fetch live list due to lack of CORS headers
-  // fetch("https://bloodontheclocktower.com/script/data/hatred.json")
-  //   .then(res => res.json())
-  //   .then(jinxesJSON => {
-  jinxes = new Map(
-    jinxesJSON.map(({ id, hatred }) => [
-      clean(id),
-      new Map(hatred.map(({ id, reason }) => [clean(id), reason]))
-    ])
-  );
-  // });
-} catch (e) {
-  console.error("couldn't load jinxes", e);
-}
-
-// base definition for custom roles
-const customRole = {
-  id: "",
-  name: "",
-  image: "",
-  ability: "",
-  edition: "custom",
-  firstNight: 0,
-  firstNightReminder: "",
-  otherNight: 0,
-  otherNightReminder: "",
-  reminders: [],
-  remindersGlobal: [],
-  setup: false,
-  team: "townsfolk",
-  isCustom: true
 };
 
 export default new Vuex.Store({
   modules: {
+    game,
     players,
-    session
+    annotations,
+    chat,
+    timeline,
+    night,
+    vote,
+    ui
   },
+
   state: {
-    grimoire: {
-      isNight: false,
-      isNightOrder: true,
-      isPublic: true,
-      isMenuOpen: false,
-      isStatic: false,
-      isMuted: false,
-      isImageOptIn: false,
-      zoom: 0,
-      background: ""
-    },
-    modals: {
-      gameState: false,
-      nightOrder: false,
-      reference: false,
-      reminder: false,
-      role: false,
-      voteHistory: false
-    },
-    edition: editionJSONbyId.get("tb"),
-    roles: getRolesByEdition(),
-    otherTravelers: getTravelersNotInEdition(),
-    fabled,
-    jinxes
+    roomId: '',
+    role: 'spectator', // 'player' | 'spectator'
+    isRoomOwner: false,
+    playerId: apiService.userId || '',
+    seatIndex: -1, // -1 = not seated (backend uses 1-indexed seats)
+    edition: editionsByKey.get('tb') || null,
+    roles: getRolesByEdition(editionsByKey.get('tb')),
+    fabled: fabledByKey,
+    connected: false,
+    reconnecting: false,
+    latencyMs: 0,
+    seatCount: 7 // configurable seat count for lobby (backend default is also 7)
   },
+
   getters: {
-    /**
-     * Return all custom roles, with default values and non-essential data stripped.
-     * Role object keys will be replaced with a numerical index to conserve bandwidth.
-     * @param roles
-     * @returns {[]}
-     */
-    customRolesStripped: ({ roles }) => {
-      const customRoles = [];
-      const customKeys = Object.keys(customRole);
-      const strippedProps = [
-        "firstNightReminder",
-        "otherNightReminder",
-        "isCustom"
-      ];
-      roles.forEach(role => {
-        if (!role.isCustom) {
-          customRoles.push({ id: role.id });
-        } else {
-          const strippedRole = {};
-          for (let prop in role) {
-            if (strippedProps.includes(prop)) {
-              continue;
-            }
-            const value = role[prop];
-            if (customKeys.includes(prop) && value !== customRole[prop]) {
-              strippedRole[customKeys.indexOf(prop)] = value;
-            }
-          }
-          customRoles.push(strippedRole);
-        }
-      });
-      return customRoles;
-    },
-    rolesJSONbyId: () => rolesJSONbyId
+    isSeated: state => state.seatIndex >= 1,
+    isPlayer: state => state.role === 'player',
+    isSpectator: state => state.role === 'spectator',
+    rolesByKey: () => rolesByKey,
+    editionsByKey: () => editionsByKey,
+    editionList: () => editionJSON,
+    currentRoles: state => state.roles,
+    seatLabel: () => (seatIndex) => `${seatIndex}号`
   },
+
   mutations: {
-    setZoom: set("zoom"),
-    setBackground: set("background"),
-    toggleMuted: toggle("isMuted"),
-    toggleMenu: toggle("isMenuOpen"),
-    toggleNightOrder: toggle("isNightOrder"),
-    toggleStatic: toggle("isStatic"),
-    toggleNight: toggle("isNight"),
-    toggleGrimoire: toggle("isPublic"),
-    toggleImageOptIn: toggle("isImageOptIn"),
-    toggleModal({ modals }, name) {
-      if (name) {
-        modals[name] = !modals[name];
-      }
-      for (let modal in modals) {
-        if (modal === name) continue;
-        modals[modal] = false;
-      }
+    setRoomId(state, roomId) {
+      state.roomId = roomId;
     },
-    /**
-     * Store custom roles
-     * @param state
-     * @param roles Array of role IDs or full role definitions
-     */
-    setCustomRoles(state, roles) {
-      const processedRoles = roles
-        // replace numerical role object keys with matching key names
-        .map(role => {
-          if (role[0]) {
-            const customKeys = Object.keys(customRole);
-            const mappedRole = {};
-            for (let prop in role) {
-              if (customKeys[prop]) {
-                mappedRole[customKeys[prop]] = role[prop];
-              }
-            }
-            return mappedRole;
-          } else {
-            return role;
-          }
-        })
-        // clean up role.id
-        .map(role => {
-          role.id = clean(role.id);
-          return role;
-        })
-        // map existing roles to base definition or pre-populate custom roles to ensure all properties
-        .map(
-          role =>
-            rolesJSONbyId.get(role.id) ||
-            state.roles.get(role.id) ||
-            Object.assign({}, customRole, role)
-        )
-        // default empty icons and placeholders, clean up firstNight / otherNight
-        .map(role => {
-          if (rolesJSONbyId.get(role.id)) return role;
-          role.imageAlt = // map team to generic icon
-            {
-              townsfolk: "good",
-              outsider: "outsider",
-              minion: "minion",
-              demon: "evil",
-              fabled: "fabled"
-            }[role.team] || "custom";
-          role.firstNight = Math.abs(role.firstNight);
-          role.otherNight = Math.abs(role.otherNight);
-          return role;
-        })
-        // filter out roles that don't match an existing role and also don't have name/ability/team
-        .filter(role => role.name && role.ability && role.team)
-        // sort by team
-        .sort((a, b) => b.team.localeCompare(a.team));
-      // convert to Map without Fabled
-      state.roles = new Map(
-        processedRoles
-          .filter(role => role.team !== "fabled")
-          .map(role => [role.id, role])
-      );
-      // update Fabled to include custom Fabled from this script
-      state.fabled = new Map([
-        ...processedRoles.filter(r => r.team === "fabled").map(r => [r.id, r]),
-        ...fabledJSON.map(role => [role.id, role])
-      ]);
-      // update extraTravelers map to only show travelers not in this script
-      state.otherTravelers = new Map(
-        rolesJSON
-          .filter(r => r.team === "traveler" && !roles.some(i => i.id === r.id))
-          .map(role => [role.id, role])
-      );
+    setRole(state, role) {
+      state.role = role;
+    },
+    setIsRoomOwner(state, isOwner) {
+      state.isRoomOwner = isOwner;
+    },
+    setPlayerId(state, id) {
+      state.playerId = id;
+    },
+    setSeatIndex(state, index) {
+      state.seatIndex = index;
+      state.role = index >= 1 ? 'player' : 'spectator';
     },
     setEdition(state, edition) {
-      if (editionJSONbyId.has(edition.id)) {
-        state.edition = editionJSONbyId.get(edition.id);
-        state.roles = getRolesByEdition(state.edition);
-        state.otherTravelers = getTravelersNotInEdition(state.edition);
-      } else {
-        state.edition = edition;
+      if (typeof edition === 'string') {
+        state.edition = editionsByKey.get(edition) || state.edition;
+      } else if (edition && edition.id) {
+        state.edition = editionsByKey.get(edition.id) || edition;
       }
-      state.modals.edition = false;
+      state.roles = getRolesByEdition(state.edition);
+    },
+    setSeatCount(state, count) {
+      state.seatCount = count;
+    },
+    setConnected(state, connected) {
+      state.connected = connected;
+    },
+    setReconnecting(state, reconnecting) {
+      state.reconnecting = reconnecting;
+    },
+    setLatency(state, ms) {
+      state.latencyMs = ms;
+    },
+    resetRoom(state) {
+      state.roomId = '';
+      state.role = 'spectator';
+      state.isRoomOwner = false;
+      state.seatIndex = -1;
+      state.connected = false;
+      state.reconnecting = false;
+      state.latencyMs = 0;
+    },
+    /**
+     * Proxy mutation — no-op on state, exists solely so the WebSocket
+     * plugin's store.subscribe() callback fires and sends the command.
+     * Vuex 3 silently drops commits for undefined mutations AND skips
+     * subscriber notifications, so this stub MUST exist.
+     */
+    // eslint-disable-next-line no-unused-vars
+    sendCommand(state, payload) { /* handled by websocket plugin subscriber */ }
+  },
+
+  actions: {
+    /**
+     * Ensure we have a valid JWT token before any API calls.
+     * Uses quick login (no username/password needed).
+     */
+    async ensureAuth({ commit }) {
+      await apiService.ensureAuth();
+      commit('setPlayerId', apiService.userId);
+    },
+
+    /**
+     * Create a new game room via REST API (with JWT auth).
+     */
+    async createRoom({ commit, dispatch }) {
+      await dispatch('ensureAuth');
+      const data = await apiService.createRoom();
+      commit('setRoomId', data.room_id);
+      commit('setIsRoomOwner', true);
+      commit('ui/setScreen', 'lobby');
+      return data;
+    },
+
+    /**
+     * Join an existing room via REST API (with JWT auth).
+     */
+    async joinRoom({ commit, dispatch }, roomId) {
+      await dispatch('ensureAuth');
+      await apiService.joinRoom(roomId);
+      commit('setRoomId', roomId);
+      commit('setIsRoomOwner', false);
+      commit('ui/setScreen', 'lobby');
+    },
+
+    /**
+     * Claim a seat in the lobby.
+     * Backend command: "claim_seat" with { seat_number: "N" }
+     */
+    seatDown({ commit }, seatIndex) {
+      commit('setSeatIndex', seatIndex);
+      commit('players/markMe', seatIndex);
+      commit('sendCommand', {
+        type: 'claim_seat',
+        data: { seat_number: String(seatIndex) }
+      });
+    },
+
+    /**
+     * Leave current seat.
+     * Backend command: "leave"
+     */
+    leaveSeat({ commit }) {
+      commit('setSeatIndex', -1);
+      commit('sendCommand', {
+        type: 'leave',
+        data: {}
+      });
+    },
+
+    /**
+     * Leave the room entirely.
+     * Backend command: "leave"
+     */
+    leaveRoom({ commit, dispatch }) {
+      commit('sendCommand', { type: 'leave', data: {} });
+      dispatch('resetAll');
+    },
+
+    /**
+     * Start the game (room owner only).
+     * Backend command: "start_game" with { edition }
+     */
+    startGame({ commit, state }) {
+      if (!state.isRoomOwner) return;
+      commit('sendCommand', {
+        type: 'start_game',
+        data: {
+          edition: state.edition ? state.edition.id : 'tb'
+        }
+      });
+    },
+
+    /**
+     * Update room settings (edition, max_players).
+     * Backend command: "room_settings"
+     */
+    updateRoomSettings({ commit }, settings) {
+      commit('sendCommand', {
+        type: 'room_settings',
+        data: settings
+      });
+    },
+
+    /**
+     * Send a chat message.
+     * Backend commands: "public_chat", "whisper", "evil_team_chat"
+     */
+    sendChat({ commit, state, rootState }, { text, channel }) {
+      if (!text) return;
+      const msg = {
+        seatIndex: state.seatIndex,
+        text,
+        isMe: true,
+        timestamp: Date.now()
+      };
+
+      if (channel === 'whisper') {
+        const target = rootState.chat.activeWhisperTarget;
+        commit('chat/addWhisperMessage', { targetSeat: target, data: msg });
+        // Backend whisper requires to_user_id — find the user ID for the target seat
+        const targetPlayer = rootState.players.players.find(p => p.seatIndex === target);
+        if (targetPlayer) {
+          commit('sendCommand', {
+            type: 'whisper',
+            data: { to_user_id: targetPlayer.id, message: text }
+          });
+        }
+      } else if (channel === 'evil') {
+        commit('chat/addEvilMessage', msg);
+        commit('sendCommand', {
+          type: 'evil_team_chat',
+          data: { message: text }
+        });
+      } else {
+        commit('chat/addPublicMessage', msg);
+        commit('sendCommand', {
+          type: 'public_chat',
+          data: { message: text }
+        });
+      }
+    },
+
+    /**
+     * Send night action (ability use).
+     * Backend command: "ability.use" with { targets }
+     */
+    sendNightAction({ commit }, { targets }) {
+      commit('night/setStep', 'waiting');
+      // Extract user IDs and JSON-stringify for backend map[string]string format
+      const targetIds = (targets || []).map(t => t.id || String(t));
+      commit('sendCommand', {
+        type: 'ability.use',
+        data: { targets: JSON.stringify(targetIds) }
+      });
+    },
+
+    /**
+     * Cast a vote on a nomination.
+     * Backend command: "vote" with { vote: "yes"|"no" }
+     */
+    sendVote({ commit }, vote) {
+      commit('vote/setMyVote', vote);
+      commit('vote/setIsMyTurn', false);
+      commit('sendCommand', {
+        type: 'vote',
+        data: { vote: vote ? 'yes' : 'no' }
+      });
+    },
+
+    /**
+     * Nominate a player.
+     * Backend command: "nominate" with { nominee: user_id }
+     */
+    nominate({ commit, rootState }, nomineeSeat) {
+      // Find the user_id for the nominee seat
+      const nomineePlayer = rootState.players.players.find(p => p.seatIndex === nomineeSeat);
+      if (!nomineePlayer) return;
+      commit('sendCommand', {
+        type: 'nominate',
+        data: { nominee: nomineePlayer.id }
+      });
+    },
+
+    resetAll({ commit }) {
+      commit('resetRoom');
+      commit('game/reset');
+      commit('players/reset');
+      commit('annotations/clearAll');
+      commit('chat/reset');
+      commit('timeline/clear');
+      commit('night/reset');
+      commit('vote/reset');
+      commit('ui/reset');
+      commit('ui/setScreen', 'home');
     }
   },
-  plugins: [persistence, socket]
+
+  plugins: [persistence, websocket]
 });

@@ -1,128 +1,130 @@
 <template>
   <div
     id="app"
-    @keyup="keyup"
-    tabindex="-1"
     :class="{
-      night: grimoire.isNight,
-      static: grimoire.isStatic
-    }"
-    :style="{
-      backgroundImage: grimoire.background
-        ? `url('${grimoire.background}')`
-        : ''
+      night: isNight,
+      'no-animations': !settings.animationsEnabled
     }"
   >
-    <video
-      id="background"
-      v-if="grimoire.background && grimoire.background.match(/\.(mp4|webm)$/i)"
-      :src="grimoire.background"
-      autoplay
-      loop
-    ></video>
-    <div class="backdrop"></div>
-    <transition name="blur">
-      <Intro v-if="!players.length"></Intro>
-      <TownInfo v-if="players.length && !session.nomination"></TownInfo>
-      <Vote v-if="session.nomination"></Vote>
-    </transition>
-    <TownSquare></TownSquare>
-    <Menu ref="menu"></Menu>
-    <ChatPanel />
-    <GameStatus />
-    <SoloMode
-      :showSoloMode="showSoloMode"
-      :roomId="session.sessionId || ''"
-      @close="showSoloMode = false"
-      @bots-added="onBotsAdded"
-    />
-    <ReferenceModal />
-    <NightOrderModal />
-    <VoteHistoryModal />
-    <GameStateModal />
-    <span id="version">v{{ version }}</span>
+    <!-- Night backdrop -->
+    <div class="backdrop" :class="{ visible: isNight }"></div>
+
+    <!-- Top bar -->
+    <TopBar @toggle-settings="toggleSettings" />
+
+    <!-- Screen router -->
+    <main class="app-content">
+      <transition name="screen-fade" mode="out-in">
+        <HomeScreen
+          v-if="screen === 'home'"
+          key="home"
+        />
+        <LobbyScreen
+          v-else-if="screen === 'lobby'"
+          key="lobby"
+        />
+        <GameScreen
+          v-else-if="screen === 'game'"
+          key="game"
+        />
+        <GameEndScreen
+          v-else-if="screen === 'end'"
+          key="end"
+        />
+      </transition>
+    </main>
+
+    <!-- Bottom navigation (game only) -->
+    <BottomNav />
+
+    <!-- Game overlays -->
+    <NightOverlay />
+    <VoteOverlay />
+    <PhaseTransition />
+
+    <!-- Global overlays -->
+    <ConfirmDialog />
+    <SettingsPanel v-if="showSettings" @close="showSettings = false" />
+
+    <!-- Version -->
+    <span id="version" v-if="screen === 'home'">v{{ version }}</span>
   </div>
 </template>
 
 <script>
-import { mapState } from "vuex";
-import { version } from "../package.json";
-import TownSquare from "./components/TownSquare";
-import TownInfo from "./components/TownInfo";
-import Menu from "./components/Menu";
-import Intro from "./components/Intro";
-import ReferenceModal from "./components/modals/ReferenceModal";
-import Vote from "./components/Vote";
-import NightOrderModal from "./components/modals/NightOrderModal";
-import VoteHistoryModal from "@/components/modals/VoteHistoryModal";
-import GameStateModal from "@/components/modals/GameStateModal";
-import ChatPanel from "./components/ChatPanel";
-import GameStatus from "./components/GameStatus";
-import SoloMode from "./components/SoloMode";
+import { mapState, mapGetters } from "vuex";
+const { version } = require("../package.json");
+import TopBar from "./components/TopBar";
+import BottomNav from "./components/BottomNav";
+import HomeScreen from "./components/HomeScreen";
+import LobbyScreen from "./components/LobbyScreen";
+import ConfirmDialog from "./components/ConfirmDialog";
+import NightOverlay from "./components/NightOverlay";
+import VoteOverlay from "./components/VoteOverlay";
+import PhaseTransition from "./components/PhaseTransition";
+import soundService from "./services/SoundService";
+
+// Lazy-loaded screens
+const GameScreen = () => import("./components/GameScreen");
+const GameEndScreen = () => import("./components/GameEndScreen");
+const SettingsPanel = () => import("./components/SettingsPanel");
 
 export default {
   components: {
-    GameStateModal,
-    VoteHistoryModal,
-    NightOrderModal,
-    Vote,
-    ReferenceModal,
-    Intro,
-    TownInfo,
-    TownSquare,
-    Menu,
-    ChatPanel,
-    GameStatus,
-    SoloMode
-  },
-  computed: {
-    ...mapState(["grimoire", "session"]),
-    ...mapState("players", ["players"])
+    TopBar,
+    BottomNav,
+    HomeScreen,
+    LobbyScreen,
+    GameScreen,
+    GameEndScreen,
+    ConfirmDialog,
+    NightOverlay,
+    VoteOverlay,
+    PhaseTransition,
+    SettingsPanel
   },
   data() {
     return {
       version,
-      showSoloMode: false
+      showSettings: false
     };
   },
+  computed: {
+    ...mapState("ui", {
+      screen: "screen",
+      settings: "settings"
+    }),
+    ...mapGetters("game", ["isNight"])
+  },
   methods: {
-    onBotsAdded(data) {
-      console.log("Bots added:", data);
+    toggleSettings() {
+      this.showSettings = !this.showSettings;
     },
-    keyup({ key, ctrlKey, metaKey }) {
-      if (ctrlKey || metaKey) return;
-      switch (key.toLocaleLowerCase()) {
-        case "g":
-          this.$store.commit("toggleGrimoire");
-          break;
-        case "a":
-          this.$refs.menu.addPlayer();
-          break;
-        case "h":
-          this.$refs.menu.hostSession();
-          break;
-        case "j":
-          this.$refs.menu.joinSession();
-          break;
-        case "r":
-          this.$store.commit("toggleModal", "reference");
-          break;
-        case "n":
-          this.$store.commit("toggleModal", "nightOrder");
-          break;
-        case "v":
-          if (this.session.voteHistory.length || !this.session.isSpectator) {
-            this.$store.commit("toggleModal", "voteHistory");
-          }
-          break;
-        case "s":
-          if (this.session.isSpectator) return;
-          this.$refs.menu.toggleNight();
-          break;
-        case "escape":
-          this.$store.commit("toggleModal");
+    detectMobile() {
+      this.$store.commit("ui/setIsMobile", window.innerWidth <= 768);
+    },
+    handleHash() {
+      const hash = window.location.hash.substr(1);
+      if (hash) {
+        this.$store.dispatch("joinRoom", hash).catch(() => {});
       }
     }
+  },
+  created() {
+    // Pre-auth so token is ready when user clicks Create/Join
+    this.$store.dispatch("ensureAuth").then(() => {
+      // Handle hash-based room join after auth is ready
+      this.handleHash();
+    }).catch(() => {});
+    this.detectMobile();
+    window.addEventListener("resize", this.detectMobile);
+  },
+  mounted() {
+    soundService.preload();
+    soundService.setMuted(!this.settings.soundEnabled);
+  },
+  beforeDestroy() {
+    window.removeEventListener("resize", this.detectMobile);
   }
 };
 </script>
@@ -132,13 +134,12 @@ export default {
 
 @font-face {
   font-family: "Papyrus";
-  src: url("assets/fonts/papyrus.eot"); /* IE9*/
+  src: url("assets/fonts/papyrus.eot");
   src: url("assets/fonts/papyrus.eot?#iefix") format("embedded-opentype"),
-    /* IE6-IE8 */ url("assets/fonts/papyrus.woff2") format("woff2"),
-    /* chrome firefox */ url("assets/fonts/papyrus.woff") format("woff"),
-    /* chrome firefox */ url("assets/fonts/papyrus.ttf") format("truetype"),
-    /* chrome firefox opera Safari, Android, iOS 4.2+*/
-      url("assets/fonts/papyrus.svg#PapyrusW01") format("svg"); /* iOS 4.1- */
+    url("assets/fonts/papyrus.woff2") format("woff2"),
+    url("assets/fonts/papyrus.woff") format("woff"),
+    url("assets/fonts/papyrus.ttf") format("truetype"),
+    url("assets/fonts/papyrus.svg#PapyrusW01") format("svg");
 }
 
 @font-face {
@@ -177,11 +178,7 @@ a {
   }
 }
 
-h1,
-h2,
-h3,
-h4,
-h5 {
+h1, h2, h3, h4, h5 {
   margin: 0;
   text-align: center;
   font-family: PiratesBay, sans-serif;
@@ -197,48 +194,98 @@ ul {
 
 #app {
   height: 100%;
-  background-position: center center;
-  background-size: cover;
   display: flex;
-  align-items: center;
-  align-content: center;
-  justify-content: center;
+  flex-direction: column;
 
-  // disable all animations
-  &.static *,
-  &.static *:after,
-  &.static *:before {
+  &.no-animations *,
+  &.no-animations *:after,
+  &.no-animations *:before {
     transition: none !important;
     animation: none !important;
   }
 }
 
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 44px; // TopBar height
+  -webkit-overflow-scrolling: touch;
+}
+
+// Show bottom nav padding when in game
+.app-content:has(+ .bottom-nav) {
+  padding-bottom: 56px;
+}
+
 #version {
-  position: absolute;
-  text-align: right;
+  position: fixed;
   right: 10px;
   bottom: 10px;
   font-size: 60%;
   opacity: 0.5;
+  z-index: 1;
 }
 
-.blur-enter-active,
-.blur-leave-active {
-  transition: all 250ms;
-  filter: blur(0);
-}
-.blur-enter,
-.blur-leave-to {
+// Night backdrop
+#app > .backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(1, 22, 46, 1) 50%,
+    rgba(0, 39, 70, 1) 100%
+  );
   opacity: 0;
-  filter: blur(20px);
+  transition: opacity 1s ease-in-out;
+  z-index: 0;
+
+  &.visible {
+    opacity: 0.5;
+  }
+
+  &:after {
+    content: " ";
+    display: block;
+    width: 100%;
+    padding-right: 2000px;
+    height: 100%;
+    background: url("assets/clouds.png") repeat;
+    background-size: 2000px auto;
+    animation: move-clouds 120s linear infinite;
+    opacity: 0.3;
+  }
 }
 
-// Buttons
+@keyframes move-clouds {
+  from { transform: translate3d(-2000px, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+// Screen transitions
+.screen-fade-enter-active,
+.screen-fade-leave-active {
+  transition: opacity 300ms, transform 300ms;
+}
+.screen-fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.screen-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+// Buttons (global)
 .button-group {
   display: flex;
   align-items: center;
   justify-content: center;
-  align-content: center;
   .button {
     margin: 5px 0;
     border-radius: 0;
@@ -276,10 +323,16 @@ ul {
   &:hover {
     color: red;
   }
+  &:active {
+    transform: scale(0.95);
+  }
   &.disabled {
     color: gray;
     cursor: default;
     opacity: 0.75;
+    &:active {
+      transform: none;
+    }
   }
   &:before,
   &:after {
@@ -315,54 +368,21 @@ ul {
   }
 }
 
-/* video background */
-video#background {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Night phase backdrop */
-#app > .backdrop {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  pointer-events: none;
-  background: black;
+// Skeleton loading
+.skeleton {
   background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(1, 22, 46, 1) 50%,
-    rgba(0, 39, 70, 1) 100%
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
   );
-  opacity: 0;
-  transition: opacity 1s ease-in-out;
-  &:after {
-    content: " ";
-    display: block;
-    width: 100%;
-    padding-right: 2000px;
-    height: 100%;
-    background: url("assets/clouds.png") repeat;
-    background-size: 2000px auto;
-    animation: move-background 120s linear infinite;
-    opacity: 0.3;
-  }
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
 }
 
-@keyframes move-background {
-  from {
-    transform: translate3d(-2000px, 0px, 0px);
-  }
-  to {
-    transform: translate3d(0px, 0px, 0px);
-  }
-}
-
-#app.night > .backdrop {
-  opacity: 0.5;
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>

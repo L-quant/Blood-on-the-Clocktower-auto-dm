@@ -4,63 +4,31 @@ import store from "./store";
 import i18n from "./i18n";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { fas } from "@fortawesome/free-solid-svg-icons";
-import { fab } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 const faIcons = [
-  "AddressCard",
   "BookOpen",
-  "BookDead",
-  "BroadcastTower",
-  "Chair",
-  "CheckSquare",
-  "CloudMoon",
+  "Clipboard",
   "Cog",
   "Copy",
-  "Clipboard",
   "Dice",
-  "Dragon",
-  "ExchangeAlt",
   "ExclamationTriangle",
-  "FileCode",
-  "FileUpload",
   "Globe",
-  "HandPaper",
-  "HandPointRight",
-  "Heartbeat",
-  "Image",
   "Link",
   "MinusCircle",
-  "PeopleArrows",
   "PlusCircle",
   "Question",
-  "Random",
-  "RedoAlt",
-  "SearchMinus",
-  "SearchPlus",
   "Skull",
-  "Square",
-  "TheaterMasks",
   "Times",
   "TimesCircle",
-  "TrashAlt",
-  "Undo",
   "User",
   "UserEdit",
-  "UserFriends",
   "Users",
-  "VenusMars",
   "VolumeUp",
   "VolumeMute",
-  "VoteYea",
-  "WindowMaximize",
-  "WindowMinimize"
+  "VoteYea"
 ];
-const fabIcons = ["Github"];
-library.add(
-  ...faIcons.map(i => fas["fa" + i]),
-  ...fabIcons.map(i => fab["fa" + i])
-);
+library.add(...faIcons.map(i => fas["fa" + i]));
 Vue.component("font-awesome-icon", FontAwesomeIcon);
 Vue.config.productionTip = false;
 

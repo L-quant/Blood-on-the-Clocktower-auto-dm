@@ -1,165 +1,101 @@
-const NEWPLAYER = {
-  name: "",
-  id: "",
-  role: {},
-  reminders: [],
-  isVoteless: false,
-  isDead: false,
-  pronouns: ""
-};
-
 const state = () => ({
   players: [],
-  fabled: [],
-  bluffs: []
+  myRole: null, // { roleId, roleName, team, ability }
+  bluffs: [null, null, null], // demon bluffs (only visible to demon)
+  fabled: []
 });
 
-const getters = {
-  alive({ players }) {
-    return players.filter(player => !player.isDead).length;
-  },
-  nonTravelers({ players }) {
-    const nonTravelers = players.filter(
-      player => player.role.team !== "traveler"
-    );
-    return Math.min(nonTravelers.length, 15);
-  },
-  // calculate a Map of player => night order
-  nightOrder({ players, fabled }) {
-    const firstNight = [0];
-    const otherNight = [0];
-    players.forEach(({ role }) => {
-      if (role.firstNight && !firstNight.includes(role.firstNight)) {
-        firstNight.push(role.firstNight);
-      }
-      if (role.otherNight && !otherNight.includes(role.otherNight)) {
-        otherNight.push(role.otherNight);
-      }
-    });
-    fabled.forEach(role => {
-      if (role.firstNight && !firstNight.includes(role.firstNight)) {
-        firstNight.push(role.firstNight);
-      }
-      if (role.otherNight && !otherNight.includes(role.otherNight)) {
-        otherNight.push(role.otherNight);
-      }
-    });
-    firstNight.sort((a, b) => a - b);
-    otherNight.sort((a, b) => a - b);
-    const nightOrder = new Map();
-    players.forEach(player => {
-      const first = Math.max(firstNight.indexOf(player.role.firstNight), 0);
-      const other = Math.max(otherNight.indexOf(player.role.otherNight), 0);
-      nightOrder.set(player, { first, other });
-    });
-    fabled.forEach(role => {
-      const first = Math.max(firstNight.indexOf(role.firstNight), 0);
-      const other = Math.max(otherNight.indexOf(role.otherNight), 0);
-      nightOrder.set(role, { first, other });
-    });
-    return nightOrder;
-  }
-};
-
-const actions = {
-  randomize({ state, commit }) {
-    const players = state.players
-      .map(a => [Math.random(), a])
-      .sort((a, b) => a[0] - b[0])
-      .map(a => a[1]);
-    commit("set", players);
-  },
-  clearRoles({ state, commit, rootState }) {
-    let players;
-    if (rootState.session.isSpectator) {
-      players = state.players.map(player => {
-        if (player.role.team !== "traveler") {
-          player.role = {};
-        }
-        player.reminders = [];
-        return player;
-      });
-    } else {
-      players = state.players.map(({ name, id, pronouns }) => ({
-        ...NEWPLAYER,
-        name,
-        id,
-        pronouns
-      }));
-      commit("setFabled", { fabled: [] });
-    }
-    commit("set", players);
-    commit("setBluff");
-  }
-};
+const createPlayer = (id, seatIndex, name) => ({
+  id: id || '',
+  name: name || '',
+  seatIndex: seatIndex,
+  isAlive: true,
+  hasGhostVote: true,
+  isNominatedToday: false,
+  hasNominatedToday: false,
+  isMe: false
+});
 
 const mutations = {
-  clear(state) {
-    state.players = [];
-    state.bluffs = [];
-    state.fabled = [];
-  },
-  set(state, players = []) {
+  setPlayers(state, players) {
     state.players = players;
   },
-  /**
-  The update mutation also has a property for isFromSockets
-  this property can be addded to payload object for any mutations
-  then can be used to prevent infinite loops when a property is
-  able to be set from multiple different session on websockets.
-  An example of this is in the sendPlayerPronouns and _updatePlayerPronouns
-  in socket.js.
-   */
-  update(state, { player, property, value }) {
-    const index = state.players.indexOf(player);
-    if (index >= 0) {
-      state.players[index][property] = value;
+  addPlayer(state, { id, seatIndex }) {
+    state.players.push(createPlayer(id, seatIndex));
+  },
+  removePlayer(state, seatIndex) {
+    const idx = state.players.findIndex(p => p.seatIndex === seatIndex);
+    if (idx >= 0) {
+      state.players.splice(idx, 1);
     }
   },
-  add(state, name) {
-    state.players.push({
-      ...NEWPLAYER,
-      name
+  updatePlayer(state, { seatIndex, property, value }) {
+    const player = state.players.find(p => p.seatIndex === seatIndex);
+    if (player && property in player) {
+      player[property] = value;
+    }
+  },
+  seatPlayer(state, { id, seatIndex }) {
+    const existing = state.players.find(p => p.seatIndex === seatIndex);
+    if (existing) {
+      existing.id = id;
+    } else {
+      state.players.push(createPlayer(id, seatIndex));
+    }
+  },
+  unseatPlayer(state, seatIndex) {
+    const idx = state.players.findIndex(p => p.seatIndex === seatIndex);
+    if (idx >= 0) {
+      state.players.splice(idx, 1);
+    }
+  },
+  setMyRole(state, role) {
+    state.myRole = role; // { roleId, roleName, team, ability }
+  },
+  setBluffs(state, bluffs) {
+    state.bluffs = bluffs;
+  },
+  setFabled(state, fabled) {
+    state.fabled = fabled;
+  },
+  markMe(state, seatIndex) {
+    state.players.forEach(p => {
+      p.isMe = p.seatIndex === seatIndex;
     });
   },
-  remove(state, index) {
-    state.players.splice(index, 1);
-  },
-  swap(state, [from, to]) {
-    [state.players[from], state.players[to]] = [
-      state.players[to],
-      state.players[from]
-    ];
-    // hack: "modify" the array so that Vue notices something changed
-    state.players.splice(0, 0);
-  },
-  move(state, [from, to]) {
-    state.players.splice(to, 0, state.players.splice(from, 1)[0]);
-  },
-  setBluff(state, { index, role } = {}) {
-    if (index !== undefined) {
-      state.bluffs.splice(index, 1, role);
-    } else {
-      state.bluffs = [];
+  killPlayer(state, seatIndex) {
+    const player = state.players.find(p => p.seatIndex === seatIndex);
+    if (player) {
+      player.isAlive = false;
     }
   },
-  setFabled(state, { index, fabled } = {}) {
-    if (index !== undefined) {
-      state.fabled.splice(index, 1);
-    } else if (fabled) {
-      if (!Array.isArray(fabled)) {
-        state.fabled.push(fabled);
-      } else {
-        state.fabled = fabled;
-      }
-    }
+  resetNominationFlags(state) {
+    state.players.forEach(p => {
+      p.isNominatedToday = false;
+      p.hasNominatedToday = false;
+    });
+  },
+  reset(state) {
+    state.players = [];
+    state.myRole = null;
+    state.bluffs = [null, null, null];
+    state.fabled = [];
   }
+};
+
+const getters = {
+  me: state => state.players.find(p => p.isMe),
+  alive: state => state.players.filter(p => p.isAlive),
+  dead: state => state.players.filter(p => !p.isAlive),
+  bySeat: state => seatIndex => state.players.find(p => p.seatIndex === seatIndex),
+  playerCount: state => state.players.length,
+  aliveCount: state => state.players.filter(p => p.isAlive).length,
+  sorted: state => [...state.players].sort((a, b) => a.seatIndex - b.seatIndex)
 };
 
 export default {
   namespaced: true,
   state,
-  getters,
-  actions,
-  mutations
+  mutations,
+  getters
 };

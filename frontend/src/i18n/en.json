@@ -1,163 +1,211 @@
 {
-  "intro": {
-    "welcome": "Welcome to Blood on the Clocktower — AI Auto Storyteller!",
-    "description": "Add players through the {menu} on the top right or press {addKey}. You can also join a game session by pressing {joinKey}.",
-    "footer": "Powered by AI Agent. Game visuals based on the open-source townsquare project."
+  "app": {
+    "title": "Blood on the Clocktower",
+    "subtitle": "AI Auto Storyteller"
   },
-  "menu": {
-    "grimoire": "Grimoire",
-    "hide": "Hide",
-    "show": "Show",
-    "switchToNight": "Switch to Night",
-    "switchToDay": "Switch to Day",
-    "nightOrder": "Night order",
-    "zoom": "Zoom",
-    "background": "Background image",
-    "showCustomImages": "Show Custom Images",
-    "disableAnimations": "Disable Animations",
-    "muteSounds": "Mute Sounds",
-    "session": "Live Session",
-    "hosting": "Hosting",
-    "playing": "Playing",
-    "host": "host",
-    "players": "players",
-    "copyLink": "Copy player link",
-    "sendCharacters": "Send Characters",
-    "voteHistory": "Vote history",
-    "leaveSession": "Leave Session",
-    "playersTab": "Players",
-    "add": "Add",
-    "randomize": "Randomize",
-    "removeAll": "Remove all",
-    "help": "Help",
-    "referenceSheet": "Reference Sheet",
-    "nightOrderSheet": "Night Order Sheet",
-    "gameStateJSON": "Game State JSON",
-    "sourceCode": "Source code",
-    "hostSession": "Host (Storyteller)",
-    "joinSession": "Join (Player)"
+  "home": {
+    "createRoom": "Create Room",
+    "joinRoom": "Join Room",
+    "soloMode": "Solo Mode",
+    "enterRoomCode": "Enter room code",
+    "settings": "Settings"
+  },
+  "lobby": {
+    "roomCode": "Room Code",
+    "copyLink": "Copy Invite Link",
+    "seatedPlayers": "Seated ({count}/{total})",
+    "spectators": "Spectators ({count})",
+    "waitingForStart": "Waiting for host to start...",
+    "startGame": "Start Game",
+    "leaveRoom": "Leave Room",
+    "leaveSeat": "Leave Seat",
+    "edition": "Edition",
+    "expectedTeams": "Expected Teams",
+    "seatCount": "Seats",
+    "clickToSeat": "Tap an empty seat to sit down",
+    "seat": "Seat {n}",
+    "empty": "Empty",
+    "you": "You",
+    "owner": "Host",
+    "minPlayers": "Minimum 5 players required",
+    "confirmLeave": "Are you sure you want to leave?"
   },
   "game": {
-    "day": "Day",
-    "firstNight": "First Night",
-    "night": "Night",
-    "nomination": "Nomination",
-    "voting": "Voting",
-    "gameOver": "Game Over",
+    "phases": {
+      "lobby": "Lobby",
+      "first_night": "First Night",
+      "night": "Night",
+      "day": "Day",
+      "nomination": "Nomination",
+      "voting": "Voting",
+      "ended": "Game Over"
+    },
+    "dayN": "Day {n}",
+    "nightN": "Night {n}",
+    "alive": "Alive",
+    "dead": "Dead",
     "goodWins": "Good wins!",
     "evilWins": "Evil wins!",
-    "nightPhase": "Night phase"
+    "gameOver": "Game Over",
+    "backToLobby": "Back to Lobby",
+    "newGame": "New Game"
+  },
+  "square": {
+    "title": "Square",
+    "aliveCount": "Alive: {alive}  Dead: {dead}",
+    "tapToAnnotate": "Tap a player to annotate their role",
+    "nominatePlayer": "Nominate",
+    "annotateRole": "Annotate Role",
+    "annotateTeam": "Annotate Team",
+    "addNote": "Add Note",
+    "clearAnnotation": "Clear",
+    "me": "Me",
+    "seat": "Seat {n}",
+    "unknown": "?",
+    "ghost": "Ghost",
+    "ghostVote": "Ghost Vote"
   },
   "chat": {
     "title": "Chat",
-    "empty": "No messages yet. Say hello!",
+    "public": "Public",
+    "whisper": "Whisper",
+    "evil": "Evil Team",
+    "assistant": "AI Assistant",
     "placeholder": "Type a message...",
-    "you": "You"
+    "assistantPlaceholder": "Ask the AI assistant...",
+    "empty": "No messages yet",
+    "whisperTo": "Whisper to Seat {n}",
+    "selectTarget": "Select chat target",
+    "assistantHint": "Ask about your role, abilities, strategy, and more",
+    "quickActions": {
+      "howToPlay": "How should I play my role?",
+      "whoToTrust": "Who should I trust?",
+      "strategy": "Any strategy tips?"
+    }
+  },
+  "timeline": {
+    "title": "Timeline",
+    "all": "All",
+    "phases": "Phases",
+    "deaths": "Deaths",
+    "votes": "Votes",
+    "abilities": "Abilities",
+    "empty": "No events yet",
+    "phaseChange": "Phase Change",
+    "playerDied": "Seat {n} died",
+    "nominationResult": "Seat {nominator} nominated Seat {nominee}",
+    "voteResult": "Vote result: {result}"
+  },
+  "me": {
+    "title": "Me",
+    "myRole": "My Role",
+    "ability": "Ability",
+    "bluffs": "Demon Bluffs",
+    "notes": "Notes",
+    "notesPlaceholder": "Write your reasoning here...",
+    "reference": "Role Reference",
+    "nightOrder": "Night Order",
+    "settings": "Settings",
+    "noRole": "Waiting for role assignment..."
+  },
+  "night": {
+    "title": "Night Action",
+    "wakeUp": "Wake up!",
+    "selectTarget": "Select your target",
+    "selectTwoTargets": "Select two targets",
+    "passive": "Your ability triggers automatically",
+    "waiting": "Waiting for other players...",
+    "result": "Result",
+    "confirm": "Confirm",
+    "skip": "Skip",
+    "progress": "{current} of {total}"
   },
   "vote": {
-    "nominated": "nominated",
-    "votesInFavor": "{n} vote{s} in favor",
-    "majorityIs": "majority is {n}",
-    "timePerPlayer": "Time per player:",
-    "countdown": "Countdown",
-    "start": "Start",
-    "restart": "Restart",
-    "pause": "Pause",
-    "resume": "Resume",
-    "reset": "Reset",
-    "close": "Close",
-    "handDown": "Hand DOWN",
-    "handUp": "Hand UP",
-    "markForExecution": "Mark for execution",
-    "clearMark": "Clear mark",
-    "secondsBetweenVotes": "{n} seconds between votes",
-    "claimSeatToVote": "Please claim a seat to vote."
-  },
-  "townInfo": {
-    "addMorePlayers": "Please add more players!"
-  },
-  "player": {
-    "changePronouns": "Change Pronouns",
-    "rename": "Rename",
-    "movePlayer": "Move player",
-    "swapSeats": "Swap seats",
-    "remove": "Remove",
-    "emptySeat": "Empty seat",
     "nomination": "Nomination",
-    "claimSeat": "Claim seat",
-    "vacateSeat": "Vacate seat",
-    "seatOccupied": "Seat occupied"
+    "nominatorLabel": "Seat {n} nominated",
+    "nomineeLabel": "Seat {n}",
+    "currentVotes": "Current: {count} votes",
+    "requiredVotes": "Need {count} votes",
+    "voteYes": "Yes",
+    "voteNo": "No",
+    "yourTurn": "Your turn to vote!",
+    "waiting": "Waiting for votes...",
+    "executed": "Executed!",
+    "safe": "Safe",
+    "history": "Vote History"
   },
-  "solo": {
-    "title": "Solo Testing Mode",
-    "description": "Play a game with AI bot players to test and practice.",
-    "botCount": "Bot count:",
-    "personality": "Personality:",
-    "random": "Random",
-    "aggressive": "Aggressive",
-    "cautious": "Cautious",
-    "smart": "Smart",
-    "startGame": "Start Solo Game",
-    "addingBots": "Adding bots...",
-    "cancel": "Cancel",
-    "noRoom": "No room selected. Create a room first.",
-    "bots4": "4 bots (5-player)",
-    "bots5": "5 bots (6-player)",
-    "bots6": "6 bots (7-player)",
-    "bots7": "7 bots (8-player)",
-    "bots9": "9 bots (10-player)"
+  "annotation": {
+    "title": "Annotate Role",
+    "selectRole": "Select Role",
+    "selectTeam": "Select Team",
+    "good": "Good",
+    "evil": "Evil",
+    "note": "Note",
+    "notePlaceholder": "Enter a note...",
+    "save": "Save",
+    "clear": "Clear",
+    "cancel": "Cancel"
   },
-  "reference": {
-    "title": "Character Reference",
-    "showNightOrder": "Show Night Order",
-    "customScript": "Custom Script",
-    "jinxed": "Jinxed"
+  "connection": {
+    "connected": "Connected",
+    "reconnecting": "Reconnecting...",
+    "disconnected": "Disconnected",
+    "retry": "Retry"
   },
-  "nightOrderModal": {
-    "title": "Night Order",
-    "showReference": "Show Character Reference",
-    "firstNight": "First Night",
-    "otherNights": "Other Nights",
-    "minionInfo": "Minion info",
-    "demonInfo": "Demon info & bluffs"
-  },
-  "voteHistoryModal": {
-    "title": "Vote history",
-    "clearHistory": "Clear vote history",
-    "accessible": "Accessible to players",
-    "clearForEveryone": "Clear for everyone",
-    "time": "Time",
-    "nominator": "Nominator",
-    "nominee": "Nominee",
-    "type": "Type",
-    "votes": "Votes",
-    "majority": "Majority",
-    "voters": "Voters"
-  },
-  "gameState": {
-    "title": "Current Game State",
-    "copyJSON": "Copy JSON",
-    "loadState": "Load State"
-  },
-  "townSquare": {
-    "otherCharacters": "Other characters",
-    "demonBluffs": "Demon bluffs",
-    "fabled": "Fabled"
+  "settings": {
+    "title": "Settings",
+    "sound": "Sound",
+    "animations": "Animations",
+    "language": "Language",
+    "reducedMotion": "Reduce Motion"
   },
   "confirm": {
-    "leaveSession": "Are you sure you want to leave the active live game?",
-    "distributeRoles": "Do you want to distribute assigned characters to all SEATED players?",
-    "randomizeSeating": "Are you sure you want to randomize seatings?",
-    "removeAllPlayers": "Are you sure you want to remove all players?",
-    "removeAllRoles": "Are you sure you want to remove all player roles?",
-    "removePlayer": "Do you really want to remove {name}?",
-    "customImages": "Are you sure you want to allow custom images? A malicious script file author might track your IP address this way."
+    "leaveRoom": "Are you sure you want to leave?",
+    "leaveSeat": "Are you sure you want to leave your seat?",
+    "yes": "Confirm",
+    "no": "Cancel"
   },
-  "prompt": {
-    "backgroundUrl": "Enter custom background URL",
-    "sessionChannel": "Enter a channel number / name for your session",
-    "joinChannel": "Enter the channel number / name of the session you want to join",
-    "playerName": "Player name",
-    "playerPronouns": "Player pronouns"
+  "editions": {
+    "tb": "Trouble Brewing",
+    "bmr": "Bad Moon Rising",
+    "snv": "Sects & Violets",
+    "luf": "Laissez un Faire"
+  },
+  "teams": {
+    "townsfolk": "Townsfolk",
+    "outsider": "Outsider",
+    "minion": "Minion",
+    "demon": "Demon",
+    "traveler": "Traveler",
+    "fabled": "Fabled"
+  },
+  "nav": {
+    "square": "Square",
+    "chat": "Chat",
+    "timeline": "Timeline",
+    "me": "Me"
+  },
+  "errors": {
+    "failedToCreateRoom": "Failed to create room",
+    "failedToJoinRoom": "Failed to join room",
+    "noResponse": "No response",
+    "assistantUnavailable": "Assistant unavailable"
+  },
+  "toast": {
+    "firstNight": "The First Night begins...",
+    "nightFalls": "Night falls over the town...",
+    "dayBreaks": "A new day dawns!",
+    "nominationPhase": "Nominations are open!",
+    "votingBegins": "Voting has begun!",
+    "gameOver": "The game has ended!",
+    "playerDied": "A player has died!",
+    "nomination": "A nomination has been made!",
+    "goodWins": "Good triumphs over evil!",
+    "evilWins": "Evil has consumed the town!",
+    "reconnecting": "Connection lost, reconnecting...",
+    "connected": "Connected to room",
+    "roleAssigned": "Your role has been assigned!",
+    "seatClaimed": "You have been seated",
+    "copied": "Copied to clipboard"
   }
 }
