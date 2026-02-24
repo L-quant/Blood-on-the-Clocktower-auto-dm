@@ -13,7 +13,7 @@ type StoredEvent struct {
 	EventID          string
 	EventType        string
 	ActorUserID      string
-	CausationCommand string
+	CausationCommand string // FIX-18: scanned via sql.NullString to handle NULL
 	PayloadJSON      string
 	ServerTime       time.Time
 }
@@ -65,9 +65,11 @@ func (s *Store) LoadEventsAfter(ctx context.Context, roomID string, afterSeq int
 	var res []StoredEvent
 	for rows.Next() {
 		var e StoredEvent
-		if err := rows.Scan(&e.RoomID, &e.Seq, &e.EventID, &e.EventType, &e.ActorUserID, &e.CausationCommand, &e.PayloadJSON, &e.ServerTime); err != nil {
+		var causation sql.NullString // FIX-18: handle NULL causation_command_id
+		if err := rows.Scan(&e.RoomID, &e.Seq, &e.EventID, &e.EventType, &e.ActorUserID, &causation, &e.PayloadJSON, &e.ServerTime); err != nil {
 			return nil, err
 		}
+		e.CausationCommand = causation.String
 		res = append(res, e)
 	}
 	return res, rows.Err()
@@ -98,9 +100,11 @@ func (s *Store) LoadEventsUpTo(ctx context.Context, roomID string, toSeq int64) 
 	var res []StoredEvent
 	for rows.Next() {
 		var e StoredEvent
-		if err := rows.Scan(&e.RoomID, &e.Seq, &e.EventID, &e.EventType, &e.ActorUserID, &e.CausationCommand, &e.PayloadJSON, &e.ServerTime); err != nil {
+		var causation sql.NullString // FIX-18: handle NULL causation_command_id
+		if err := rows.Scan(&e.RoomID, &e.Seq, &e.EventID, &e.EventType, &e.ActorUserID, &causation, &e.PayloadJSON, &e.ServerTime); err != nil {
 			return nil, err
 		}
+		e.CausationCommand = causation.String
 		res = append(res, e)
 	}
 	return res, rows.Err()

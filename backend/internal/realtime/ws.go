@@ -79,13 +79,14 @@ func (ws *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ws.logger.Warn("upgrade failed", zap.Error(err))
 		return
 	}
+	sessionID := uuid.NewString()
 	session := &Session{
-		id:      uuid.NewString(),
+		id:      sessionID,
 		userID:  claims.UserID,
 		conn:    conn,
 		store:   ws.store,
 		roomMgr: ws.roomMgr,
-		logger:  ws.logger.With(zap.String("session_id", uuid.NewString()), zap.String("user_id", claims.UserID)),
+		logger:  ws.logger.With(zap.String("session_id", sessionID), zap.String("user_id", claims.UserID)), // FIX-11: Use same session ID
 		metrics: ws.metrics,
 		send:    make(chan []byte, 64),
 		limiter: NewTokenBucket(10, 2),
@@ -173,7 +174,12 @@ func (s *Session) writePump() {
 func (s *Session) handleMessage(msg WSMessage) {
 	switch msg.Type {
 	case "ping":
-		s.sendRaw(WSMessage{Type: "pong", RequestID: msg.RequestID, Payload: json.RawMessage("{}")})
+		// FIX-10: Echo back the client's payload (contains timestamp for latency calculation)
+		pongPayload := msg.Payload
+		if len(pongPayload) == 0 {
+			pongPayload = json.RawMessage("{}")
+		}
+		s.sendRaw(WSMessage{Type: "pong", RequestID: msg.RequestID, Payload: pongPayload})
 	case "subscribe":
 		var payload SubscribePayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {

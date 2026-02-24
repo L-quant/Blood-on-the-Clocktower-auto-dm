@@ -12,11 +12,12 @@ func Project(event types.Event, state engine.State, viewer types.Viewer) *types.
 		return nil
 	}
 	return &types.ProjectedEvent{
-		RoomID:    event.RoomID,
-		Seq:       event.Seq,
-		EventType: event.EventType,
-		Data:      sanitizePayload(event, viewer),
-		ServerTS:  event.ServerTimestampMs,
+		RoomID:      event.RoomID,
+		Seq:         event.Seq,
+		EventType:   event.EventType,
+		ActorUserID: event.ActorUserID,
+		Data:        sanitizePayload(event, viewer),
+		ServerTS:    event.ServerTimestampMs,
 	}
 }
 
@@ -25,8 +26,23 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 		return true
 	}
 	switch event.EventType {
-	case "bluffs.assigned", "night.action.queued", "night.action.completed", "player.poisoned", "player.protected", "demon.changed":
+	case "player.poisoned", "player.protected", "demon.changed":
 		return false
+	// FIX-6: Filter evil_team.chat so only evil players can see it
+	case "evil_team.chat":
+		player, ok := state.Players[viewer.UserID]
+		if !ok {
+			return false
+		}
+		return player.Team == "evil"
+	case "night.action.queued", "night.action.completed":
+		// Allow players to see their own night action events
+		var payload map[string]string
+		_ = json.Unmarshal(event.Payload, &payload)
+		return viewer.UserID == payload["user_id"]
+	case "bluffs.assigned":
+		// Only the demon should see bluffs
+		return viewer.UserID == state.DemonID
 	case "whisper.sent":
 		var payload map[string]string
 		_ = json.Unmarshal(event.Payload, &payload)
@@ -69,10 +85,19 @@ func ProjectedState(state engine.State, viewer types.Viewer) engine.State {
 		cp.DemonID = ""
 		cp.MinionIDs = nil
 		cp.BluffRoles = nil
+		// FIX-5: Clear sensitive fields that leak game info to players
+		cp.NightActions = nil
+		cp.AIDecisionLog = nil
+		cp.RedHerringID = ""
+		cp.PendingDeaths = nil
 
 		for id, p := range cp.Players {
 			p.TrueRole = ""
-			p.Team = ""
+			if id == viewer.UserID {
+				// FIX-5b: Keep own team info on reconnect
+			} else {
+				p.Team = ""
+			}
 			p.NightInfo = nil
 			if id != viewer.UserID {
 				p.Role = ""
