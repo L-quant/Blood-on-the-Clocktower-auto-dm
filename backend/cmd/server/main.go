@@ -79,8 +79,8 @@ func main() {
 		}
 		retriever = rag.NewRuleRetriever(qdrantClient, embedder)
 
-		// Initialize with rules from assets/rules directory
-		rulesDir := "../assets/rules"
+		// Initialize with rules from docs/rules directory
+		rulesDir := "../docs/rules"
 		if err := retriever.Initialize(ctx, rulesDir); err != nil {
 			logger.Warn("Failed to initialize RAG", zap.Error(err))
 		} else {

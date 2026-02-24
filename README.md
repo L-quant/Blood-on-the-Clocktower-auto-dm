@@ -879,8 +879,8 @@ Blood-on-the-Clocktower-auto-dm/
 │   │   └── assets/            # 静态资源
 │   └── public/                # 公共资源
 │
-├── assets/rules/              # 游戏规则文档
 └── docs/                      # 项目文档
+    └── rules/                 # 游戏规则文档
 ```
 
 ### 常用命令
