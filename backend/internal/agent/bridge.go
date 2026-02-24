@@ -223,8 +223,8 @@ func (b *RoomBridge) CloseVote(ctx context.Context, roomID string) (json.RawMess
 
 func (b *RoomBridge) AdvancePhase(ctx context.Context, args AdvancePhaseArgs) (json.RawMessage, error) {
 	payload, _ := json.Marshal(map[string]interface{}{
-		"next_phase": args.NextPhase,
-		"reason":     args.Reason,
+		"phase":  args.NextPhase, // FIX-1: engine reads "phase" not "next_phase"
+		"reason": args.Reason,
 	})
 
 	cmd := Command{

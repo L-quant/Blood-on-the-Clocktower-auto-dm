@@ -320,6 +320,10 @@ func (s *State) Reduce(event EventPayload) {
 		s.NightCount++
 		s.SubPhase = SubPhaseNone
 		s.PhaseStartedAt = time.Now().UnixMilli()
+		// FIX-3: Reset night state for new night cycle
+		s.NightActions = []NightAction{}
+		s.CurrentAction = 0
+		s.PendingDeaths = []PendingDeath{}
 		// Reset daily flags
 		for uid, p := range s.Players {
 			p.HasNominated = false
@@ -541,6 +545,31 @@ func (s *State) Reduce(event EventPayload) {
 		s.Phase = PhaseEnded
 		s.Winner = event.Payload["winner"]
 		s.WinReason = event.Payload["reason"]
+
+	// FIX-12: Handle player.executed event from close_vote
+	case "player.executed":
+		executedID := event.Payload["user_id"]
+		s.ExecutedToday = executedID
+		if p, ok := s.Players[executedID]; ok {
+			p.Alive = false
+			s.Players[executedID] = p
+		}
+
+	// FIX-13: action.requested is informational, update deadline
+	case "action.requested":
+		// no state mutation needed beyond recording the event
+
+	// FIX-14: timer.set updates phase deadline
+	case "timer.set":
+		if deadlineStr, ok := event.Payload["deadline"]; ok {
+			if deadline, err := json.Number(deadlineStr).Int64(); err == nil {
+				s.PhaseEndsAt = deadline * 1000 // convert unix seconds to millis
+			}
+		}
+
+	// FIX-12: slayer.shot is informational, death handled by player.died
+	case "slayer.shot":
+		// no additional state mutation
 	}
 }
 
@@ -631,7 +660,7 @@ func (s *State) CheckWinCondition() (ended bool, winner, reason string) {
 		aliveCount := s.GetAliveCount()
 		hasScarletWoman := false
 		for _, p := range s.Players {
-			if p.TrueRole == "scarlet_woman" && p.Alive {
+			if p.TrueRole == "scarletwoman" && p.Alive {
 				hasScarletWoman = true
 				break
 			}

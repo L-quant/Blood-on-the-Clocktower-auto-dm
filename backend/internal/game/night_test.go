@@ -10,7 +10,7 @@ func buildTestContext() *GameContext {
 		Players: map[string]*PlayerState{
 			"washer":  {UserID: "washer", SeatNumber: 1, Role: "washerwoman", TrueRole: "washerwoman", Team: TeamGood, IsAlive: true},
 			"empath":  {UserID: "empath", SeatNumber: 2, Role: "empath", TrueRole: "empath", Team: TeamGood, IsAlive: true},
-			"fort":    {UserID: "fort", SeatNumber: 3, Role: "fortune_teller", TrueRole: "fortune_teller", Team: TeamGood, IsAlive: true},
+			"fort":    {UserID: "fort", SeatNumber: 3, Role: "fortuneteller", TrueRole: "fortuneteller", Team: TeamGood, IsAlive: true},
 			"monk":    {UserID: "monk", SeatNumber: 4, Role: "monk", TrueRole: "monk", Team: TeamGood, IsAlive: true},
 			"butler":  {UserID: "butler", SeatNumber: 5, Role: "butler", TrueRole: "butler", Team: TeamGood, IsAlive: true},
 			"poison":  {UserID: "poison", SeatNumber: 6, Role: "poisoner", TrueRole: "poisoner", Team: TeamEvil, IsAlive: true},
@@ -313,7 +313,7 @@ func TestFortuneTellerRedHerring(t *testing.T) {
 
 	result, err := na.ResolveAbility(AbilityRequest{
 		UserID:    "fort",
-		RoleID:    "fortune_teller",
+		RoleID:    "fortuneteller",
 		TargetIDs: []string{"washer", "empath"},
 	})
 	if err != nil {
@@ -336,7 +336,7 @@ func TestFortuneTellerNoRedHerring(t *testing.T) {
 
 	result, err := na.ResolveAbility(AbilityRequest{
 		UserID:    "fort",
-		RoleID:    "fortune_teller",
+		RoleID:    "fortuneteller",
 		TargetIDs: []string{"washer", "empath"},
 	})
 	if err != nil {
@@ -354,7 +354,7 @@ func TestFortuneTellerFindsRealDemon(t *testing.T) {
 
 	result, err := na.ResolveAbility(AbilityRequest{
 		UserID:    "fort",
-		RoleID:    "fortune_teller",
+		RoleID:    "fortuneteller",
 		TargetIDs: []string{"imp", "washer"},
 	})
 	if err != nil {
@@ -453,7 +453,7 @@ func TestRecluseRegistersAsDemonForFortuneTeller(t *testing.T) {
 
 	result, err := na.ResolveAbility(AbilityRequest{
 		UserID:    "fort",
-		RoleID:    "fortune_teller",
+		RoleID:    "fortuneteller",
 		TargetIDs: []string{"recluse", "washer"},
 	})
 	if err != nil {

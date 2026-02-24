@@ -82,11 +82,12 @@ type CommandResult struct {
 }
 
 type ProjectedEvent struct {
-	RoomID    string          `json:"room_id"`
-	Seq       int64           `json:"seq"`
-	EventType string          `json:"event_type"`
-	Data      json.RawMessage `json:"data"`
-	ServerTS  int64           `json:"server_ts"`
+	RoomID      string          `json:"room_id"`
+	Seq         int64           `json:"seq"`
+	EventType   string          `json:"event_type"`
+	ActorUserID string          `json:"actor_user_id,omitempty"`
+	Data        json.RawMessage `json:"data"`
+	ServerTS    int64           `json:"server_ts"`
 }
 
 type Viewer struct {

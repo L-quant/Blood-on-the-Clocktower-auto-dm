@@ -110,7 +110,7 @@ func (na *NightAgent) ResolveAbility(req AbilityRequest) (*AbilityResult, error)
 		return na.resolveChef(req, malfunctioning)
 	case "empath":
 		return na.resolveEmpath(req, malfunctioning)
-	case "fortune_teller":
+	case "fortuneteller":
 		return na.resolveFortuneTeller(req, malfunctioning)
 	case "undertaker":
 		return na.resolveUndertaker(req, malfunctioning)
@@ -493,7 +493,7 @@ func (na *NightAgent) resolveFortuneTeller(req AbilityRequest, malfunctioning bo
 			na.getPlayerName(target1), na.getPlayerName(target2),
 			formatBool(!hasDemon, "有恶魔", "没有恶魔"))
 		result.Information = &AbilityInfo{
-			Type:    "fortune_teller",
+			Type:    "fortuneteller",
 			Content: map[string]interface{}{"players": req.TargetIDs, "has_demon": !hasDemon},
 			IsFalse: true,
 		}
@@ -502,7 +502,7 @@ func (na *NightAgent) resolveFortuneTeller(req AbilityRequest, malfunctioning bo
 			na.getPlayerName(target1), na.getPlayerName(target2),
 			formatBool(hasDemon, "有恶魔", "没有恶魔"))
 		result.Information = &AbilityInfo{
-			Type:    "fortune_teller",
+			Type:    "fortuneteller",
 			Content: map[string]interface{}{"players": req.TargetIDs, "has_demon": hasDemon},
 			IsFalse: false,
 		}

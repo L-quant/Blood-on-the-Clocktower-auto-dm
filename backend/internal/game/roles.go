@@ -55,7 +55,7 @@ var TroubleBrewingRoles = []Role{
 	{ID: "investigator", Name: "Investigator", NameCN: "调查员", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityFirstNight, FirstNightOrder: 34, Ability: "You start knowing that 1 of 2 players is a particular Minion.", AbilityCN: "你在首个夜晚会得知2名玩家中有1名是特定的爪牙。"},
 	{ID: "chef", Name: "Chef", NameCN: "厨师", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityFirstNight, FirstNightOrder: 35, Ability: "You start knowing how many pairs of evil players there are.", AbilityCN: "你在首个夜晚会得知场上有多少对相邻的邪恶玩家。"},
 	{ID: "empath", Name: "Empath", NameCN: "共情者", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityNight, FirstNightOrder: 36, OtherNightOrder: 53, Ability: "Each night, you learn how many of your 2 alive neighbours are evil.", AbilityCN: "每个夜晚，你会得知你两侧存活的邻居中有多少名是邪恶的。"},
-	{ID: "fortune_teller", Name: "Fortune Teller", NameCN: "占卜师", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityNight, FirstNightOrder: 37, OtherNightOrder: 54, Ability: "Each night, choose 2 players: you learn if either is a Demon. There is a good player that registers as a Demon to you.", AbilityCN: "每个夜晚，选择2名玩家：你会得知他们中是否有恶魔。有一名善良玩家会被你探测为恶魔。", Reminders: []string{"Red herring"}},
+	{ID: "fortuneteller", Name: "Fortune Teller", NameCN: "占卜师", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityNight, FirstNightOrder: 37, OtherNightOrder: 54, Ability: "Each night, choose 2 players: you learn if either is a Demon. There is a good player that registers as a Demon to you.", AbilityCN: "每个夜晚，选择2名玩家：你会得知他们中是否有恶魔。有一名善良玩家会被你探测为恶魔。", Reminders: []string{"Red herring"}},
 	{ID: "undertaker", Name: "Undertaker", NameCN: "掘墓人", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityNight, OtherNightOrder: 56, Ability: "Each night*, you learn which character died by execution today.", AbilityCN: "每个夜晚*，你会得知今天被处决的玩家的角色。"},
 	{ID: "monk", Name: "Monk", NameCN: "僧侣", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityNight, OtherNightOrder: 12, Ability: "Each night*, choose a player (not yourself): they are safe from the Demon tonight.", AbilityCN: "每个夜晚*，选择一名玩家（非自己）：他们今晚免受恶魔伤害。", Reminders: []string{"Protected"}},
 	{ID: "ravenkeeper", Name: "Ravenkeeper", NameCN: "守鸦人", Team: TeamGood, Type: RoleTownsfolk, AbilityType: AbilityOnDeath, OtherNightOrder: 30, Ability: "If you die at night, you are woken to choose a player: you learn their character.", AbilityCN: "如果你在夜晚死亡，你会被唤醒并选择一名玩家：你会得知他们的角色。"},
@@ -73,7 +73,7 @@ var TroubleBrewingRoles = []Role{
 	// Minions
 	{ID: "poisoner", Name: "Poisoner", NameCN: "投毒者", Team: TeamEvil, Type: RoleMinion, AbilityType: AbilityNight, FirstNightOrder: 17, OtherNightOrder: 7, Ability: "Each night, choose a player: they are poisoned tonight and tomorrow day.", AbilityCN: "每个夜晚，选择一名玩家：他们今晚和明天白天中毒。", Reminders: []string{"Poisoned"}},
 	{ID: "spy", Name: "Spy", NameCN: "间谍", Team: TeamEvil, Type: RoleMinion, AbilityType: AbilityNight, FirstNightOrder: 49, OtherNightOrder: 68, Ability: "Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.", AbilityCN: "每个夜晚，你可以查看魔典。你可能被探测为善良阵营、村民或外来者，即使你已经死亡。"},
-	{ID: "scarlet_woman", Name: "Scarlet Woman", NameCN: "红衣女郎", Team: TeamEvil, Type: RoleMinion, AbilityType: AbilityPassive, OtherNightOrder: 18, Ability: "If there are 5 or more players alive & the Demon dies, you become the Demon. (Travellers don't count)", AbilityCN: "如果场上有5名或更多玩家存活且恶魔死亡，你将成为恶魔。（旅行者不计入）"},
+	{ID: "scarletwoman", Name: "Scarlet Woman", NameCN: "红衣女郎", Team: TeamEvil, Type: RoleMinion, AbilityType: AbilityPassive, OtherNightOrder: 18, Ability: "If there are 5 or more players alive & the Demon dies, you become the Demon. (Travellers don't count)", AbilityCN: "如果场上有5名或更多玩家存活且恶魔死亡，你将成为恶魔。（旅行者不计入）"},
 
 	{ID: "baron", Name: "Baron", NameCN: "男爵", Team: TeamEvil, Type: RoleMinion, AbilityType: AbilityPassive, Setup: true, Ability: "There are extra Outsiders in play. [+2 Outsiders]", AbilityCN: "场上有额外的外来者。[+2 外来者]"},
 
@@ -128,6 +128,12 @@ func GetRolesByType(roleType RoleType) []Role {
 		}
 	}
 	return roles
+}
+
+// GetAllRoles returns all Trouble Brewing roles.
+// FIX-4: Added for engine to generate night order for nights 2+
+func GetAllRoles() []Role {
+	return TroubleBrewingRoles
 }
 
 // GetDistribution returns the player distribution for a given player count.

@@ -100,9 +100,9 @@ func TestGameNotEndedWhenScarletWomanActive(t *testing.T) {
 		"good1": {UserID: "good1", SeatNumber: 1, Role: "empath", TrueRole: "empath", Team: "good", Alive: true},
 		"good2": {UserID: "good2", SeatNumber: 2, Role: "chef", TrueRole: "chef", Team: "good", Alive: true},
 		"good3": {UserID: "good3", SeatNumber: 3, Role: "monk", TrueRole: "monk", Team: "good", Alive: true},
-		"good4": {UserID: "good4", SeatNumber: 4, Role: "fortune_teller", TrueRole: "fortune_teller", Team: "good", Alive: true},
+		"good4": {UserID: "good4", SeatNumber: 4, Role: "fortuneteller", TrueRole: "fortuneteller", Team: "good", Alive: true},
 		"demon": {UserID: "demon", SeatNumber: 5, Role: "imp", TrueRole: "imp", Team: "evil", Alive: false},
-		"sw":    {UserID: "sw", SeatNumber: 6, Role: "scarlet_woman", TrueRole: "scarlet_woman", Team: "evil", Alive: true},
+		"sw":    {UserID: "sw", SeatNumber: 6, Role: "scarletwoman", TrueRole: "scarletwoman", Team: "evil", Alive: true},
 	}
 	s.SeatOrder = []string{"good1", "good2", "good3", "good4", "demon", "sw"}
 

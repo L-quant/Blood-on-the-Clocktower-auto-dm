@@ -62,6 +62,13 @@ func HandleCommand(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		return handleWriteEvent(state, cmd)
 	case "slayer_shot":
 		return handleSlayerShot(state, cmd)
+	// FIX-12/13/14: Handle autodm-only command types
+	case "close_vote":
+		return handleCloseVote(state, cmd)
+	case "request_action":
+		return handleRequestAction(state, cmd)
+	case "set_timer":
+		return handleSetTimer(state, cmd)
 	default:
 		return nil, nil, fmt.Errorf("unknown command type: %s", cmd.Type)
 	}
@@ -211,10 +218,10 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 	var fortuneTellerID string
 	var goodPlayerIDs []string
 	for userID, assignment := range result.Assignments {
-		if assignment.TrueRole == "fortune_teller" {
+		if assignment.TrueRole == "fortuneteller" {
 			fortuneTellerID = userID
 		}
-		if assignment.Team == game.TeamGood && assignment.TrueRole != "fortune_teller" {
+		if assignment.Team == game.TeamGood && assignment.TrueRole != "fortuneteller" {
 			goodPlayerIDs = append(goodPlayerIDs, userID)
 		}
 	}
@@ -308,7 +315,28 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, ErrNominationActive
 	}
 
-	nominator := state.Players[cmd.ActorUserID]
+	// FIX-17: Allow autodm to proxy nominations. When autodm sends this command,
+	// the actual nominator comes from the payload "nominator" field. If absent,
+	// pick the first alive player who hasn't nominated yet.
+	actorID := cmd.ActorUserID
+	if actorID == "autodm" {
+		var payload map[string]string
+		_ = json.Unmarshal(cmd.Payload, &payload)
+		if nominatorID, ok := payload["nominator"]; ok && nominatorID != "" {
+			actorID = nominatorID
+		} else {
+			// Find any alive player who hasn't nominated as proxy
+			for _, uid := range state.SeatOrder {
+				p := state.Players[uid]
+				if p.Alive && !p.HasNominated {
+					actorID = uid
+					break
+				}
+			}
+		}
+	}
+
+	nominator := state.Players[actorID]
 	if !nominator.Alive {
 		return nil, nil, fmt.Errorf("dead players cannot nominate")
 	}
@@ -339,13 +367,25 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		}),
 	}
 
-	// Check for Virgin ability
+	// Check for Virgin ability — FIX-16: only triggers once per game
 	if nominee.TrueRole == "virgin" && !nominee.IsPoisoned {
-		if nominator.Team == "good" && game.GetRoleByID(nominator.TrueRole).Type == game.RoleTownsfolk {
+		virginUsed := false
+		for _, r := range nominee.Reminders {
+			if r == "no_ability" {
+				virginUsed = true
+				break
+			}
+		}
+		if !virginUsed && nominator.Team == "good" && game.GetRoleByID(nominator.TrueRole).Type == game.RoleTownsfolk {
 			// Townsfolk nominated virgin - nominator dies
 			events = append(events, newEvent(cmd, "player.died", map[string]string{
 				"user_id": cmd.ActorUserID,
 				"cause":   "virgin_ability",
+			}))
+			// Mark virgin ability as used
+			events = append(events, newEvent(cmd, "reminder.added", map[string]string{
+				"user_id":  nomineeID,
+				"reminder": "no_ability",
 			}))
 			events = append(events, newEvent(cmd, "nomination.resolved", map[string]string{
 				"result": "cancelled",
@@ -586,7 +626,7 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 				p := state.Players[minionID]
 				if p.Alive {
 					candidateMinions = append(candidateMinions, minionID)
-					if p.TrueRole == "scarlet_woman" {
+					if p.TrueRole == "scarletwoman" {
 						scarletWomanID = minionID
 					}
 				}
@@ -645,6 +685,37 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		"timestamp":    fmt.Sprintf("%d", time.Now().UnixMilli()),
 	}))
 
+	// Auto-advance to day if all night actions are completed
+	allDone := true
+	for _, a := range state.NightActions {
+		if a.UserID == cmd.ActorUserID {
+			continue // this one is being completed now
+		}
+		if !a.Completed {
+			allDone = false
+			break
+		}
+	}
+	if allDone && len(state.NightActions) > 0 {
+		// All night actions done — transition to day
+		// Deaths from abilities are already emitted above
+		events = append(events, newEvent(cmd, "phase.day", nil))
+
+		// FIX-15: Apply kills to a state copy before checking win condition,
+		// because the emitted "player.died" events haven't been reduced yet.
+		stateCopy := state.Copy()
+		for _, effect := range result.Effects {
+			if effect.Type == "kill" {
+				if p, ok := stateCopy.Players[effect.TargetID]; ok {
+					p.Alive = false
+					stateCopy.Players[effect.TargetID] = p
+				}
+			}
+		}
+		winEvents := checkWinCondition(stateCopy, cmd)
+		events = append(events, winEvents...)
+	}
+
 	return events, acceptedResult(cmd.CommandID), nil
 }
 
@@ -677,6 +748,28 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 		// Clear poison at dusk (official rule: poisoned "tonight and tomorrow day")
 		events = append(events, newEvent(cmd, "poison.cleared", nil))
 		events = append(events, newEvent(cmd, "phase.night", nil))
+
+		// FIX-4: Generate night.action.queued events for nights 2+
+		// Build assignments from current state for night order generation
+		assignments := make(map[string]game.Assignment)
+		for uid, p := range state.Players {
+			if p.Alive {
+				assignments[uid] = game.Assignment{
+					UserID:   uid,
+					TrueRole: p.TrueRole,
+					Team:     game.Team(p.Team),
+				}
+			}
+		}
+		allRoles := game.GetAllRoles()
+		nightActions := game.GenerateNightOrder(allRoles, assignments, false)
+		for _, action := range nightActions {
+			events = append(events, newEvent(cmd, "night.action.queued", map[string]string{
+				"user_id": action.UserID,
+				"role_id": action.RoleID,
+				"order":   fmt.Sprintf("%d", action.Order),
+			}))
+		}
 
 	case "nomination":
 		events = append(events, newEvent(cmd, "phase.nomination", nil))
@@ -793,6 +886,105 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 	return events, acceptedResult(cmd.CommandID), nil
 }
 
+// FIX-12: handleCloseVote resolves an active nomination by tallying votes.
+func handleCloseVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	if cmd.ActorUserID != "autodm" {
+		return nil, nil, fmt.Errorf("only autodm can close votes")
+	}
+	if state.Nomination == nil || state.Nomination.Resolved {
+		return nil, nil, fmt.Errorf("no active nomination to close")
+	}
+
+	var payload map[string]interface{}
+	_ = json.Unmarshal(cmd.Payload, &payload)
+
+	// Tally votes
+	yesCount := 0
+	for _, v := range state.Nomination.Votes {
+		if v {
+			yesCount++
+		}
+	}
+	aliveCount := state.GetAliveCount()
+	threshold := (aliveCount / 2) + 1
+
+	result := "not_executed"
+	if yesCount >= threshold {
+		result = "executed"
+	}
+
+	events := []types.Event{
+		newEvent(cmd, "nomination.resolved", map[string]string{
+			"result":    result,
+			"yes_votes": fmt.Sprintf("%d", yesCount),
+			"threshold": fmt.Sprintf("%d", threshold),
+		}),
+	}
+
+	if result == "executed" {
+		nomineeID := state.Nomination.Nominee
+		events = append(events, newEvent(cmd, "player.executed", map[string]string{
+			"user_id": nomineeID,
+		}))
+		// Check win condition after execution
+		stateCopy := state.Copy()
+		if p, ok := stateCopy.Players[nomineeID]; ok {
+			p.Alive = false
+			stateCopy.Players[nomineeID] = p
+		}
+		stateCopy.ExecutedToday = nomineeID
+		winEvents := checkWinCondition(stateCopy, cmd)
+		events = append(events, winEvents...)
+	}
+
+	return events, acceptedResult(cmd.CommandID), nil
+}
+
+// FIX-13: handleRequestAction emits an event prompting a player to act.
+func handleRequestAction(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	if cmd.ActorUserID != "autodm" {
+		return nil, nil, fmt.Errorf("only autodm can request actions")
+	}
+
+	var payload map[string]string
+	_ = json.Unmarshal(cmd.Payload, &payload)
+
+	userID := payload["user_id"]
+	if _, ok := state.Players[userID]; !ok {
+		return nil, nil, fmt.Errorf("target player not found: %s", userID)
+	}
+
+	events := []types.Event{
+		newEvent(cmd, "action.requested", map[string]string{
+			"user_id":     userID,
+			"action_type": payload["action_type"],
+			"deadline":    payload["deadline"],
+			"prompt":      payload["prompt"],
+		}),
+	}
+
+	return events, acceptedResult(cmd.CommandID), nil
+}
+
+// FIX-14: handleSetTimer emits a timer event for phase deadlines.
+func handleSetTimer(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	if cmd.ActorUserID != "autodm" {
+		return nil, nil, fmt.Errorf("only autodm can set timers")
+	}
+
+	var payload map[string]string
+	_ = json.Unmarshal(cmd.Payload, &payload)
+
+	events := []types.Event{
+		newEvent(cmd, "timer.set", map[string]string{
+			"timer_type": payload["timer_type"],
+			"deadline":   payload["deadline"],
+		}),
+	}
+
+	return events, acceptedResult(cmd.CommandID), nil
+}
+
 func checkWinCondition(state State, cmd types.CommandEnvelope) []types.Event {
 	// Create a copy and apply pending changes
 	stateCopy := state.Copy()
@@ -808,13 +1000,13 @@ func checkWinCondition(state State, cmd types.CommandEnvelope) []types.Event {
 	// Check if demon died but game continues (Scarlet Woman case)
 	if demon, ok := stateCopy.Players[stateCopy.DemonID]; ok && !demon.Alive {
 		for uid, p := range stateCopy.Players {
-			if p.TrueRole == "scarlet_woman" && p.Alive {
+			if p.TrueRole == "scarletwoman" && p.Alive {
 				if stateCopy.GetAliveCount() >= 5 {
 					return []types.Event{
 						newEvent(cmd, "demon.changed", map[string]string{
 							"old_demon": stateCopy.DemonID,
 							"new_demon": uid,
-							"reason":    "scarlet_woman",
+							"reason":    "scarletwoman",
 						}),
 					}
 				}

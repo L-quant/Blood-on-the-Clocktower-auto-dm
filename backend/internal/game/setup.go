@@ -216,7 +216,7 @@ func (sa *SetupAgent) GenerateAssignments(userIDs []string, seatOrder []int) (*S
 	bluffRoles := generateBluffs(shuffledRoles, availableTownsfolk, availableOutsiders)
 
 	// Generate first night order
-	nightOrder := generateNightOrder(shuffledRoles, assignments, true)
+	nightOrder := GenerateNightOrder(shuffledRoles, assignments, true)
 
 	return &SetupResult{
 		Assignments:   assignments,
@@ -309,8 +309,9 @@ func generateBluffs(inPlay []Role, townsfolk, outsiders []Role) []string {
 	return bluffs
 }
 
-// generateNightOrder generates the night wake order.
-func generateNightOrder(roles []Role, assignments map[string]Assignment, firstNight bool) []NightAction {
+// GenerateNightOrder generates the night wake order. (Exported for engine use)
+// FIX-2: Export so engine can generate night actions for nights 2+
+func GenerateNightOrder(roles []Role, assignments map[string]Assignment, firstNight bool) []NightAction {
 	type orderedRole struct {
 		role   Role
 		userID string
@@ -379,7 +380,7 @@ func describeNightAction(role Role, firstNight bool) string {
 		return "得知有多少对邪恶玩家相邻"
 	case "empath":
 		return "得知存活邻居中有多少邪恶玩家"
-	case "fortune_teller":
+	case "fortuneteller":
 		return "选择两名玩家，得知是否有恶魔"
 	case "undertaker":
 		return "得知今天被处决玩家的角色"
