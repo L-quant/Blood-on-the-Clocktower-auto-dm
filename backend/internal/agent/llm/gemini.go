@@ -34,7 +34,7 @@ func NewGeminiClient(cfg GeminiConfig) *GeminiClient {
 		cfg.Timeout = 60 * time.Second
 	}
 	if cfg.Model == "" {
-		cfg.Model = "gemini-2.0-flash"
+		cfg.Model = "gemini-3-flash-preview" // FIX-9a: default to Gemini 3 Flash
 	}
 
 	httpClient := &http.Client{
@@ -208,6 +208,13 @@ func (c *GeminiClient) Chat(ctx context.Context, messages []Message, tools []Too
 			Temperature:     0.7,
 			MaxOutputTokens: 4096,
 		},
+		// FIX-9b: Add safety settings to avoid filtering game-related content
+		SafetySettings: []GeminiSafetySetting{
+			{Category: "HARM_CATEGORY_DANGEROUS_CONTENT", Threshold: "BLOCK_NONE"},
+			{Category: "HARM_CATEGORY_HARASSMENT", Threshold: "BLOCK_NONE"},
+			{Category: "HARM_CATEGORY_HATE_SPEECH", Threshold: "BLOCK_ONLY_HIGH"},
+			{Category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", Threshold: "BLOCK_ONLY_HIGH"},
+		},
 	}
 
 	body, err := json.Marshal(req)
@@ -222,15 +229,42 @@ func (c *GeminiClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+	// FIX-9c: Retry with exponential backoff for transient errors (429, 5xx)
+	var resp *http.Response
+	var respBody []byte
+	maxRetries := 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+			// Recreate request body for retry
+			httpReq, _ = http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+			httpReq.Header.Set("Content-Type", "application/json")
+		}
+		resp, err = c.httpClient.Do(httpReq)
+		if err != nil {
+			if attempt == maxRetries {
+				return nil, fmt.Errorf("http request (after %d retries): %w", maxRetries, err)
+			}
+			continue
+		}
+		respBody, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read response: %w", err)
+		}
+		// Retry on 429 (rate limit) or 5xx (server error)
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			if attempt == maxRetries {
+				return nil, fmt.Errorf("API error %d (after %d retries): %s", resp.StatusCode, maxRetries, string(respBody))
+			}
+			continue
+		}
+		break
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -269,7 +303,7 @@ func (c *GeminiClient) convertResponse(resp GeminiResponse) (*ChatResponse, erro
 
 	for _, part := range candidate.Content.Parts {
 		if part.Text != "" {
-			msg.Content = part.Text
+			msg.Content += part.Text // FIX-9d: Concatenate multiple text parts instead of overwriting
 		}
 		if part.FunctionCall != nil {
 			argsJSON, _ := json.Marshal(part.FunctionCall.Args)

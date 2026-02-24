@@ -84,7 +84,7 @@ func Load() Config {
 
 	provider := "gemini"
 	apiKey := geminiKey
-	model := getEnv("AUTODM_LLM_MODEL", "gemini-2.0-flash")
+	model := getEnv("AUTODM_LLM_MODEL", "gemini-3-flash-preview") // FIX-9a: default to Gemini 3 Flash
 	baseURL := "https://generativelanguage.googleapis.com/v1beta"
 
 	switch explicitProvider {
