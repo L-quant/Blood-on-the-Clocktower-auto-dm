@@ -6,7 +6,6 @@
 package queue
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -159,46 +158,5 @@ func (h *AgentTaskHandlers) RegisterHandlers(q *Queue) {
 	}
 	if h.TTSHandler != nil {
 		q.RegisterHandler(TaskTypeGenerateTTS, h.TTSHandler)
-	}
-}
-
-// CreateLLMHandler creates a handler for LLM calls.
-func CreateLLMHandler(llmClient interface {
-	Chat(ctx context.Context, system, user string) (string, error)
-}) TaskHandler {
-	return func(ctx context.Context, task Task) (map[string]interface{}, error) {
-		systemPrompt, _ := task.Data["system_prompt"].(string)
-		userPrompt, _ := task.Data["user_prompt"].(string)
-
-		response, err := llmClient.Chat(ctx, systemPrompt, userPrompt)
-		if err != nil {
-			return nil, err
-		}
-
-		return map[string]interface{}{
-			"response": response,
-		}, nil
-	}
-}
-
-// CreateRAGHandler creates a handler for RAG queries.
-func CreateRAGHandler(retriever interface {
-	Retrieve(ctx context.Context, query string, limit int) ([]interface{}, error)
-}) TaskHandler {
-	return func(ctx context.Context, task Task) (map[string]interface{}, error) {
-		query, _ := task.Data["query"].(string)
-		limit := 5
-		if l, ok := task.Data["limit"].(float64); ok {
-			limit = int(l)
-		}
-
-		results, err := retriever.Retrieve(ctx, query, limit)
-		if err != nil {
-			return nil, err
-		}
-
-		return map[string]interface{}{
-			"results": results,
-		}, nil
 	}
 }

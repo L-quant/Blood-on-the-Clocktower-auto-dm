@@ -8,7 +8,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 )
 
@@ -159,10 +158,3 @@ func (s *Store) AppendEvents(ctx context.Context, roomID string, events []Stored
 	})
 }
 
-func EncodeResultJSON(v interface{}) (string, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}

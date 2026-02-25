@@ -30,7 +30,6 @@ MySQL 数据访问层：用户/房间 CRUD、事件溯源 (追加/加载/快照)
 - `(*Store) LoadEventsAfter(ctx context.Context, roomID string, afterSeq int64, limit int) ([]StoredEvent, error)` → 加载指定序号后的事件
 - `(*Store) LoadEventsUpTo(ctx context.Context, roomID string, toSeq int64) ([]StoredEvent, error)` → 加载到指定序号的所有事件
 - `(*Store) AppendEvents(ctx context.Context, roomID string, events []StoredEvent, dedup *DedupRecord, snap *Snapshot) error` → 原子追加事件+去重+快照
-- `EncodeResultJSON(v interface{}) (string, error)` → 将值序列化为 JSON 字符串
 
 ## 依赖
 无内部依赖

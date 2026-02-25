@@ -37,9 +37,7 @@ const getters = {
       return state.events;
     }
     return state.events.filter(e => state.filters.includes(e.type));
-  },
-  byDay: state => dayCount => state.events.filter(e => e.dayCount === dayCount),
-  latest: state => (count = 10) => state.events.slice(-count)
+  }
 };
 
 export default {

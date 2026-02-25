@@ -13,7 +13,6 @@ const state = () => ({
   currentYesCount: 0,
   myVote: null, // true | false | null
   isMyTurn: false,
-  countdown: 0, // seconds, 0 = no timer
   result: null, // 'executed' | 'safe' | null
   history: [] // past vote records
 });
@@ -51,9 +50,6 @@ const mutations = {
   setIsMyTurn(state, isMyTurn) {
     state.isMyTurn = isMyTurn;
   },
-  setCountdown(state, seconds) {
-    state.countdown = seconds;
-  },
   setResult(state, result) {
     state.result = result;
     // Add to history
@@ -76,11 +72,7 @@ const mutations = {
     state.currentYesCount = 0;
     state.myVote = null;
     state.isMyTurn = false;
-    state.countdown = 0;
     state.result = null;
-  },
-  clearHistory(state) {
-    state.history = [];
   },
   reset(state) {
     state.isActive = false;
@@ -92,7 +84,6 @@ const mutations = {
     state.currentYesCount = 0;
     state.myVote = null;
     state.isMyTurn = false;
-    state.countdown = 0;
     state.result = null;
     state.history = [];
   }

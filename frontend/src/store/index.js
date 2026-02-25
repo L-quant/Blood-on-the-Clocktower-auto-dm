@@ -315,6 +315,14 @@ export default new Vuex.Store({
       });
     },
 
+    /**
+     * Ask AI assistant a question.
+     * Calls backend askAssistant REST endpoint.
+     */
+    async askAssistant({ state }, { question, context }) {
+      return apiService.askAssistant(state.roomId, question, context);
+    },
+
     resetAll({ commit }) {
       commit('resetRoom');
       commit('game/reset');

@@ -21,8 +21,6 @@ RabbitMQ 异步任务队列，支持优先级、重试、死信队列，用于 A
 - `(*TaskFactory) CreateNightResolveTask(roomID string, data NightResolveData) Task` → 创建高优先级夜晚解析任务
 - `(*TaskFactory) CreateSummarizeTask(roomID string, context map[string]interface{}) Task` → 创建低优先级摘要任务
 - `(*AgentTaskHandlers) RegisterHandlers(q *Queue)` → 批量注册代理任务处理器
-- `CreateLLMHandler(llmClient interface{...}) TaskHandler` → 创建 LLM 任务处理器
-- `CreateRAGHandler(retriever interface{...}) TaskHandler` → 创建 RAG 任务处理器
 
 ## 依赖
 无内部依赖

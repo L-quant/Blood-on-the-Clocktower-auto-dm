@@ -56,9 +56,7 @@ const mutations = {
 };
 
 const getters = {
-  forSeat: state => seatIndex => state.playerAnnotations[seatIndex] || null,
-  hasAnnotation: state => seatIndex => !!state.playerAnnotations[seatIndex],
-  allAnnotations: state => state.playerAnnotations
+  forSeat: state => seatIndex => state.playerAnnotations[seatIndex] || null
 };
 
 export default {

@@ -42,5 +42,4 @@
 - `store/modules/timeline` → 事件时间线
 - `store/modules/ui` → 屏幕路由、弹窗、设置
 - `store/modules/annotations` → 玩家角色猜测标注
-- `services/ApiService` → AI 助手查询 (ChatView)
 - `services/SoundService` → 音效控制 (SettingsPanel)

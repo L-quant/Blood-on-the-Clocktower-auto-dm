@@ -75,12 +75,6 @@ const mutations = {
   setAssistantLoading(state, loading) {
     state.assistantLoading = loading;
   },
-  clearChannel(state, channel) {
-    if (state.channels[channel]) {
-      state.channels[channel].messages = [];
-      state.channels[channel].unread = 0;
-    }
-  },
   reset(state) {
     state.channels = {
       public: { messages: [], unread: 0 },

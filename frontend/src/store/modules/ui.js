@@ -49,22 +49,6 @@ const mutations = {
       state.modals[modal] = { ...state.modals[modal], open: false };
     }
   },
-  closeAllModals(state) {
-    Object.keys(state.modals).forEach(key => {
-      if (typeof state.modals[key] === 'boolean') {
-        state.modals[key] = false;
-      } else {
-        state.modals[key] = { ...state.modals[key], open: false };
-      }
-    });
-  },
-  toggleModal(state, modal) {
-    if (typeof state.modals[modal] === 'boolean') {
-      state.modals[modal] = !state.modals[modal];
-    } else if (state.modals[modal]) {
-      state.modals[modal].open = !state.modals[modal].open;
-    }
-  },
   updateSetting(state, { key, value }) {
     if (key in state.settings) {
       state.settings[key] = value;
@@ -86,23 +70,8 @@ const mutations = {
   }
 };
 
-const getters = {
-  isModalOpen: state => modal => {
-    if (typeof state.modals[modal] === 'boolean') {
-      return state.modals[modal];
-    }
-    return state.modals[modal] ? state.modals[modal].open : false;
-  },
-  anyModalOpen: state => {
-    return Object.values(state.modals).some(m => {
-      return typeof m === 'boolean' ? m : m.open;
-    });
-  }
-};
-
 export default {
   namespaced: true,
   state,
-  mutations,
-  getters
+  mutations
 };

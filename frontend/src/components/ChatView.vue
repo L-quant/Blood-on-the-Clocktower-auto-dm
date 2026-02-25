@@ -1,5 +1,4 @@
 <!-- ChatView 多频道聊天（公共/密语/邪恶/AI 助手）
-  [IN]  services/ApiService（AI 助手查询）
   [OUT] GameScreen.vue（主布局子组件）
   [POS] 游戏内通信核心，支持四种聊天频道 -->
 <template>
@@ -116,8 +115,7 @@
 </template>
 
 <script>
-import { mapState, mapGetters } from "vuex";
-import apiService from "../services/ApiService";
+import { mapState, mapGetters, mapActions } from "vuex";
 
 export default {
   name: "ChatView",
@@ -157,6 +155,7 @@ export default {
     }
   },
   methods: {
+    ...mapActions(['askAssistant']),
     switchChannel(channel) {
       this.$store.commit("chat/setActiveChannel", channel);
     },
@@ -185,18 +184,17 @@ export default {
         seatIndex: this.seatIndex
       });
 
-      // Call AI assistant API
+      // Call AI assistant via Vuex action
       this.$store.commit("chat/setAssistantLoading", true);
       try {
-        const response = await apiService.askAssistant(
-          this.roomId,
-          text,
-          {
+        const response = await this.askAssistant({
+          question: text,
+          context: {
             roleId: this.myRole ? this.myRole.roleId : '',
             roleName: this.myRole ? this.myRole.roleName : '',
             team: this.myRole ? this.myRole.team : ''
           }
-        );
+        });
         this.$store.commit("chat/addAssistantMessage", {
           text: response.answer || response.message || this.$t('errors.noResponse'),
           isSystem: true,

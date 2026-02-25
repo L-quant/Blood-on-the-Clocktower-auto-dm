@@ -33,7 +33,7 @@
   - `src/components/` → 24 个 Vue 组件 (屏幕/覆盖层/面板)
   - `src/store/modules/` → 8 个 Vuex 模块: game, players, chat, vote, night, timeline, ui, annotations
   - `src/store/plugins/` → persistence (localStorage) + websocket (事件监听/命令发送)
-  - `src/services/` → ApiService (REST+WS), SoundService, StorageService
+  - `src/services/` → ApiService (REST+WS), SoundService
   - `src/i18n/` → 中英双语 (en.json, zh.json)，浏览器自动检测
   - `src/assets/` → 角色图标 (154+), 字体 (Papyrus/PiratesBay), 音效
   - `src/*.json` → 角色数据 (roles.json 65KB), 剧本 (editions.json), 传奇 (fabled.json)
@@ -56,60 +56,56 @@
 - `RoomActor` → `queue.TaskQueue` (异步发布 autodm_event) → `agent.AutoDM` (AI 处理)
 - `agent.AutoDM` → `agent/llm` (LLM 调用) + `rag.Retriever` (规则检索)
 
-## 代码规范
-### 体积控制
-- Go 单文件 ≤ 500 行 (当前最大 engine.go 1095 行为历史遗留，新代码应拆分)
-- Go 单函数 ≤ 50 行
-- Vue 单组件 ≤ 400 行 (template + script + style)
+## 代码红线
+
+### Go 后端
+- 单文件 ≤ 500 行（engine.go 1095 行为历史遗留，**禁止新增函数**，新功能拆到独立文件）
+- 单函数 ≤ 50 行（含注释和空行）
+- 嵌套 ≤ 3 层（if/for/switch/闭包各算一层）
+- 单函数分支 ≤ 3 个 if/else（超过用 switch 或 early return 重构）
+- 函数参数 ≤ 4 个（超过用 struct 或 functional options）
+- 接口方法 ≤ 5 个
+- error 必须处理，禁止 `_ = err`
+- 错误信息格式：`fmt.Errorf("模块.函数: %w", err)`，必须带上下文
+- 禁止 panic（init() 配置校验除外）
+- goroutine 必须有 context 控制生命周期，必须 `defer recover`
+- channel 必须有 close 机制
+- 函数名 = 动词+名词（SendMessage, ValidateVote），禁止单独的 Process/Handle/Do/Run
+- Bool 变量用 is/has/can/should 前缀
+
+### Vue 前端
+- 单组件 ≤ 400 行（template + script + style 总计）
 - JS 单函数 ≤ 50 行
+- 单个 Vuex module 文件 ≤ 300 行
+- 组件 props ≤ 6 个（超过用 provide/inject 或拆组件）
+- computed 属性不做副作用（纯计算，不改数据）
+- template 中表达式嵌套 ≤ 2 层（超过抽成 computed）
+- 禁止在 mounted/created 里直接调 ApiService，必须通过 Vuex action
+- SCSS 颜色值禁止硬编码，必须用 vars.scss 变量
+- 组件间通信：父子用 props/emit，跨层用 Vuex，禁止 event bus
 
-### 复杂度控制
-- 嵌套 ≤ 3 层（if/for/switch 算一层，闭包算一层）
-- 单函数分支 ≤ 3 个 if/else（超过用 switch 或 early return）
-- 函数参数 ≤ 4 个（超过用 struct 或 options pattern）
-- 接口方法 ≤ 5 个（超过说明需要拆分接口）
+### 架构边界
+- engine 包禁止 import agent 包（状态机不知道 AI 的存在）
+- agent 包禁止直接修改 engine.State，必须通过 CommandEnvelope
+- projection 包禁止 import store 包（只做读过滤，不写存储）
+- realtime 包禁止 import engine 包（WebSocket 层不包含游戏逻辑）
+- 前端 components 禁止直接 import ApiService，必须通过 Vuex action
+- Vuex modules 之间禁止直接 import，跨模块用 rootGetters/rootActions
+- 前端禁止在组件中直接操作 sessionStorage/localStorage，必须通过 StorageService
 
-### 命名规则
-- 函数名 = 动词 + 名词（SendMessage, ValidateVote, BuildPrompt）
-- 禁止万能函数名：Process, Handle, Do, Run, Execute 不能单独出现
-  （HandleCommand 可以，Handle 不行）
-- Bool 变量/函数用 is/has/can/should 前缀
-- 常量全大写下划线：MAX_RETRY_COUNT
-- 包级变量禁止，用依赖注入
-
-### error 处理
-- 每个 error 必须处理，禁止 _ = err
-- 错误信息用 fmt.Errorf("模块.函数: %w", err) 格式，必须带上下文
-- 禁止 panic，除了 init() 函数里的配置校验
-- 对外接口的 error 必须用自定义错误类型或 sentinel error
-
-### 并发规则（对你的项目特别重要）
-- goroutine 必须有 context 控制生命周期
-- channel 必须有 close 机制，禁止泄漏
-- 共享状态只通过 RoomActor 的命令队列访问，禁止直接加锁
-- 新的 goroutine 必须在函数开头声明 defer recover
-
-### 架构边界（防止模块职责蔓延）
-- engine 包禁止 import agent 包（状态机不能知道 AI 的存在）
-- agent 包禁止直接修改 State，必须通过 CommandEnvelope
-- projection 包禁止写入任何存储，只做过滤
-- 前端组件禁止直接调用 ApiService，必须通过 Vuex action
-- store/modules 之间禁止直接 import，跨模块通信用 rootGetters
-
-### 其他
+### 项目约定
 - ESLint 严格模式: no-unused-vars 违反会导致构建失败
-- Vue 组件名允许单词 (已关闭 `vue/multi-word-component-names`)
-- SCSS 变量统一定义在 `vars.scss` ($townsfolk, $outsider, $minion, $demon, $fabled, $traveler)
-- 前端认证使用 sessionStorage (每个标签页独立身份，支持多玩家测试)
+- Vue 组件名允许单词（已关闭 `vue/multi-word-component-names`）
+- SCSS 变量统一定义在 `vars.scss`（$townsfolk, $outsider, $minion, $demon, $fabled, $traveler）
+- 前端认证使用 sessionStorage（每个标签页独立身份，支持多玩家测试）
 - 后端所有命令 payload 为 `map[string]string`；数组需 JSON 序列化为字符串
 - i18n: 用 `$te(key)` 检查翻译是否存在，回退到英文数据
 - 座位号后端 1-indexed；seatIndex = -1 表示未入座
 
 ## 工作流
-- **启动后端**: `cd backend && make docker-up && make run-env` (需先配置 `.env`)
-- **启动前端**: `cd frontend && npm install && npm run serve` (端口 8081)
+- **启动后端**: `cd backend && make docker-up && make run-env`（需先配置 `.env`）
+- **启动前端**: `cd frontend && npm install && npm run serve`（端口 8081）
 - **跑测试**: `cd backend && make test`
 - **新功能**: 先 plan mode 出方案 → 审核 → 执行
-- **禁止事项**：禁止在 engine.go 中新增函数，新功能必须拆到独立文件
 - **改 bug**: 只加载目标模块文档，定位最小改动范围
 - **每次代码变更后检查相关 CLAUDE.md 是否需要更新**

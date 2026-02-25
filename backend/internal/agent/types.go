@@ -10,6 +10,19 @@ import (
 	"time"
 )
 
+// Tool represents a tool definition for the LLM.
+type Tool struct {
+	Type     string       `json:"type"` // "function"
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction defines a function tool.
+type ToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"` // JSON Schema
+}
+
 // Phase represents game phases
 type Phase string
 
