@@ -5,6 +5,7 @@
 
 const state = () => ({
   isActive: false,
+  subPhase: 'none', // 'none' | 'defense' | 'voting' | 'resolved'
   nominator: null, // { seatIndex }
   nominee: null, // { seatIndex }
   votes: [], // [{ seatIndex, vote: true/false }]
@@ -12,7 +13,6 @@ const state = () => ({
   requiredMajority: 0,
   currentYesCount: 0,
   myVote: null, // true | false | null
-  isMyTurn: false,
   result: null, // 'executed' | 'safe' | null
   history: [] // past vote records
 });
@@ -20,6 +20,7 @@ const state = () => ({
 const mutations = {
   startNomination(state, { nominatorSeat, nomineeSeat, requiredMajority }) {
     state.isActive = true;
+    state.subPhase = 'defense';
     state.nominator = { seatIndex: nominatorSeat };
     state.nominee = { seatIndex: nomineeSeat };
     state.votes = [];
@@ -27,8 +28,10 @@ const mutations = {
     state.requiredMajority = requiredMajority || 0;
     state.currentYesCount = 0;
     state.myVote = null;
-    state.isMyTurn = false;
     state.result = null;
+  },
+  setSubPhase(state, subPhase) {
+    state.subPhase = subPhase;
   },
   castVote(state, { seatIndex, vote }) {
     const existing = state.votes.findIndex(v => v.seatIndex === seatIndex);
@@ -47,9 +50,6 @@ const mutations = {
   setCurrentVoter(state, index) {
     state.currentVoterIndex = index;
   },
-  setIsMyTurn(state, isMyTurn) {
-    state.isMyTurn = isMyTurn;
-  },
   setResult(state, result) {
     state.result = result;
     // Add to history
@@ -65,17 +65,18 @@ const mutations = {
   },
   endVote(state) {
     state.isActive = false;
+    state.subPhase = 'none';
     state.nominator = null;
     state.nominee = null;
     state.votes = [];
     state.currentVoterIndex = -1;
     state.currentYesCount = 0;
     state.myVote = null;
-    state.isMyTurn = false;
     state.result = null;
   },
   reset(state) {
     state.isActive = false;
+    state.subPhase = 'none';
     state.nominator = null;
     state.nominee = null;
     state.votes = [];
@@ -83,7 +84,6 @@ const mutations = {
     state.requiredMajority = 0;
     state.currentYesCount = 0;
     state.myVote = null;
-    state.isMyTurn = false;
     state.result = null;
     state.history = [];
   }

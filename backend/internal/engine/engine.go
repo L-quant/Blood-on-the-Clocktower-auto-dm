@@ -368,9 +368,10 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 
 	events := []types.Event{
 		newEvent(cmd, "nomination.created", map[string]string{
-			"nominee":        nomineeID,
-			"nominee_seat":   fmt.Sprintf("%d", nominee.SeatNumber),
-			"nominator_seat": fmt.Sprintf("%d", nominator.SeatNumber),
+			"nominee":            nomineeID,
+			"nominee_seat":       fmt.Sprintf("%d", nominee.SeatNumber),
+			"nominator_seat":     fmt.Sprintf("%d", nominator.SeatNumber),
+			"nominator_user_id":  actorID,
 		}),
 	}
 
@@ -384,9 +385,9 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 			}
 		}
 		if !virginUsed && nominator.Team == "good" && game.GetRoleByID(nominator.TrueRole).Type == game.RoleTownsfolk {
-			// Townsfolk nominated virgin - nominator dies
+			// Townsfolk nominated virgin - nominator dies (use resolved actorID, not cmd.ActorUserID)
 			events = append(events, newEvent(cmd, "player.died", map[string]string{
-				"user_id": cmd.ActorUserID,
+				"user_id": actorID,
 				"cause":   "virgin_ability",
 			}))
 			// Mark virgin ability as used
@@ -409,13 +410,14 @@ func handleEndDefense(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, fmt.Errorf("no defense phase active")
 	}
 
-	// Only nominator, nominee, or DM can end defense
+	// Only nominator, nominee, DM, or autodm can end defense
 	isNominator := cmd.ActorUserID == state.Nomination.Nominator
 	isNominee := cmd.ActorUserID == state.Nomination.Nominee
 	isDM := state.Players[cmd.ActorUserID].IsDM
+	isAutoDM := cmd.ActorUserID == "autodm" || cmd.ActorUserID == "auto-dm"
 
-	if !isNominator && !isNominee && !isDM {
-		return nil, nil, fmt.Errorf("only nominator, nominee, or DM can end defense")
+	if !isNominator && !isNominee && !isDM && !isAutoDM {
+		return nil, nil, fmt.Errorf("only nominator, nominee, DM, or autodm can end defense")
 	}
 
 	return []types.Event{newEvent(cmd, "defense.ended", nil)}, acceptedResult(cmd.CommandID), nil
@@ -482,15 +484,9 @@ func handleVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.C
 	}
 
 	if allVoted {
-		// Auto-resolve nomination
-		result, resolveEvents := resolveNomination(state, cmd)
+		// Auto-resolve nomination via unified path
+		_, resolveEvents := resolveVoteAndCheckWin(state, cmd)
 		events = append(events, resolveEvents...)
-
-		// Check win condition after potential execution
-		if result == "executed" {
-			winEvents := checkWinCondition(state, cmd)
-			events = append(events, winEvents...)
-		}
 	}
 
 	return events, acceptedResult(cmd.CommandID), nil
@@ -501,50 +497,8 @@ func handleResolveNomination(state State, cmd types.CommandEnvelope) ([]types.Ev
 		return nil, nil, fmt.Errorf("no active nomination")
 	}
 
-	_, events := resolveNomination(state, cmd)
+	_, events := resolveVoteAndCheckWin(state, cmd)
 	return events, acceptedResult(cmd.CommandID), nil
-}
-
-func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.Event) {
-	nom := state.Nomination
-
-	yesVotes := 0
-	for _, v := range nom.Votes {
-		if v {
-			yesVotes++
-		}
-	}
-
-	aliveCount := state.GetAliveCount()
-	// Official rule: votes >= 50% of alive (i.e. ceil(alive/2))
-	threshold := (aliveCount + 1) / 2
-
-	result := "not_executed"
-	if yesVotes >= threshold {
-		result = "executed"
-	}
-
-	events := []types.Event{
-		newEvent(cmd, "nomination.resolved", map[string]string{
-			"result":        result,
-			"votes_for":     fmt.Sprintf("%d", yesVotes),
-			"votes_against": fmt.Sprintf("%d", len(nom.Votes)-yesVotes),
-			"threshold":     fmt.Sprintf("%d", threshold),
-		}),
-	}
-
-	if result == "executed" {
-		events = append(events, newEvent(cmd, "execution.resolved", map[string]string{
-			"result":   "executed",
-			"executed": nom.Nominee,
-		}))
-		events = append(events, newEvent(cmd, "player.died", map[string]string{
-			"user_id": nom.Nominee,
-			"cause":   "execution",
-		}))
-	}
-
-	return result, events
 }
 
 func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
@@ -727,6 +681,13 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 }
 
 func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
+	// Permission: only autodm or room owner may advance phase
+	isAutoDM := cmd.ActorUserID == "autodm" || cmd.ActorUserID == "auto-dm"
+	isOwner := cmd.ActorUserID == state.OwnerID
+	if !isAutoDM && !isOwner {
+		return nil, nil, fmt.Errorf("only room owner or autodm can advance phase")
+	}
+
 	var payload map[string]string
 	_ = json.Unmarshal(cmd.Payload, &payload)
 
@@ -735,6 +696,10 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 
 	switch targetPhase {
 	case "day":
+		// Auto-complete any remaining night actions as timed_out
+		timeoutEvents := CompleteRemainingNightActions(state, cmd)
+		events = append(events, timeoutEvents...)
+
 		// Announce deaths from night
 		for _, death := range state.PendingDeaths {
 			if !death.Protected {
@@ -893,7 +858,8 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 	return events, acceptedResult(cmd.CommandID), nil
 }
 
-// FIX-12: handleCloseVote resolves an active nomination by tallying votes.
+// handleCloseVote resolves an active nomination via the unified vote settlement path.
+// Only autodm may call this (timeout-driven force close).
 func handleCloseVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
 	if cmd.ActorUserID != "autodm" {
 		return nil, nil, fmt.Errorf("only autodm can close votes")
@@ -902,48 +868,7 @@ func handleCloseVote(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 		return nil, nil, fmt.Errorf("no active nomination to close")
 	}
 
-	var payload map[string]interface{}
-	_ = json.Unmarshal(cmd.Payload, &payload)
-
-	// Tally votes
-	yesCount := 0
-	for _, v := range state.Nomination.Votes {
-		if v {
-			yesCount++
-		}
-	}
-	aliveCount := state.GetAliveCount()
-	threshold := (aliveCount / 2) + 1
-
-	result := "not_executed"
-	if yesCount >= threshold {
-		result = "executed"
-	}
-
-	events := []types.Event{
-		newEvent(cmd, "nomination.resolved", map[string]string{
-			"result":    result,
-			"yes_votes": fmt.Sprintf("%d", yesCount),
-			"threshold": fmt.Sprintf("%d", threshold),
-		}),
-	}
-
-	if result == "executed" {
-		nomineeID := state.Nomination.Nominee
-		events = append(events, newEvent(cmd, "player.executed", map[string]string{
-			"user_id": nomineeID,
-		}))
-		// Check win condition after execution
-		stateCopy := state.Copy()
-		if p, ok := stateCopy.Players[nomineeID]; ok {
-			p.Alive = false
-			stateCopy.Players[nomineeID] = p
-		}
-		stateCopy.ExecutedToday = nomineeID
-		winEvents := checkWinCondition(stateCopy, cmd)
-		events = append(events, winEvents...)
-	}
-
+	_, events := resolveVoteAndCheckWin(state, cmd)
 	return events, acceptedResult(cmd.CommandID), nil
 }
 

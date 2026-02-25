@@ -9,12 +9,17 @@ const state = () => ({
   winner: '', // 'good' | 'evil' | ''
   winReason: '',
   alivePlayers: 0,
-  deadPlayers: 0
+  deadPlayers: 0,
+  phaseDeadline: 0 // unix ms, 0 = no deadline
 });
 
 const mutations = {
   setPhase(state, phase) {
     state.phase = phase;
+    state.phaseDeadline = 0;
+  },
+  setPhaseDeadline(state, deadline) {
+    state.phaseDeadline = deadline;
   },
   setDayCount(state, count) {
     state.dayCount = count;
@@ -42,6 +47,7 @@ const mutations = {
     state.winReason = '';
     state.alivePlayers = 0;
     state.deadPlayers = 0;
+    state.phaseDeadline = 0;
   }
 };
 

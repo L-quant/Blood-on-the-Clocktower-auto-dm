@@ -340,10 +340,14 @@ class WebSocketManager {
       case 'nomination.created': {
         const nominatorSeat = parseInt(eventData.nominator_seat, 10) || 0;
         const nomineeSeat = parseInt(eventData.nominee_seat, 10) || 0;
+        // Calculate required majority from alive player count
+        const alivePlayers = store.state.players.players.filter(p => p.isAlive);
+        const aliveCount = alivePlayers.length;
+        const requiredMajority = Math.ceil(aliveCount / 2);
         store.commit('vote/startNomination', {
           nominatorSeat,
           nomineeSeat,
-          requiredMajority: 0
+          requiredMajority
         });
         store.commit('players/updatePlayer', {
           seatIndex: nominatorSeat,
@@ -359,7 +363,7 @@ class WebSocketManager {
       }
 
       case 'defense.ended':
-        // Voting phase now starts; currently no frontend action needed
+        store.commit('vote/setSubPhase', 'voting');
         break;
 
       case 'vote.cast': {
@@ -375,13 +379,18 @@ class WebSocketManager {
 
       case 'nomination.resolved': {
         const result = eventData.result === 'executed' ? 'executed' : 'safe';
+        store.commit('vote/setSubPhase', 'resolved');
         store.commit('vote/setResult', result);
+        // Accept both votes_for (unified) and yes_votes (legacy compat)
+        const yesCount = parseInt(eventData.votes_for, 10)
+          || parseInt(eventData.yes_votes, 10)
+          || store.state.vote.currentYesCount;
         store.commit('timeline/addEvent', {
           type: 'vote_result',
           dayCount: store.state.game.dayCount,
           data: {
             nomineeSeat: store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1,
-            yesCount: parseInt(eventData.votes_for, 10) || store.state.vote.currentYesCount,
+            yesCount,
             result
           }
         });
@@ -513,12 +522,35 @@ class WebSocketManager {
         store.commit('ui/setScreen', 'end');
         break;
 
+      // ── Legacy compat: player.executed (same as player.died) ──
+      case 'player.executed': {
+        const execUserId = eventData.user_id || '';
+        const execPlayer = store.state.players.players.find(p => p.id === execUserId);
+        if (execPlayer) {
+          store.commit('players/killPlayer', execPlayer.seatIndex);
+          store.commit('timeline/addEvent', {
+            type: 'death',
+            dayCount: store.state.game.dayCount,
+            data: { seatIndex: execPlayer.seatIndex }
+          });
+        }
+        break;
+      }
+
       // ── Ignored / internal events ──
+      // ── Timer events ──
+      case 'timer.set': {
+        const deadline = parseInt(eventData.deadline, 10) || 0;
+        store.commit('game/setPhaseDeadline', deadline * 1000);
+        break;
+      }
+
       case 'red_herring.assigned':
       case 'reminder.added':
       case 'ai.decision':
       case 'slayer.shot':
       case 'poison.cleared':
+      case 'action.requested':
         break;
 
       default:

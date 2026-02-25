@@ -294,10 +294,31 @@ export default new Vuex.Store({
      */
     sendVote({ commit }, vote) {
       commit('vote/setMyVote', vote);
-      commit('vote/setIsMyTurn', false);
       commit('sendCommand', {
         type: 'vote',
         data: { vote: vote ? 'yes' : 'no' }
+      });
+    },
+
+    /**
+     * End the defense phase of a nomination.
+     * Backend command: "end_defense"
+     */
+    sendEndDefense({ commit }) {
+      commit('sendCommand', {
+        type: 'end_defense',
+        data: {}
+      });
+    },
+
+    /**
+     * Advance to the next phase (room owner / autodm).
+     * Backend command: "advance_phase" with { phase }
+     */
+    advancePhase({ commit }, phase) {
+      commit('sendCommand', {
+        type: 'advance_phase',
+        data: { phase }
       });
     },
 

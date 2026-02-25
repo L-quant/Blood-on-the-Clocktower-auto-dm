@@ -48,7 +48,8 @@
     "evilWins": "Evil wins!",
     "gameOver": "Game Over",
     "backToLobby": "Back to Lobby",
-    "newGame": "New Game"
+    "newGame": "New Game",
+    "advanceToNight": "Enter Night"
   },
   "square": {
     "title": "Square",
@@ -132,7 +133,10 @@
     "waiting": "Waiting for votes...",
     "executed": "Executed!",
     "safe": "Safe",
-    "history": "Vote History"
+    "history": "Vote History",
+    "defensePhase": "Defense in progress...",
+    "endDefense": "End Defense",
+    "defenseWaiting": "Waiting for defense to end..."
   },
   "annotation": {
     "title": "Annotate Role",

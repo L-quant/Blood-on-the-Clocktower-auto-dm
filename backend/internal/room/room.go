@@ -46,19 +46,20 @@ type Subscriber struct {
 }
 
 type RoomActor struct {
-	RoomID   string
-	ctx      context.Context
-	onCrash  func(roomID string)
-	subsMu   sync.RWMutex
-	stateMu  sync.RWMutex
-	state    engine.State
-	store    *store.Store
-	logger   *zap.Logger
-	metrics  *observability.Metrics
-	cmdCh    chan CommandRequest
-	subs     map[string]*Subscriber
-	snapshot int64
-	autoDM   *agent.AutoDM
+	RoomID     string
+	ctx        context.Context
+	onCrash    func(roomID string)
+	subsMu     sync.RWMutex
+	stateMu    sync.RWMutex
+	state      engine.State
+	store      *store.Store
+	logger     *zap.Logger
+	metrics    *observability.Metrics
+	cmdCh      chan CommandRequest
+	subs       map[string]*Subscriber
+	snapshot   int64
+	autoDM     *agent.AutoDM
+	phaseTimer *PhaseTimer
 }
 
 func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, onCrash func(roomID string)) (*RoomActor, error) {
@@ -80,6 +81,11 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 		snapshot: snapshotInterval,
 		autoDM:   autoDM,
 	}
+	// PhaseTimer dispatches timeout commands through the actor's serial loop.
+	ra.phaseTimer = NewPhaseTimer(roomID, func(cmd types.CommandEnvelope) {
+		ra.Dispatch(cmd)
+	}, logger)
+
 	if err := ra.loadState(loadCtx); err != nil {
 		return nil, err
 	}
@@ -249,6 +255,7 @@ func (ra *RoomActor) handleCommand(ctx context.Context, cmd types.CommandEnvelop
 	ra.stateMu.Unlock()
 
 	ra.broadcast(ctx, storedEvents, stateSnapshot)
+	ra.scheduleTimeouts(storedEvents, stateSnapshot.Config)
 	return result, nil
 }
 
@@ -280,6 +287,33 @@ func (ra *RoomActor) broadcast(ctx context.Context, events []store.StoredEvent, 
 		// Notify AutoDM to respond to game events
 		if ra.autoDM != nil && ra.autoDM.Enabled() {
 			go ra.autoDM.OnEvent(ctx, ev, state)
+		}
+	}
+}
+
+// scheduleTimeouts inspects emitted events and schedules phase timeouts.
+// Each new schedule cancels the previous timer automatically.
+func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.GameConfig) {
+	for _, e := range events {
+		switch e.EventType {
+		case "phase.first_night", "phase.night":
+			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "day"})
+
+		case "phase.day":
+			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+
+		case "nomination.created":
+			dur := time.Duration(cfg.DefenseDurationSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "end_defense", nil)
+
+		case "defense.ended":
+			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(ra.state.Players))
+			ra.phaseTimer.Schedule(dur, "close_vote", nil)
+
+		case "game.ended":
+			ra.phaseTimer.Cancel()
 		}
 	}
 }

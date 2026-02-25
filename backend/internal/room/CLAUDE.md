@@ -5,6 +5,7 @@
 
 ## 成员文件
 - `room.go` → RoomActor (命令队列、状态管理、事件广播) 与 RoomManager (多房间注册/查找)
+- `phase_timer.go` → 阶段超时计时器 (PhaseTimer)，超时后以 autodm 身份发送命令推进流程
 
 ## 对外接口
 - `NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, onCrash func(roomID string)) (*RoomActor, error)` → 创建房间 Actor 并加载持久化状态
@@ -17,6 +18,9 @@
 - `(*RoomManager) Close()` → 停止所有房间 Actor
 - `(*RoomManager) GetOrCreate(ctx context.Context, roomID string) (*RoomActor, error)` → 获取或创建房间 Actor
 - `(*RoomManager) DispatchAsync(cmd types.CommandEnvelope) error` → 按 RoomID 路由命令到对应 Actor
+- `NewPhaseTimer(roomID string, dispatch func(types.CommandEnvelope), logger *zap.Logger) *PhaseTimer` → 创建阶段计时器
+- `(*PhaseTimer) Schedule(dur time.Duration, cmdType string, data map[string]string)` → 调度超时命令 (自动取消上一个)
+- `(*PhaseTimer) Cancel()` → 取消当前计时器
 
 ## 依赖
 - `internal/agent` → AutoDM 集成 (事件回调)

@@ -16,70 +16,86 @@
         </div>
       </div>
 
-      <!-- Vote progress -->
-      <div class="vote-overlay__progress">
-        <div class="vote-overlay__progress-info">
-          <span>{{ $t('vote.currentVotes', { count: currentYesCount }) }}</span>
-          <span>{{ $t('vote.requiredVotes', { count: requiredMajority }) }}</span>
-        </div>
-        <div class="vote-overlay__progress-bar">
-          <div
-            class="vote-overlay__progress-fill"
-            :style="{ width: (voteProgress * 100) + '%' }"
-            :class="{ full: voteProgress >= 1 }"
-          ></div>
-        </div>
-      </div>
-
-      <!-- Vote circle indicators -->
-      <div class="vote-overlay__voters" v-if="votes.length">
-        <span
-          v-for="v in votes"
-          :key="v.seatIndex"
-          class="vote-overlay__voter"
-          :class="{ yes: v.vote, no: !v.vote, current: v.seatIndex === currentVoterSeat }"
+      <!-- Defense phase -->
+      <div class="vote-overlay__defense" v-if="subPhase === 'defense'">
+        <p class="vote-overlay__defense-text">{{ $t('vote.defensePhase') }}</p>
+        <button
+          v-if="canEndDefense"
+          class="vote-overlay__end-defense-btn"
+          @click="endDefense"
         >
-          {{ v.seatIndex }}号{{ v.vote ? '👍' : '👎' }}
-        </span>
+          {{ $t('vote.endDefense') }}
+        </button>
+        <p v-else class="vote-overlay__defense-waiting">{{ $t('vote.defenseWaiting') }}</p>
       </div>
 
-      <!-- My turn to vote -->
-      <div class="vote-overlay__my-turn" v-if="isMyTurn">
-        <p class="vote-overlay__turn-text pulse">{{ $t('vote.yourTurn') }}</p>
-        <div class="vote-overlay__vote-buttons">
-          <button
-            class="vote-overlay__vote-btn yes"
-            :aria-label="$t('vote.voteYes')"
-            @click="castVote(true)"
-          >
-            <span class="vote-overlay__vote-icon" aria-hidden="true">👍</span>
-            <span>{{ $t('vote.voteYes') }}</span>
-          </button>
-          <button
-            class="vote-overlay__vote-btn no"
-            :aria-label="$t('vote.voteNo')"
-            @click="castVote(false)"
-          >
-            <span class="vote-overlay__vote-icon" aria-hidden="true">👎</span>
-            <span>{{ $t('vote.voteNo') }}</span>
-          </button>
+      <!-- Voting phase -->
+      <template v-if="subPhase === 'voting' || subPhase === 'resolved'">
+        <!-- Vote progress -->
+        <div class="vote-overlay__progress">
+          <div class="vote-overlay__progress-info">
+            <span>{{ $t('vote.currentVotes', { count: currentYesCount }) }}</span>
+            <span>{{ $t('vote.requiredVotes', { count: requiredMajority }) }}</span>
+          </div>
+          <div class="vote-overlay__progress-bar">
+            <div
+              class="vote-overlay__progress-fill"
+              :style="{ width: (voteProgress * 100) + '%' }"
+              :class="{ full: voteProgress >= 1 }"
+            ></div>
+          </div>
         </div>
-      </div>
 
-      <!-- Waiting for others -->
-      <div class="vote-overlay__waiting" v-else-if="!result">
-        <p>{{ $t('vote.waiting') }}</p>
-      </div>
+        <!-- Vote circle indicators -->
+        <div class="vote-overlay__voters" v-if="votes.length">
+          <span
+            v-for="v in votes"
+            :key="v.seatIndex"
+            class="vote-overlay__voter"
+            :class="{ yes: v.vote, no: !v.vote, current: v.seatIndex === currentVoterSeat }"
+          >
+            {{ v.seatIndex }}号{{ v.vote ? '👍' : '👎' }}
+          </span>
+        </div>
 
-      <!-- Vote result -->
-      <div class="vote-overlay__result" v-if="result">
-        <p
-          class="vote-overlay__result-text"
-          :class="result"
-        >
-          {{ result === 'executed' ? $t('vote.executed') : $t('vote.safe') }}
-        </p>
-      </div>
+        <!-- Vote buttons (visible when in voting and I haven't voted) -->
+        <div class="vote-overlay__my-turn" v-if="canVote">
+          <p class="vote-overlay__turn-text pulse">{{ $t('vote.yourTurn') }}</p>
+          <div class="vote-overlay__vote-buttons">
+            <button
+              class="vote-overlay__vote-btn yes"
+              :aria-label="$t('vote.voteYes')"
+              @click="castVote(true)"
+            >
+              <span class="vote-overlay__vote-icon" aria-hidden="true">👍</span>
+              <span>{{ $t('vote.voteYes') }}</span>
+            </button>
+            <button
+              class="vote-overlay__vote-btn no"
+              :aria-label="$t('vote.voteNo')"
+              @click="castVote(false)"
+            >
+              <span class="vote-overlay__vote-icon" aria-hidden="true">👎</span>
+              <span>{{ $t('vote.voteNo') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Waiting for others -->
+        <div class="vote-overlay__waiting" v-else-if="!result">
+          <p>{{ $t('vote.waiting') }}</p>
+        </div>
+
+        <!-- Vote result -->
+        <div class="vote-overlay__result" v-if="result">
+          <p
+            class="vote-overlay__result-text"
+            :class="result"
+          >
+            {{ result === 'executed' ? $t('vote.executed') : $t('vote.safe') }}
+          </p>
+        </div>
+      </template>
     </div>
   </transition>
 </template>
@@ -91,9 +107,9 @@ export default {
   name: "VoteOverlay",
   computed: {
     ...mapState("vote", [
-      "isActive", "nominator", "nominee", "votes",
+      "isActive", "subPhase", "nominator", "nominee", "votes",
       "currentVoterIndex", "requiredMajority", "currentYesCount",
-      "isMyTurn", "result"
+      "myVote", "result"
     ]),
     ...mapGetters("vote", ["voteProgress"]),
     nominatorSeat() {
@@ -104,11 +120,21 @@ export default {
     },
     currentVoterSeat() {
       return this.currentVoterIndex;
+    },
+    canVote() {
+      return this.subPhase === 'voting' && this.myVote === null;
+    },
+    canEndDefense() {
+      const mySeat = this.$store.state.seatIndex;
+      return mySeat === this.nominatorSeat || mySeat === this.nomineeSeat;
     }
   },
   methods: {
     castVote(vote) {
       this.$store.dispatch("sendVote", vote);
+    },
+    endDefense() {
+      this.$store.dispatch("sendEndDefense");
     }
   }
 };
@@ -204,6 +230,38 @@ export default {
     &.current {
       border: 1px solid $fabled;
     }
+  }
+
+  &__defense {
+    text-align: center;
+    padding: 8px 0;
+  }
+
+  &__defense-text {
+    font-size: 0.9rem;
+    color: $fabled;
+    margin-bottom: 12px;
+  }
+
+  &__end-defense-btn {
+    padding: 10px 24px;
+    border: 2px solid $fabled;
+    border-radius: 8px;
+    background: none;
+    color: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 200ms;
+
+    &:active {
+      background: rgba($fabled, 0.2);
+      transform: scale(0.95);
+    }
+  }
+
+  &__defense-waiting {
+    font-size: 0.85rem;
+    opacity: 0.5;
   }
 
   &__my-turn {

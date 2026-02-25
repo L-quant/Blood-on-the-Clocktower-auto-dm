@@ -6,14 +6,14 @@
 set -euo pipefail
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty')
+FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.file_path // empty')
+CONTENT=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.content // empty')
 
 if [ -z "$FILE_PATH" ] || [ -z "$CONTENT" ]; then
   exit 0
 fi
 
-LINE_COUNT=$(echo "$CONTENT" | wc -l | tr -d ' ')
+LINE_COUNT=$(printf '%s\n' "$CONTENT" | wc -l | tr -d ' ')
 EXT="${FILE_PATH##*.}"
 
 case "$EXT" in
@@ -26,7 +26,7 @@ case "$EXT" in
     if [[ "$FILE_PATH" == *"engine.go" ]]; then
       if [ -f "$FILE_PATH" ]; then
         OLD_FUNC_COUNT=$(grep -c '^func ' "$FILE_PATH" 2>/dev/null || echo 0)
-        NEW_FUNC_COUNT=$(echo "$CONTENT" | grep -c '^func ' 2>/dev/null || echo 0)
+        NEW_FUNC_COUNT=$(printf '%s\n' "$CONTENT" | grep -c '^func ' 2>/dev/null || echo 0)
         if [ "$NEW_FUNC_COUNT" -gt "$OLD_FUNC_COUNT" ]; then
           echo "BLOCKED: engine.go 禁止新增函数 (原 $OLD_FUNC_COUNT 个, 新 $NEW_FUNC_COUNT 个)。新功能必须拆到独立文件" >&2
           exit 2

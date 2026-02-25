@@ -17,12 +17,20 @@
     <!-- Alive/dead counter -->
     <AliveCounter />
 
+    <!-- Phase action: advance to night (room owner, day phase, no active vote) -->
+    <div class="square-view__phase-action" v-if="canAdvanceToNight">
+      <button class="square-view__advance-btn" @click="advanceToNight">
+        {{ $t('game.advanceToNight') }}
+      </button>
+    </div>
+
     <!-- Player action sheet -->
     <PlayerActionSheet />
   </div>
 </template>
 
 <script>
+import { mapState } from "vuex";
 import PlayerCircle from "./PlayerCircle";
 import AliveCounter from "./AliveCounter";
 import PlayerActionSheet from "./PlayerActionSheet";
@@ -30,13 +38,20 @@ import PlayerActionSheet from "./PlayerActionSheet";
 export default {
   name: "SquareView",
   components: { PlayerCircle, AliveCounter, PlayerActionSheet },
+  computed: {
+    ...mapState("game", ["phase"]),
+    ...mapState("vote", { voteSubPhase: "subPhase" }),
+    canAdvanceToNight() {
+      const isDay = this.phase === 'day' || this.phase === 'nomination';
+      const noActiveVote = this.voteSubPhase === 'none' || this.voteSubPhase === 'resolved';
+      return isDay && noActiveVote && this.$store.state.isRoomOwner;
+    }
+  },
   methods: {
     onNodeClick(player) {
       if (player.isMe) {
-        // Show own role card
         this.$store.commit("ui/setActiveTab", "me");
       } else {
-        // Open action sheet for this player
         this.$store.commit("ui/openModal", {
           modal: "playerAction",
           data: { seatIndex: player.seatIndex }
@@ -45,17 +60,21 @@ export default {
     },
     onNodeLongPress(player) {
       if (!player.isMe) {
-        // Quick whisper
         this.$store.commit("chat/setActiveChannel", "whisper");
         this.$store.commit("chat/setActiveWhisperTarget", player.seatIndex);
         this.$store.commit("ui/setActiveTab", "chat");
       }
+    },
+    advanceToNight() {
+      this.$store.dispatch("advancePhase", "night");
     }
   }
 };
 </script>
 
 <style lang="scss" scoped>
+@import "../vars";
+
 .square-view {
   height: 100%;
   display: flex;
@@ -68,6 +87,27 @@ export default {
     align-items: center;
     justify-content: center;
     overflow: hidden;
+  }
+
+  &__phase-action {
+    text-align: center;
+    padding: 8px 16px;
+  }
+
+  &__advance-btn {
+    padding: 10px 24px;
+    border: 2px solid $fabled;
+    border-radius: 8px;
+    background: rgba($fabled, 0.1);
+    color: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 200ms;
+
+    &:active {
+      background: rgba($fabled, 0.25);
+      transform: scale(0.95);
+    }
   }
 }
 </style>

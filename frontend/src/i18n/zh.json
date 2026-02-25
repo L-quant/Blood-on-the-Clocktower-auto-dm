@@ -48,7 +48,8 @@
     "evilWins": "邪恶阵营获胜！",
     "gameOver": "游戏结束",
     "backToLobby": "返回大厅",
-    "newGame": "新游戏"
+    "newGame": "新游戏",
+    "advanceToNight": "进入夜晚"
   },
   "square": {
     "title": "广场",
@@ -132,7 +133,10 @@
     "waiting": "等待投票...",
     "executed": "处决！",
     "safe": "安全",
-    "history": "投票记录"
+    "history": "投票记录",
+    "defensePhase": "辩护进行中...",
+    "endDefense": "结束辩护",
+    "defenseWaiting": "等待辩护结束..."
   },
   "annotation": {
     "title": "标记角色",

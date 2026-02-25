@@ -105,7 +105,8 @@ type State struct {
 	BluffRoles      []string          `json:"bluff_roles"`      // 3 bluffs for demon
 	ExecutedToday   string            `json:"executed_today"`   // UserID of player executed today (for undertaker)
 	RedHerringID    string            `json:"red_herring_id"`   // Good player that registers as demon to fortune teller
-	Winner          string            `json:"winner,omitempty"` // "good" or "evil"
+	OwnerID         string            `json:"owner_id,omitempty"` // First player to join becomes owner
+	Winner          string            `json:"winner,omitempty"`   // "good" or "evil"
 	WinReason       string            `json:"win_reason,omitempty"`
 	ChatSeq         int64             `json:"chat_seq"`
 	LastSeq         int64             `json:"last_seq"`
@@ -253,6 +254,10 @@ func (s *State) Reduce(event EventPayload) {
 		}
 		s.Players[event.Actor] = p
 		s.SeatOrder = append(s.SeatOrder, event.Actor)
+		// First non-DM player becomes owner
+		if s.OwnerID == "" && !p.IsDM {
+			s.OwnerID = event.Actor
+		}
 
 	case "player.left":
 		delete(s.Players, event.Actor)
@@ -356,7 +361,12 @@ func (s *State) Reduce(event EventPayload) {
 		s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.NominationTimeoutSec) * time.Second).UnixMilli()
 
 	case "nomination.created":
+		// Use explicit nominator_user_id when present (autodm proxy case),
+		// otherwise fall back to event.Actor.
 		nominatorID := event.Actor
+		if nuid, ok := event.Payload["nominator_user_id"]; ok && nuid != "" {
+			nominatorID = nuid
+		}
 		nomineeID := event.Payload["nominee"]
 
 		nominator := s.Players[nominatorID]

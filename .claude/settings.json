@@ -1,5 +1,5 @@
 {
-  "planDirectory": ".claude/plans",
+  "planDirectory": "/Users/qingchang/Blood-on-the-Clocktower-auto-dm/.claude/plans",
   "hooks": {
     "PreToolUse": [
       {

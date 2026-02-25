@@ -113,10 +113,12 @@
 ## Plan 管理规则
 
 ### 生成规则
-- 每次进入 plan mode 做新功能时，方案确认后必须保存为 `.claude/plans/功能名.md`
+- 每次进入 plan mode 做新功能时，方案确认后必须保存为 `.claude/plans/YYYY-MM-DD-NNN-功能名.md`（如 `2026-02-25-001-fix-game-flow.md`）
+- NNN 为当日递增编号（001 起），同日多个 plan 依序递增
 - Plan 文件必须包含 checklist，每个实现步骤用 `- [ ]` 标记
 - 最后一步永远是 `- [ ] 回环检查：更新所有受影响的 CLAUDE.md 和文件头注释`
 - Plan 文件末尾必须有状态行，格式：`## 状态：🔄 进行中 - 当前在第 X 步`
+- **Plan mode 路径同步**：plan mode 系统会将文件写入 `~/.claude/plans/`（随机文件名），退出 plan mode 后必须立即将该文件复制到项目的 `.claude/plans/` 目录并按 `YYYY-MM-DD-NNN-功能名.md` 规范重命名，然后删除全局目录下的原文件。后续所有编辑只操作项目目录下的副本。
 
 ### 执行规则
 - 每完成一个步骤，立即将对应行改为 `- [x]` 并更新状态行
