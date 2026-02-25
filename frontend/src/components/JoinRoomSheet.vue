@@ -1,3 +1,6 @@
+<!-- JoinRoomSheet 底部弹出的房间号输入面板
+  [OUT] HomeScreen.vue（加入房间入口）
+  [POS] 房间号输入 UI，含验证与错误展示 -->
 <template>
   <div class="sheet-overlay" @click.self="$emit('close')">
     <transition name="slide-up">

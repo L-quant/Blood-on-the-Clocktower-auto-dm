@@ -1,3 +1,8 @@
+// Vuex 模块：夜晚行动覆盖层状态（轮次、目标选择、进度）
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 夜晚阶段 UI 状态，驱动 NightOverlay 交互流程
+
 const state = () => ({
   isMyTurn: false,
   step: 'idle', // 'idle' | 'woken' | 'selecting' | 'waiting' | 'result' | 'done'

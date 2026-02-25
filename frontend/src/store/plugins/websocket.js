@@ -1,3 +1,9 @@
+// Vuex 插件：WebSocket 连接管理、事件→mutation 映射、命令发送、重连
+//
+// [IN]  services/ApiService（REST 状态同步与认证）
+// [OUT] store/index.js（插件注册）
+// [POS] 前后端实时通信桥梁，将 25+ 种后端事件映射到 Store mutations
+
 /**
  * WebSocket plugin for Vuex
  * Bridges WebSocket events to store mutations.

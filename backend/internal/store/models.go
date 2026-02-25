@@ -1,3 +1,9 @@
+// Package store 数据模型定义：User、Room、RoomMember、DedupRecord、Snapshot、AgentRun
+//
+// [OUT] api（用户与房间查询）
+// [OUT] realtime（事件加载）
+// [OUT] room（事件持久化与快照）
+// [POS] 数据访问层的模型定义文件
 package store
 
 import (

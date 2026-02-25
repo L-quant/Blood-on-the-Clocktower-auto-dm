@@ -1,3 +1,7 @@
+// Package game 夜晚能力解析引擎，处理 13 种角色能力（含中毒/保护逻辑）
+//
+// [OUT] engine（夜晚行动解析）
+// [POS] 夜晚阶段核心逻辑，解析每个角色的夜晚能力效果
 package game
 
 import (

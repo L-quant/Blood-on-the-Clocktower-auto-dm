@@ -1,3 +1,8 @@
+// 工具函数：cleanId、isMobile、randomId、seatLabel
+//
+// [OUT] 未被直接引用（通过包内调用）
+// [POS] Store 层通用工具函数集
+
 /**
  * Clean a role ID to lowercase alphanumeric
  */

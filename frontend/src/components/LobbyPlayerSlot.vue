@@ -1,3 +1,6 @@
+<!-- LobbyPlayerSlot 单个座位槽，含占用标识与房主徽章
+  [OUT] LobbyPlayerGrid.vue（座位格子组件）
+  [POS] 单个座位的 UI 展示单元 -->
 <template>
   <div
     class="player-slot"

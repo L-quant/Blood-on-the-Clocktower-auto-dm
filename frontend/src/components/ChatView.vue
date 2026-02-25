@@ -1,3 +1,7 @@
+<!-- ChatView 多频道聊天（公共/密语/邪恶/AI 助手）
+  [IN]  services/ApiService（AI 助手查询）
+  [OUT] GameScreen.vue（主布局子组件）
+  [POS] 游戏内通信核心，支持四种聊天频道 -->
 <template>
   <div class="chat-view">
     <!-- Channel tabs -->

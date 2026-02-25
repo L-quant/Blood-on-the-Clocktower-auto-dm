@@ -1,3 +1,8 @@
+// Package rag 规则文档索引与语义检索
+//
+// [OUT] cmd/server（初始化规则检索器）
+// [POS] RAG 检索层，将游戏规则文档向量化并提供语义搜索
+
 package rag
 
 import (

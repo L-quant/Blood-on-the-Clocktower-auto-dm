@@ -1,3 +1,6 @@
+<!-- NightOverlay 夜晚行动界面：唤醒→选择目标→等待→结果
+  [OUT] App.vue（全局覆盖层）
+  [POS] 夜晚阶段的全屏交互界面 -->
 <template>
   <transition name="night-fade">
     <div class="night-overlay" v-if="isActive" role="dialog" :aria-label="$t('night.title')" aria-modal="true">

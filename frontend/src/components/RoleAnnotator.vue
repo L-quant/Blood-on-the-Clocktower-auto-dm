@@ -1,3 +1,6 @@
+<!-- RoleAnnotator 角色猜测选择器（阵营 Tab + 角色网格）
+  [OUT] PlayerActionSheet.vue（操作面板子组件）
+  [POS] 角色标注 UI，让玩家记录对他人身份的猜测 -->
 <template>
   <div class="role-annotator">
     <h4 class="role-annotator__title">{{ $t('annotation.selectRole') }}</h4>

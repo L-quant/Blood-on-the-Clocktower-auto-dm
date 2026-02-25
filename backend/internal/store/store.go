@@ -1,3 +1,9 @@
+// Package store 数据库连接与事务管理
+//
+// [OUT] api（数据库操作入口）
+// [OUT] realtime（事件查询）
+// [OUT] room（事件持久化）
+// [POS] 数据访问层核心，提供 MySQL 连接池和事务封装
 package store
 
 import (

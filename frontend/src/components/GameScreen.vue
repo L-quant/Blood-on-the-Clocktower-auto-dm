@@ -1,3 +1,10 @@
+<!-- GameScreen 游戏主布局，移动端 Tab 切换 / 桌面端多栏
+  [IN]  SquareView（城镇广场）
+  [IN]  ChatView（聊天面板）
+  [IN]  TimelineView（时间线）
+  [IN]  MeView（个人信息）
+  [OUT] App.vue（屏幕路由，懒加载）
+  [POS] 游戏进行中的主容器，组织四个核心视图 -->
 <template>
   <div class="game-screen" :class="{ 'is-wide': !isMobile }">
     <!-- Mobile: tab-switched views -->

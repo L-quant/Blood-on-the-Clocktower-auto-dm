@@ -1,4 +1,8 @@
-// Package llm provides LLM client implementations including Google Gemini support.
+// Package llm Google Gemini API 客户端，含安全设置与重试
+//
+// [OUT] llm/client（Gemini 自动检测时创建）
+// [POS] Gemini 专用客户端，处理 Gemini API 特有的请求格式
+
 package llm
 
 import (

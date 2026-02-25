@@ -1,3 +1,7 @@
+// Package agent 旧版编排器（已弃用，用 core/orchestrator.go 替代）
+//
+// [IN]  internal/game（角色信息）
+// [POS] 历史遗留文件，保留向后兼容
 package agent
 
 import (

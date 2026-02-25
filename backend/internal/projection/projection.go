@@ -1,3 +1,11 @@
+// Package projection 事件可见性过滤与状态投影
+//
+// [IN]  internal/engine（State 结构体）
+// [IN]  internal/types（Event、Viewer、ProjectedEvent 类型）
+// [OUT] api（状态脱敏返回前端）
+// [OUT] realtime（WebSocket 事件过滤）
+// [OUT] room（广播前事件过滤）
+// [POS] 安全层，确保每个玩家只能看到自己权限内的信息
 package projection
 
 import (

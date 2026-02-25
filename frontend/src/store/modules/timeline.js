@@ -1,3 +1,8 @@
+// Vuex 模块：游戏事件时间线（阶段变化、死亡、投票）
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 事件记录，按天/类型展示游戏历史
+
 const state = () => ({
   events: [],
   filters: ['all'] // 'all' | 'phase_change' | 'death' | 'nomination' | 'vote_result' | 'ability' | 'system'

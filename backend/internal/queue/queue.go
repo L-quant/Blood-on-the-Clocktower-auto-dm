@@ -1,3 +1,8 @@
+// Package queue RabbitMQ 任务队列核心：连接管理、发布/消费、重试与死信
+//
+// [OUT] cmd/server（初始化队列）
+// [POS] 异步任务基础设施，为 AI 代理提供解耦的任务处理能力
+
 package queue
 
 import (

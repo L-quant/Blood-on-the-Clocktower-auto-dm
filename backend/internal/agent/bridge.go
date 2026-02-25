@@ -1,3 +1,7 @@
+// Package agent 房间管理器桥接层，将 agent 工具操作转发到 RoomManager
+//
+// [OUT] agent 包内（工具操作代理）
+// [POS] 解耦层，隔离 agent 与 room 模块的直接依赖
 package agent
 
 import (

@@ -1,3 +1,6 @@
+<!-- VoteOverlay 投票界面：提名信息、进度条、投票按钮
+  [OUT] App.vue（全局覆盖层）
+  [POS] 投票阶段的全屏交互界面 -->
 <template>
   <transition name="vote-slide">
     <div class="vote-overlay" v-if="isActive" role="region" :aria-label="$t('vote.nomination')">

@@ -1,3 +1,20 @@
+// Package main 服务入口，初始化所有依赖并启动 HTTP/WS 服务
+//
+// [IN]  internal/config（加载环境变量配置）
+// [IN]  internal/auth（JWT 管理器）
+// [IN]  internal/store（MySQL 数据库连接与存储）
+// [IN]  internal/observability（Prometheus 指标与追踪）
+// [IN]  internal/room（房间管理器）
+// [IN]  internal/realtime（WebSocket 服务器）
+// [IN]  internal/api（HTTP API 服务器）
+// [IN]  internal/agent（Auto-DM AI 系统）
+// [IN]  internal/bot（Bot 玩家管理）
+// [IN]  internal/queue（RabbitMQ 任务队列）
+// [IN]  internal/rag（规则向量检索）
+// [IN]  internal/types（共享类型定义）
+// [OUT] 无（顶层入口）
+// [POS] 整个后端服务的启动入口，组装并连接所有模块
+
 package main
 
 import (

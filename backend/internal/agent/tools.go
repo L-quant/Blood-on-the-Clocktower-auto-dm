@@ -1,3 +1,9 @@
+// Package agent 游戏工具定义与执行（发消息、推进阶段等）
+//
+// [IN]  internal/engine（游戏状态类型）
+// [IN]  internal/types（命令与事件类型）
+// [OUT] agent/autodm（工具调用）
+// [POS] Auto-DM 的游戏操作工具集
 package agent
 
 import (

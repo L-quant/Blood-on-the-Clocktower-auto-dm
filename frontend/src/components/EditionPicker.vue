@@ -1,3 +1,6 @@
+<!-- EditionPicker 剧本选择器
+  [OUT] LobbyScreen.vue（大厅配置区）
+  [POS] 游戏剧本选择 UI -->
 <template>
   <div class="edition-picker">
     <label class="edition-picker__label">{{ $t('lobby.edition') }}</label>

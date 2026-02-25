@@ -1,3 +1,8 @@
+// Package store 房间与成员 CRUD 操作
+//
+// [OUT] api（房间创建与加入）
+// [OUT] room（成员查询）
+// [POS] 房间存储层，处理房间与成员的增删查
 package store
 
 import (

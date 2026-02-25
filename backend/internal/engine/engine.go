@@ -1,3 +1,10 @@
+// Package engine 游戏命令处理器，路由 28 种命令到具体 handler 并生成事件
+//
+// [IN]  internal/game（角色定义、夜晚行动解析、游戏初始化）
+// [IN]  internal/types（命令与事件类型）
+// [OUT] room（HandleCommand 命令分发）
+// [OUT] agent（状态类型与工具调用）
+// [POS] 游戏状态机核心，所有游戏逻辑的中枢
 package engine
 
 import (

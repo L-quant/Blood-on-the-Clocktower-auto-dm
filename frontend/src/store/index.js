@@ -1,3 +1,12 @@
+// Vuex Store 主入口，组合 8 个模块和 2 个插件，含根级状态与动作
+//
+// [IN]  modules/*（8 个业务模块）
+// [IN]  plugins/persistence（localStorage 持久化）
+// [IN]  plugins/websocket（WebSocket 事件桥接）
+// [IN]  services/ApiService（REST API 调用）
+// [OUT] main.js（全局 Store 注入）
+// [POS] 前端状态管理中枢，所有组件通过 Store 共享状态
+
 import Vue from "vue";
 import Vuex from "vuex";
 

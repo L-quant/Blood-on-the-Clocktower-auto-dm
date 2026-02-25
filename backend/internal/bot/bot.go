@@ -1,8 +1,9 @@
-// Package bot provides AI bot players for solo testing mode.
+// Package bot 单个 Bot 玩家逻辑，性格驱动的自动决策
 //
-// Bots can join a game room and act as real players, making decisions
-// about nominations, voting, and night actions based on their personality
-// and role information.
+// [IN]  internal/types（Event 与 CommandEnvelope 类型）
+// [OUT] api（Bot 管理端点）
+// [POS] Bot 个体行为实现，根据性格参数自动参与游戏
+
 package bot
 
 import (

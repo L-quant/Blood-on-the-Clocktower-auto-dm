@@ -1,4 +1,9 @@
-// Package llm provides model routing for different task types.
+// Package llm 按任务类型路由到不同 LLM 模型
+//
+// [OUT] agent/autodm（模型路由初始化）
+// [OUT] agent/core（任务分发到不同模型）
+// [POS] LLM 多模型路由，为不同任务选择最优模型
+
 package llm
 
 import (

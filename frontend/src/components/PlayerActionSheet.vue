@@ -1,3 +1,7 @@
+<!-- PlayerActionSheet 玩家操作底部面板（标注角色、笔记、提名）
+  [IN]  RoleAnnotator（角色猜测选择器）
+  [OUT] SquareView.vue（广场子组件）
+  [POS] 点击玩家后弹出的操作菜单 -->
 <template>
   <transition name="slide-up">
     <div class="action-sheet-overlay" v-if="isOpen" @click.self="close">

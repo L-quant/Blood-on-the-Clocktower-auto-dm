@@ -1,3 +1,8 @@
+// Vuex 插件：settings、notes、annotations 自动同步到 localStorage
+//
+// [OUT] store/index.js（插件注册）
+// [POS] 状态持久化层，确保用户设置和笔记跨页面保留
+
 /**
  * Persistence plugin - saves selected state to localStorage
  * Handles: annotations (per room), settings, notes

@@ -1,5 +1,7 @@
-// Annotations module - purely local, persisted to localStorage
-// Keyed by seatIndex, stores player's personal guesses about other players' roles
+// Vuex 模块：玩家个人猜测标注（按房间 localStorage 持久化）
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 个人笔记功能，记录对其他玩家角色的猜测
 
 const state = () => ({
   playerAnnotations: {}

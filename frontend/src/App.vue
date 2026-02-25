@@ -1,3 +1,8 @@
+<!-- App.vue 根组件，屏幕路由控制与全局覆盖层容器
+  [IN]  components/*（12 个子组件）
+  [IN]  services/SoundService（音效预加载）
+  [OUT] main.js（根组件挂载）
+  [POS] 前端 UI 总控，根据 ui.screen 状态切换画面 -->
 <template>
   <div
     id="app"

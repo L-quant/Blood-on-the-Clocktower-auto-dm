@@ -1,3 +1,9 @@
+<!-- SquareView 城镇广场容器
+  [IN]  PlayerCircle（玩家圆圈布局）
+  [IN]  AliveCounter（存活计数）
+  [IN]  PlayerActionSheet（玩家操作面板）
+  [OUT] GameScreen.vue（主布局子组件）
+  [POS] 游戏核心视图，展示玩家围坐的城镇广场 -->
 <template>
   <div class="square-view">
     <!-- Player circle -->

@@ -1,3 +1,6 @@
+<!-- ConfirmDialog 确认对话框
+  [OUT] App.vue（全局覆盖层）
+  [POS] 通用确认弹窗，被各组件通过 Vuex modal 状态触发 -->
 <template>
   <transition name="fade">
     <div class="confirm-overlay" v-if="isOpen" @click.self="cancel">

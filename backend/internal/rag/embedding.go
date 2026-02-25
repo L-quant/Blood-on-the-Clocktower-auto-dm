@@ -1,3 +1,8 @@
+// Package rag Embedding 生成器：OpenAI、Gemini、本地哈希（测试用）
+//
+// [OUT] cmd/server（初始化 Embedding 提供器）
+// [POS] 文本向量化层，为 RAG 检索提供 Embedding
+
 package rag
 
 import (

@@ -1,3 +1,8 @@
+// Package rag Qdrant 向量数据库 HTTP 客户端
+//
+// [OUT] cmd/server（初始化 Qdrant 连接）
+// [POS] 向量库底层交互，提供集合管理、CRUD 与相似搜索
+
 package rag
 
 import (

@@ -1,3 +1,8 @@
+// Vuex 模块：UI 状态（屏幕路由、标签页、弹窗、设置）
+//
+// [OUT] store/index.js（模块注册）
+// [POS] UI 控制中心，替代 Vue Router 管理画面切换
+
 const state = () => ({
   activeTab: 'square', // 'square' | 'chat' | 'timeline' | 'me'
   screen: 'home', // 'home' | 'lobby' | 'game' | 'end'

@@ -1,3 +1,8 @@
+// Package queue 任务工厂与处理器定义（LLM 调用、RAG 查询、夜晚解析、摘要）
+//
+// [OUT] cmd/server（注册任务处理器）
+// [POS] 定义 AI 相关异步任务的创建与处理逻辑
+
 package queue
 
 import (

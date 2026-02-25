@@ -1,3 +1,8 @@
+<!-- LobbyScreen 大厅：房间码、座位格、游戏配置
+  [IN]  LobbyPlayerGrid（座位格）
+  [IN]  EditionPicker（剧本选择）
+  [OUT] App.vue（屏幕路由）
+  [POS] 游戏开始前的等待与配置画面 -->
 <template>
   <div class="lobby-screen">
     <!-- Room code display -->

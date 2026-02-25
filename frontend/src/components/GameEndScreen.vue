@@ -1,3 +1,6 @@
+<!-- GameEndScreen 结算屏幕（胜方展示与返回）
+  [OUT] App.vue（屏幕路由，懒加载）
+  [POS] 游戏结束画面，展示胜利方与胜因 -->
 <template>
   <div class="game-end">
     <div class="game-end__content">

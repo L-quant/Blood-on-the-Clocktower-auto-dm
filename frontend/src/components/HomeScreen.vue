@@ -1,3 +1,7 @@
+<!-- HomeScreen 首页：创建/加入房间入口
+  [IN]  JoinRoomSheet（房间号输入面板）
+  [OUT] App.vue（屏幕路由）
+  [POS] 用户进入游戏的第一个画面 -->
 <template>
   <div class="home-screen">
     <div class="home-screen__hero">

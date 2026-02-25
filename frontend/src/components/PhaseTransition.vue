@@ -1,3 +1,6 @@
+<!-- PhaseTransition 全屏阶段切换动画通知
+  [OUT] App.vue（全局覆盖层）
+  [POS] 阶段切换时的视觉反馈动画 -->
 <template>
   <transition name="phase-fade" @after-leave="onTransitionEnd">
     <div

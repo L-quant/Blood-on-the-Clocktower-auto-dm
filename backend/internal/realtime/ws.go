@@ -1,3 +1,13 @@
+// Package realtime WebSocket 服务器，管理连接、订阅、事件推送与命令转发
+//
+// [IN]  internal/auth（JWT 连接认证）
+// [IN]  internal/observability（连接与延迟指标）
+// [IN]  internal/projection（事件可见性过滤）
+// [IN]  internal/room（房间订阅与命令分发）
+// [IN]  internal/store（历史事件加载）
+// [IN]  internal/types（Viewer 与 ProjectedEvent）
+// [OUT] api（WebSocket 路由注册）
+// [POS] 实时通信层，WebSocket 长连接处理事件推送与命令接收
 package realtime
 
 import (

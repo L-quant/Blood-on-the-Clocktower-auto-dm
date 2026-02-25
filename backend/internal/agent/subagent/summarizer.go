@@ -1,4 +1,9 @@
-// Package subagent provides the Summarizer sub-agent.
+// Package subagent 摘要子代理，生成游戏状态摘要
+//
+// [IN]  internal/agent/llm（LLM 调用）
+// [OUT] agent/core（编排器调用）
+// [POS] AI 摘要员角色，为玩家和 DM 提供游戏进展概览
+
 package subagent
 
 import (

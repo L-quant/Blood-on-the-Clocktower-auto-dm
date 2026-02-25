@@ -1,3 +1,7 @@
+<!-- LobbyPlayerGrid 大厅座位格，显示座位占用状态
+  [IN]  LobbyPlayerSlot（单个座位槽）
+  [OUT] LobbyScreen.vue（大厅子组件）
+  [POS] 座位管理 UI，展示谁坐在哪个座位 -->
 <template>
   <div class="player-grid">
     <div class="player-grid__header">

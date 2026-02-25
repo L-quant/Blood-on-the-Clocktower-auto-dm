@@ -1,3 +1,6 @@
+// Package agent 旧版模型路由与工具注册表（已弃用，用 llm/router.go 替代）
+//
+// [POS] 历史遗留文件，保留向后兼容
 package agent
 
 import (

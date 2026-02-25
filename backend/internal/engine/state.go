@@ -1,3 +1,10 @@
+// Package engine 游戏状态结构体定义与事件归约逻辑
+//
+// [OUT] api（状态查询与回放）
+// [OUT] projection（状态脱敏）
+// [OUT] room（状态管理与快照）
+// [OUT] agent（状态视图）
+// [POS] 游戏状态机的数据层，定义状态结构并实现 Reduce 归约
 package engine
 
 import (

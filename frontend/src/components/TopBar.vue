@@ -1,3 +1,6 @@
+<!-- TopBar 顶部栏：连接状态、阶段信息、房间码、设置
+  [OUT] App.vue（全局组件）
+  [POS] 全局导航栏，显示连接与游戏状态 -->
 <template>
   <header class="top-bar">
     <div class="top-bar__left">

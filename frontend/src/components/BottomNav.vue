@@ -1,3 +1,6 @@
+<!-- BottomNav 底部导航栏（含未读消息徽章）
+  [OUT] App.vue（全局组件）
+  [POS] 移动端主导航，Tab 切换不同视图 -->
 <template>
   <nav class="bottom-nav" v-if="visible" role="tablist" :aria-label="$t('nav.square')">
     <button

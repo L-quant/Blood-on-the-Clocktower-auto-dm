@@ -1,3 +1,8 @@
+// Vuex 模块：提名与投票状态（提名者/被提名者/票数/结果/历史）
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 投票流程状态，驱动 VoteOverlay 交互
+
 const state = () => ({
   isActive: false,
   nominator: null, // { seatIndex }

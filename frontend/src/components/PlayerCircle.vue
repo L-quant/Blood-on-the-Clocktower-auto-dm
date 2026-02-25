@@ -1,3 +1,7 @@
+<!-- PlayerCircle 圆形排列的玩家节点布局
+  [IN]  PlayerNode（单个玩家令牌）
+  [OUT] SquareView.vue（广场子组件）
+  [POS] 将玩家节点按圆形排列，模拟围坐布局 -->
 <template>
   <div
     class="player-circle"

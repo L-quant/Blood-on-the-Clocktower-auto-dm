@@ -1,23 +1,15 @@
-// Package api provides the HTTP API handlers for the Blood on the Clocktower Auto-DM server.
+// Package api HTTP REST API 路由与处理器
 //
-// @title Blood on the Clocktower Auto-DM API
-// @version 1.0
-// @description AI-powered Storyteller backend for Blood on the Clocktower game.
-// @description Supports real-time WebSocket connections, event sourcing, and multi-agent AI system.
-//
-// @contact.name API Support
-// @contact.url https://github.com/qingchang/Blood-on-the-Clocktower-auto-dm
-//
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
-//
-// @host localhost:8080
-// @BasePath /
-//
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
-// @description Enter 'Bearer {token}' to authorize
+// [IN]  internal/auth（JWT 验证与密码哈希）
+// [IN]  internal/bot（Bot 管理）
+// [IN]  internal/engine（游戏状态与事件结构）
+// [IN]  internal/projection（按角色过滤状态）
+// [IN]  internal/realtime（WebSocket 服务器集成）
+// [IN]  internal/room（RoomManager 命令路由）
+// [IN]  internal/store（用户/房间/事件数据库）
+// [IN]  internal/types（Viewer 权限结构）
+// [OUT] cmd/server（注册到 HTTP 服务）
+// [POS] HTTP 接口层，连接前端与后端业务逻辑
 package api
 
 import (

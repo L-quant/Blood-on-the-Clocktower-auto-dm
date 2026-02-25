@@ -1,3 +1,9 @@
+// Package observability Prometheus 指标、OpenTelemetry 追踪与 Zap 日志初始化
+//
+// [OUT] realtime（WebSocket 指标）
+// [OUT] room（命令处理指标）
+// [POS] 可观测性基础设施，为运行时监控提供指标、追踪和日志
+
 package observability
 
 import (

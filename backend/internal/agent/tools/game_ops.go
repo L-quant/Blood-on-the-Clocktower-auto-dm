@@ -1,4 +1,8 @@
-// Package tools provides game operation tools for the Auto-DM agent.
+// Package tools 游戏操作工具实现（发消息、杀人、推进阶段等）
+//
+// [OUT] agent/core（游戏工具注册）
+// [POS] Auto-DM 可调用的具体游戏操作实现
+
 package tools
 
 import (

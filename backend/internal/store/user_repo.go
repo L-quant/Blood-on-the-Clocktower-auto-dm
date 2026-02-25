@@ -1,3 +1,7 @@
+// Package store 用户账号 CRUD 操作
+//
+// [OUT] api（用户注册与登录查询）
+// [POS] 用户存储层，处理用户创建与按邮箱/ID 查询
 package store
 
 import (

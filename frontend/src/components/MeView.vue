@@ -1,3 +1,6 @@
+<!-- MeView 个人角色展示：能力、鬼牌、笔记
+  [OUT] GameScreen.vue（主布局子组件）
+  [POS] 玩家个人信息面板，查看自己的角色与能力 -->
 <template>
   <div class="me-view">
     <!-- Role card -->

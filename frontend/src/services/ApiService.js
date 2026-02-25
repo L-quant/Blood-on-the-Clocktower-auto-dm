@@ -1,3 +1,10 @@
+// REST API 客户端：JWT 认证、房间管理、事件查询、AI 助手
+//
+// [OUT] store/index.js（根级 actions 调用）
+// [OUT] store/plugins/websocket.js（状态同步）
+// [OUT] components/ChatView.vue（AI 助手查询）
+// [POS] 前端与后端 REST API 的唯一通信通道
+
 /**
  * ApiService - REST API client for the BOTC backend
  * Handles JWT authentication, room management, and game commands.

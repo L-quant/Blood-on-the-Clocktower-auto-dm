@@ -1,3 +1,15 @@
+// Package types 全局共享类型：错误码、命令信封、事件、投影事件、观察者上下文
+//
+// [OUT] api（错误处理与请求/响应类型）
+// [OUT] bot（事件与命令信封）
+// [OUT] engine（命令与事件类型）
+// [OUT] mcp（命令信封构建）
+// [OUT] projection（事件与观察者类型）
+// [OUT] realtime（观察者与投影事件）
+// [OUT] room（命令与事件类型）
+// [OUT] agent（事件回调与命令分发）
+// [POS] 最底层共享类型包，被几乎所有后端模块依赖
+
 package types
 
 import (

@@ -1,3 +1,8 @@
+// Vuex 模块：游戏阶段、天数、胜者状态管理
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 游戏核心状态，驱动 UI 阶段展示与胜负判定
+
 const state = () => ({
   phase: 'lobby', // 'lobby' | 'first_night' | 'night' | 'day' | 'nomination' | 'voting' | 'ended'
   dayCount: 0,

@@ -1,3 +1,11 @@
+// 应用入口，初始化 Vue 实例、FontAwesome 图标、Vuex Store 与 I18n
+//
+// [IN]  store（Vuex 状态管理）
+// [IN]  i18n（国际化配置）
+// [IN]  App.vue（根组件）
+// [OUT] 无（顶层入口）
+// [POS] 前端应用启动点，组装所有全局依赖
+
 import Vue from "vue";
 import App from "./App";
 import store from "./store";

@@ -1,4 +1,10 @@
-// Package tools provides a registry for agent tools.
+// Package tools 工具注册表，管理 LLM 可调用工具的定义与执行
+//
+// [IN]  internal/agent/llm（工具定义格式）
+// [OUT] agent/autodm（工具注册）
+// [OUT] agent/core（工具定义与执行）
+// [POS] 工具管理层，连接 LLM 的 function calling 与实际操作
+
 package tools
 
 import (

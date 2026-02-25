@@ -1,3 +1,9 @@
+// HTML5 Audio 音效管理：预加载与并发播放
+//
+// [OUT] App.vue（音效预加载）
+// [OUT] components/SettingsPanel.vue（音量控制）
+// [POS] 音效服务，管理游戏音效的加载与播放
+
 /**
  * SoundService - game audio management
  * Wraps existing SoundManager with a cleaner API

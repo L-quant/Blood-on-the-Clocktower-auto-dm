@@ -1,4 +1,9 @@
-// Package subagent provides the Narrator sub-agent.
+// Package subagent 叙事子代理，生成氛围化游戏描述
+//
+// [IN]  internal/agent/llm（LLM 调用）
+// [OUT] agent/core（编排器调用）
+// [POS] AI 叙事者角色，为阶段转换和死亡生成沉浸式描述
+
 package subagent
 
 import (

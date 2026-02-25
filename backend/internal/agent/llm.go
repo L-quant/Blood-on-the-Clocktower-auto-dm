@@ -1,4 +1,6 @@
-// Package agent provides the Auto-DM AI storyteller for Blood on the Clocktower.
+// Package agent 旧版 LLM 客户端（已弃用，用 llm/client.go 替代）
+//
+// [POS] 历史遗留文件，保留向后兼容
 package agent
 
 import (

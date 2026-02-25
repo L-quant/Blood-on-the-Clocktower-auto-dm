@@ -1,4 +1,8 @@
-// Package game provides core game mechanics for Blood on the Clocktower.
+// Package game 定义所有暗流涌动角色、类型、能力与玩家分配表
+//
+// [OUT] engine（角色查询与分配验证）
+// [OUT] agent/core（角色信息用于 AI 决策）
+// [POS] 游戏规则数据层，提供角色定义与分配规则
 package game
 
 // Team represents the team/alignment of a role.

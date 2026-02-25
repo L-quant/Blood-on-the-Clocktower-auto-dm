@@ -1,3 +1,14 @@
+// Package room 房间 Actor 模型：命令队列串行处理、事件持久化、订阅者广播
+//
+// [IN]  internal/agent（Auto-DM 事件回调）
+// [IN]  internal/engine（HandleCommand 与 State）
+// [IN]  internal/observability（指标采集）
+// [IN]  internal/projection（广播前事件过滤）
+// [IN]  internal/store（事件持久化与快照）
+// [IN]  internal/types（命令与事件类型）
+// [OUT] api（RoomManager 路由命令）
+// [OUT] realtime（订阅/取消订阅与命令转发）
+// [POS] 并发控制核心，每房间一个 Actor 消除竞态条件
 package room
 
 import (

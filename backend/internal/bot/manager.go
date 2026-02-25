@@ -1,3 +1,9 @@
+// Package bot Bot 生命周期管理，跨房间创建/事件分发/移除
+//
+// [IN]  internal/types（Event 与 CommandEnvelope 类型）
+// [OUT] api（添加 Bot 端点）
+// [POS] Bot 集合管理器，协调多房间 Bot 的生命周期
+
 package bot
 
 import (

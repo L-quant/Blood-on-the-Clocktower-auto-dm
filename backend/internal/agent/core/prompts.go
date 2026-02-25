@@ -1,4 +1,8 @@
-// Package core provides prompts for the Auto-DM agent.
+// Package core 不同游戏阶段的系统提示词模板
+//
+// [OUT] core/orchestrator（构建 LLM 系统提示词）
+// [POS] AI 提示词模板库，按阶段定制主持行为
+
 package core
 
 // BaseSystemPrompt is the foundation system prompt for the Auto-DM.

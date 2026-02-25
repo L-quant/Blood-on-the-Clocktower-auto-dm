@@ -1,4 +1,7 @@
-// Package agent provides the Auto-DM agent system for Blood on the Clocktower.
+// Package agent 核心类型定义：Phase、Action、GameEvent、PlayerState、SubAgent 接口等
+//
+// [OUT] agent 包内其他文件（类型引用）
+// [POS] agent 模块的类型基础，定义所有代理相关数据结构
 package agent
 
 import (

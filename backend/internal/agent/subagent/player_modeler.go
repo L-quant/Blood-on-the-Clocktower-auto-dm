@@ -1,4 +1,9 @@
-// Package subagent provides the PlayerModeler sub-agent.
+// Package subagent 玩家建模子代理，分析投票与指控行为
+//
+// [IN]  internal/agent/llm（LLM 调用）
+// [OUT] agent/core（编排器调用）
+// [POS] AI 行为分析角色，追踪玩家行为模式辅助主持决策
+
 package subagent
 
 import (

@@ -1,4 +1,9 @@
-// Package subagent provides the Moderator sub-agent.
+// Package subagent 主持子代理，管理游戏流程与提名验证
+//
+// [IN]  internal/agent/llm（LLM 调用）
+// [OUT] agent/core（编排器调用）
+// [POS] AI 主持人角色，决定游戏流程推进与提名合法性
+
 package subagent
 
 import (

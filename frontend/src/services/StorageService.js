@@ -1,3 +1,8 @@
+// localStorage 封装：全局与按房间 scope 的存储
+//
+// [OUT] 未被直接引用
+// [POS] 存储服务层，提供结构化的 localStorage 访问
+
 /**
  * StorageService - localStorage utility with room-scoped storage
  */

@@ -1,3 +1,6 @@
+<!-- AliveCounter 头部存活/死亡计数条
+  [OUT] SquareView.vue（广场子组件）
+  [POS] 实时显示存活与死亡玩家数量 -->
 <template>
   <div class="alive-counter">
     <div class="alive-counter__bar">

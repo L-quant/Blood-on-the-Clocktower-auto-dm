@@ -1,4 +1,12 @@
-// Package core provides the main Orchestrator that coordinates sub-agents.
+// Package core 核心编排器，协调 5 个子代理处理游戏事件
+//
+// [IN]  internal/agent/llm（LLM 路由）
+// [IN]  internal/agent/memory（记忆管理）
+// [IN]  internal/agent/subagent（子代理实现）
+// [IN]  internal/agent/tools（工具注册）
+// [OUT] agent/autodm（编排器初始化与调用）
+// [POS] AI 多代理系统的中枢，协调主持/叙事/规则/摘要/建模子代理
+
 package core
 
 import (

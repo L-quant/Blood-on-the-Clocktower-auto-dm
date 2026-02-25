@@ -1,53 +1,14 @@
-// Package agent provides the Auto-DM agent for Blood on the Clocktower.
+// Package agent Auto-DM 主入口：事件处理、状态更新、启停控制、异步任务集成
 //
-// This package implements a multi-agent system that can automatically run
-// Blood on the Clocktower games as the Storyteller (DM).
-//
-// Architecture:
-//
-//	┌────────────────────────────────────────────────────────────┐
-//	│                        Orchestrator                        │
-//	│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-//	│  │Moderator │  │ Narrator │  │  Rules   │  │Summarizer│   │
-//	│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-//	│                    ┌──────────────┐                        │
-//	│                    │PlayerModeler │                        │
-//	│                    └──────────────┘                        │
-//	├────────────────────────────────────────────────────────────┤
-//	│                       LLM Router                           │
-//	│         (Routes to different models by task type)          │
-//	├────────────────────────────────────────────────────────────┤
-//	│     Memory Manager            │      Tool Registry         │
-//	│  (Short-term + Long-term)     │   (Game operations)        │
-//	└────────────────────────────────────────────────────────────┘
-//
-// # Sub-Agents
-//
-//   - Moderator: Manages game flow, phases, nominations, voting
-//   - Narrator: Generates atmospheric narration and announcements
-//   - Rules: Answers rules questions and validates actions
-//   - Summarizer: Creates summaries of game state and events
-//   - PlayerModeler: Analyzes player behavior (DM-only tool)
-//
-// # Usage
-//
-//	cfg := agent.Config{
-//	    RoomID: "room-123",
-//	    LLM: llm.RoutingConfig{
-//	        Default: llm.Config{
-//	            BaseURL: "https://api.openai.com/v1",
-//	            APIKey:  os.Getenv("OPENAI_API_KEY"),
-//	            Model:   "gpt-4o",
-//	        },
-//	    },
-//	}
-//
-//	dm := agent.NewAutoDM(cfg)
-//	dm.SetCommander(gameCommander)
-//	dm.Start()
-//
-//	// Process game events
-//	response, err := dm.ProcessEvent(ctx, event)
+// [IN]  internal/agent/core（核心编排器）
+// [IN]  internal/agent/llm（LLM 客户端与路由）
+// [IN]  internal/agent/memory（短期记忆）
+// [IN]  internal/agent/tools（工具注册与执行）
+// [IN]  internal/engine（游戏状态类型）
+// [IN]  internal/mcp（MCP 工具注册表）
+// [IN]  internal/types（事件与命令类型）
+// [OUT] room（事件回调与命令代理）
+// [POS] AI 自动主持人对外 API，连接游戏引擎与 AI 系统
 package agent
 
 import (

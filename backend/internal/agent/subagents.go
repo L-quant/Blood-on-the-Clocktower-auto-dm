@@ -1,3 +1,6 @@
+// Package agent 子代理工厂函数与辅助实现
+//
+// [POS] 子代理创建辅助，为编排器提供子代理实例化
 package agent
 
 import (

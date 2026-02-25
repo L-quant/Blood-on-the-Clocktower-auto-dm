@@ -1,3 +1,7 @@
+<!-- SettingsPanel 设置面板（音效、动画、语言）
+  [IN]  services/SoundService（音量控制）
+  [OUT] App.vue（全局覆盖层，懒加载）
+  [POS] 用户偏好设置界面 -->
 <template>
   <div class="settings-overlay" @click.self="$emit('close')">
     <div class="settings-panel">

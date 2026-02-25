@@ -1,3 +1,8 @@
+// Vuex 模块：多频道聊天（公共/邪恶/密语/AI 助手），未读计数
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 聊天状态管理，支持四种频道与未读通知
+
 const state = () => ({
   channels: {
     public: { messages: [], unread: 0 },

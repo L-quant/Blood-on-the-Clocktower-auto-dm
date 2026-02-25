@@ -1,3 +1,9 @@
+// Package auth JWT 令牌生成/验证与 bcrypt 密码哈希
+//
+// [OUT] api（认证中间件与用户注册/登录）
+// [OUT] realtime（WebSocket 连接认证）
+// [POS] 认证基础设施，为 API 和 WebSocket 提供身份验证
+
 package auth
 
 import (

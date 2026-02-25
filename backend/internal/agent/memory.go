@@ -1,3 +1,6 @@
+// Package agent 旧版记忆管理与 RAG（已弃用，用 memory/manager.go 替代）
+//
+// [POS] 历史遗留文件，保留向后兼容
 package agent
 
 import (

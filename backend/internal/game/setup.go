@@ -1,3 +1,7 @@
+// Package game 游戏初始化：角色分配、夜晚顺序创建
+//
+// [OUT] engine（游戏开始时调用）
+// [POS] 游戏启动阶段的初始化逻辑
 package game
 
 import (

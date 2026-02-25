@@ -1,4 +1,9 @@
-// Package memory provides short-term and long-term memory management.
+// Package memory 短期记忆管理，事件追踪与上下文构建
+//
+// [OUT] agent/autodm（记忆初始化）
+// [OUT] agent/core（事件记忆与上下文检索）
+// [POS] AI 记忆层，维护游戏事件的短期记忆供 LLM 上下文使用
+
 package memory
 
 import (

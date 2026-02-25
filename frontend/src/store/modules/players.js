@@ -1,3 +1,8 @@
+// Vuex 模块：玩家列表、座位、角色、鬼牌、传奇角色管理
+//
+// [OUT] store/index.js（模块注册）
+// [POS] 玩家数据中心，管理所有玩家的状态与角色信息
+
 const state = () => ({
   players: [],
   myRole: null, // { roleId, roleName, team, ability }

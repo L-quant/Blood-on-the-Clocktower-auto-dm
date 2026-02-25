@@ -1,4 +1,8 @@
-// Package mcp implements the Model Context Protocol for standardized tool access.
+// Package mcp MCP 工具注册表：工具定义、执行、异步任务管理与审计日志
+//
+// [OUT] agent/autodm（工具注册与调用）
+// [POS] AI 代理工具管理层，MCP 协议的服务端实现
+
 package mcp
 
 import (

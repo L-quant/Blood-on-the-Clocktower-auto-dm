@@ -1,4 +1,9 @@
-// Package subagent provides the Rules sub-agent.
+// Package subagent 规则子代理，回答游戏规则问题与角色查询
+//
+// [IN]  internal/agent/llm（LLM 调用）
+// [OUT] agent/core（编排器调用）
+// [POS] AI 规则裁判角色，解答玩家的规则疑问
+
 package subagent
 
 import (

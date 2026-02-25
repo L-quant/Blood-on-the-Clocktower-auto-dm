@@ -1,3 +1,8 @@
+// Package store 事件溯源操作：追加事件、加载事件、快照、幂等去重
+//
+// [OUT] room（事件持久化与状态恢复）
+// [OUT] api（事件查询与回放）
+// [POS] 事件存储层核心，实现事件溯源的持久化与加载
 package store
 
 import (

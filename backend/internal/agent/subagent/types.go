@@ -1,4 +1,9 @@
-// Package subagent provides specialized sub-agents for the Auto-DM system.
+// Package subagent 子代理共享类型：GameStateView、PlayerView 与格式化工具
+//
+// [IN]  internal/agent/llm（消息类型引用）
+// [OUT] agent/core（子代理类型与视图）
+// [POS] 子代理类型基础，定义只读游戏状态视图
+
 package subagent
 
 import (

@@ -1,4 +1,11 @@
-// Package llm provides LLM client implementations with model routing and streaming support.
+// Package llm OpenAI 兼容 LLM 客户端，自动检测 Gemini
+//
+// [OUT] agent/autodm（LLM 调用）
+// [OUT] agent/core（编排器 LLM 调用）
+// [OUT] agent/subagent（子代理 LLM 调用）
+// [OUT] agent/tools（工具定义格式）
+// [POS] LLM 调用层，统一 OpenAI/Gemini API 接口
+
 package llm
 
 import (

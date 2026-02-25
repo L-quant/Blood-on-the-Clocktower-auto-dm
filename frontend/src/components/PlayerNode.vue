@@ -1,3 +1,6 @@
+<!-- PlayerNode 单个玩家令牌：角色图标、死亡阴影、提名脉冲
+  [OUT] PlayerCircle.vue（圆圈子组件）
+  [POS] 玩家在城镇广场上的视觉表示 -->
 <template>
   <div
     class="player-node"

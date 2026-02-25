@@ -1,3 +1,9 @@
+// Package mcp 游戏工具定义与注册（发消息、推进阶段、提名等 11 个工具）
+//
+// [IN]  internal/types（CommandEnvelope 构建命令）
+// [OUT] agent/autodm（游戏工具可用列表）
+// [POS] 定义 AI 代理可调用的游戏操作工具
+
 package mcp
 
 import (

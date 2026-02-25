@@ -1,3 +1,8 @@
+// Package config 从环境变量加载所有应用配置
+//
+// [OUT] cmd/server（提供启动配置）
+// [POS] 配置加载层，仅被 main.go 调用
+
 package config
 
 import (

@@ -1,3 +1,6 @@
+<!-- TimelineView 事件时间线（含过滤按钮）
+  [OUT] GameScreen.vue（主布局子组件）
+  [POS] 游戏事件历史展示，按类型过滤 -->
 <template>
   <div class="timeline-view">
     <!-- Filters -->
