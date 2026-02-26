@@ -681,11 +681,15 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 }
 
 func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
-	// Permission: only autodm or room owner may advance phase
+	// Permission: only autodm, room owner, or DM may advance phase
 	isAutoDM := cmd.ActorUserID == "autodm" || cmd.ActorUserID == "auto-dm"
 	isOwner := cmd.ActorUserID == state.OwnerID
-	if !isAutoDM && !isOwner {
-		return nil, nil, fmt.Errorf("only room owner or autodm can advance phase")
+	isDM := false
+	if p, ok := state.Players[cmd.ActorUserID]; ok {
+		isDM = p.IsDM
+	}
+	if !isAutoDM && !isOwner && !isDM {
+		return nil, nil, fmt.Errorf("only room owner, DM, or autodm can advance phase")
 	}
 
 	var payload map[string]string

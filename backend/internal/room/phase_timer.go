@@ -18,12 +18,14 @@ import (
 
 // PhaseTimer schedules a single timeout command. Scheduling a new timeout
 // automatically cancels any pending one (at most one timer active).
+// A generation counter prevents stale callbacks from dispatching after Stop().
 type PhaseTimer struct {
-	mu       sync.Mutex
-	timer    *time.Timer
-	roomID   string
-	dispatch func(types.CommandEnvelope)
-	logger   *zap.Logger
+	mu         sync.Mutex
+	timer      *time.Timer
+	generation uint64
+	roomID     string
+	dispatch   func(types.CommandEnvelope)
+	logger     *zap.Logger
 }
 
 // NewPhaseTimer creates a timer bound to a room.
@@ -37,6 +39,7 @@ func NewPhaseTimer(roomID string, dispatch func(types.CommandEnvelope), logger *
 }
 
 // Schedule sets a timeout that fires cmd after dur. Any pending timer is cancelled.
+// A generation counter ensures stale callbacks (that race past Stop) are discarded.
 func (pt *PhaseTimer) Schedule(dur time.Duration, cmdType string, data map[string]string) {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
@@ -46,14 +49,29 @@ func (pt *PhaseTimer) Schedule(dur time.Duration, cmdType string, data map[strin
 		pt.timer = nil
 	}
 
+	pt.generation++
+	gen := pt.generation
+
 	pt.timer = time.AfterFunc(dur, func() {
+		pt.mu.Lock()
+		if pt.generation != gen {
+			pt.mu.Unlock()
+			pt.logger.Debug("stale timer skipped",
+				zap.Uint64("gen", gen),
+				zap.Uint64("current", pt.generation),
+			)
+			return
+		}
+		pt.mu.Unlock()
+
 		payload, _ := json.Marshal(data)
 		cmd := types.CommandEnvelope{
-			CommandID:   uuid.NewString(),
-			RoomID:      pt.roomID,
-			Type:        cmdType,
-			ActorUserID: "autodm",
-			Payload:     payload,
+			CommandID:      uuid.NewString(),
+			IdempotencyKey: uuid.NewString(),
+			RoomID:         pt.roomID,
+			Type:           cmdType,
+			ActorUserID:    "autodm",
+			Payload:        payload,
 		}
 		pt.logger.Debug("phase timer fired",
 			zap.String("room_id", pt.roomID),
@@ -63,11 +81,13 @@ func (pt *PhaseTimer) Schedule(dur time.Duration, cmdType string, data map[strin
 	})
 }
 
-// Cancel stops any pending timer.
+// Cancel stops any pending timer and invalidates any in-flight callback
+// by bumping the generation counter.
 func (pt *PhaseTimer) Cancel() {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 
+	pt.generation++
 	if pt.timer != nil {
 		pt.timer.Stop()
 		pt.timer = nil

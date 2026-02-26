@@ -89,9 +89,51 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 	if err := ra.loadState(loadCtx); err != nil {
 		return nil, err
 	}
+	ra.recoverTimeoutFromState()
 
 	go ra.loop(loopCtx)
 	return ra, nil
+}
+
+// recoverTimeoutFromState re-schedules the appropriate phase timer
+// after loading persisted state (e.g., after server restart).
+// Uses full timeout duration (not elapsed-time delta) — better to wait extra than miss.
+func (ra *RoomActor) recoverTimeoutFromState() {
+	state := ra.state
+	if state.Phase == "" || state.Phase == engine.PhaseLobby || state.Phase == engine.PhaseEnded {
+		return
+	}
+	cfg := state.Config
+	switch state.Phase {
+	case engine.PhaseFirstNight, engine.PhaseNight:
+		dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
+		ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "day"})
+	case engine.PhaseDay:
+		switch state.SubPhase {
+		case engine.SubPhaseDefense:
+			dur := time.Duration(cfg.DefenseDurationSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "end_defense", nil)
+		case engine.SubPhaseVoting:
+			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(state.Players))
+			ra.phaseTimer.Schedule(dur, "close_vote", nil)
+		case engine.SubPhaseNominationOpen:
+			// [P2] 提名窗口应走 NominationTimeoutSec，不是 DiscussionDurationSec
+			dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+		default:
+			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+		}
+	case engine.PhaseNomination:
+		// [P3] PhaseNomination 状态恢复：走 NominationTimeoutSec → 夜晚
+		dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+		ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+	}
+	ra.logger.Info("recovered phase timer from state",
+		zap.String("room_id", ra.RoomID),
+		zap.String("phase", string(state.Phase)),
+		zap.String("sub_phase", string(state.SubPhase)),
+	)
 }
 
 func (ra *RoomActor) loadState(ctx context.Context) error {
@@ -311,6 +353,10 @@ func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.Gam
 		case "defense.ended":
 			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(ra.state.Players))
 			ra.phaseTimer.Schedule(dur, "close_vote", nil)
+
+		case "nomination.resolved":
+			dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 
 		case "game.ended":
 			ra.phaseTimer.Cancel()

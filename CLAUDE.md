@@ -113,7 +113,7 @@
 ## Plan 管理规则
 
 ### 生成规则
-- 每次进入 plan mode 做新功能时，方案确认后必须保存为 `.claude/plans/YYYY-MM-DD-NNN-功能名.md`（如 `2026-02-25-001-fix-game-flow.md`）
+- 每次进入 plan mode 做新功能时，方案确认后必须保存为 `/Users/qingchang/Blood-on-the-Clocktower-auto-dm/.claude/plans/YYYY-MM-DD-NNN-功能名.md`（如 `2026-02-25-001-fix-game-flow.md`）
 - NNN 为当日递增编号（001 起），同日多个 plan 依序递增
 - Plan 文件必须包含 checklist，每个实现步骤用 `- [ ]` 标记
 - 最后一步永远是 `- [ ] 回环检查：更新所有受影响的 CLAUDE.md 和文件头注释`

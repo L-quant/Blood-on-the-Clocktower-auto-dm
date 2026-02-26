@@ -257,6 +257,57 @@ func TestAutoDMSendMessageUsesPublicChatCommand(t *testing.T) {
 	}
 }
 
+func TestConvertEvent_NominationWithNominatorUserID(t *testing.T) {
+	dm := NewAutoDM(Config{
+		LLM: llm.RoutingConfig{Default: llm.Config{BaseURL: "http://localhost", Model: "test"}},
+	})
+
+	payload, _ := json.Marshal(map[string]string{
+		"nominator_user_id": "g2",
+		"nominee":           "g3",
+	})
+	ev := types.Event{
+		EventType:   "nomination.created",
+		ActorUserID: "autodm",
+		Payload:     payload,
+	}
+
+	event := dm.convertEvent(ev)
+
+	// nominator should be the real player, not autodm
+	if event.Data["nominator"] != "g2" {
+		t.Errorf("expected nominator=g2, got %v", event.Data["nominator"])
+	}
+	// PlayerID should also be the real player
+	if event.PlayerID != "g2" {
+		t.Errorf("expected PlayerID=g2, got %s", event.PlayerID)
+	}
+}
+
+func TestConvertEvent_NominationDirectActor(t *testing.T) {
+	dm := NewAutoDM(Config{
+		LLM: llm.RoutingConfig{Default: llm.Config{BaseURL: "http://localhost", Model: "test"}},
+	})
+
+	payload, _ := json.Marshal(map[string]string{
+		"nominee": "g3",
+	})
+	ev := types.Event{
+		EventType:   "nomination.created",
+		ActorUserID: "g1",
+		Payload:     payload,
+	}
+
+	event := dm.convertEvent(ev)
+
+	if event.Data["nominator"] != "g1" {
+		t.Errorf("expected nominator=g1, got %v", event.Data["nominator"])
+	}
+	if event.PlayerID != "g1" {
+		t.Errorf("expected PlayerID=g1, got %s", event.PlayerID)
+	}
+}
+
 func TestAutoDMOnEventEnqueuesAsyncTask(t *testing.T) {
 	taskQueue := &mockTaskQueue{}
 	dm := NewAutoDM(Config{

@@ -293,7 +293,7 @@ export default new Vuex.Store({
      * Backend command: "vote" with { vote: "yes"|"no" }
      */
     sendVote({ commit }, vote) {
-      commit('vote/setMyVote', vote);
+      // No optimistic write — wait for server vote.cast confirmation
       commit('sendCommand', {
         type: 'vote',
         data: { vote: vote ? 'yes' : 'no' }

@@ -396,6 +396,92 @@ func TestThreshold_EvenAlive(t *testing.T) {
 	}
 }
 
+// ---------- OwnerID migration tests ----------
+
+func TestOwnerMigrationOnLeave(t *testing.T) {
+	s := NewState("room-owner")
+	s.Phase = PhaseLobby
+
+	// 3 players join; first becomes owner
+	for _, uid := range []string{"p1", "p2", "p3"} {
+		s.Reduce(EventPayload{Type: "player.joined", Actor: uid, Payload: map[string]string{}})
+	}
+	if s.OwnerID != "p1" {
+		t.Fatalf("expected owner=p1, got %s", s.OwnerID)
+	}
+
+	// p1 (owner) leaves → p2 should become owner
+	s.Reduce(EventPayload{Type: "player.left", Actor: "p1", Payload: map[string]string{}})
+	if s.OwnerID != "p2" {
+		t.Errorf("expected owner=p2 after p1 left, got %s", s.OwnerID)
+	}
+}
+
+func TestOwnerMigrationAllLeave(t *testing.T) {
+	s := NewState("room-owner-empty")
+	s.Phase = PhaseLobby
+
+	s.Reduce(EventPayload{Type: "player.joined", Actor: "p1", Payload: map[string]string{}})
+	if s.OwnerID != "p1" {
+		t.Fatalf("expected owner=p1, got %s", s.OwnerID)
+	}
+
+	s.Reduce(EventPayload{Type: "player.left", Actor: "p1", Payload: map[string]string{}})
+	if s.OwnerID != "" {
+		t.Errorf("expected empty OwnerID after all leave, got %s", s.OwnerID)
+	}
+}
+
+func TestOwnerMigrationSkipsDM(t *testing.T) {
+	s := NewState("room-owner-dm")
+	s.Phase = PhaseLobby
+
+	// p1 joins as regular, dm joins as DM, p3 joins as regular
+	s.Reduce(EventPayload{Type: "player.joined", Actor: "p1", Payload: map[string]string{}})
+	s.Reduce(EventPayload{Type: "player.joined", Actor: "dm", Payload: map[string]string{"role": "dm"}})
+	s.Reduce(EventPayload{Type: "player.joined", Actor: "p3", Payload: map[string]string{}})
+
+	if s.OwnerID != "p1" {
+		t.Fatalf("expected owner=p1, got %s", s.OwnerID)
+	}
+
+	// p1 leaves → should skip DM → p3 becomes owner
+	s.Reduce(EventPayload{Type: "player.left", Actor: "p1", Payload: map[string]string{}})
+	if s.OwnerID != "p3" {
+		t.Errorf("expected owner=p3 (skipping DM), got %s", s.OwnerID)
+	}
+}
+
+func TestDMCanAdvancePhase(t *testing.T) {
+	s := buildFivePlayerState()
+	s.Phase = PhaseDay
+	s.OwnerID = "" // simulate empty OwnerID
+
+	// Add a DM player
+	s.Players["dm"] = Player{UserID: "dm", IsDM: true, Alive: true, Reminders: []string{}}
+
+	cmd := makeCmd(s.RoomID, "advance_phase", "dm", map[string]string{"phase": "night"})
+	events, _, err := HandleCommand(s, cmd)
+	if err != nil {
+		t.Fatalf("DM should be able to advance phase: %v", err)
+	}
+	if !hasEvent(events, "phase.night") {
+		t.Error("expected phase.night event")
+	}
+}
+
+func TestRegularPlayerCannotAdvancePhase(t *testing.T) {
+	s := buildFivePlayerState()
+	s.Phase = PhaseDay
+	s.OwnerID = "g1"
+
+	cmd := makeCmd(s.RoomID, "advance_phase", "g2", map[string]string{"phase": "night"})
+	_, _, err := HandleCommand(s, cmd)
+	if err == nil {
+		t.Fatal("regular player should not be able to advance phase")
+	}
+}
+
 func TestThreshold_OddAlive(t *testing.T) {
 	// 9 alive: threshold = (9+1)/2 = 5 (ceil(9/2)=5)
 	s := NewState("room-threshold-odd")
@@ -450,5 +536,55 @@ func TestThreshold_OddAlive(t *testing.T) {
 	}
 	if d["result"] != "not_executed" {
 		t.Errorf("4 yes out of 9 alive (threshold 5) should not execute, got %s", d["result"])
+	}
+}
+
+// ---------- One execution per day tests ----------
+
+func TestOnlyOneExecutionPerDay(t *testing.T) {
+	s := buildFivePlayerState()
+	s.ExecutedToday = "someone" // already executed today
+
+	// Nominate g2
+	cmd := makeCmd(s.RoomID, "nominate", "g1", map[string]string{"nominee": "g2"})
+	events, _, err := HandleCommand(s, cmd)
+	if err != nil {
+		t.Fatalf("nominate: %v", err)
+	}
+	reduceAll(&s, events)
+	s.SubPhase = SubPhaseVoting
+
+	// All vote yes — normally would execute
+	for _, uid := range []string{"g1", "g2", "g3", "demon", "minion"} {
+		cmd = makeCmd(s.RoomID, "vote", uid, map[string]string{"vote": "yes"})
+		events, _, err = HandleCommand(s, cmd)
+		if err != nil {
+			t.Fatalf("vote %s: %v", uid, err)
+		}
+		reduceAll(&s, events)
+	}
+
+	// Result should be not_executed due to ExecutedToday guard
+	d := eventData(events, "nomination.resolved")
+	if d == nil {
+		t.Fatal("missing nomination.resolved")
+	}
+	if d["result"] != "not_executed" {
+		t.Errorf("expected not_executed (already executed today), got %s", d["result"])
+	}
+
+	// No player.died event
+	if hasEvent(events, "player.died") {
+		t.Error("should not have player.died when execution blocked by daily limit")
+	}
+
+	// No execution.resolved event (only emitted for result=="executed")
+	if hasEvent(events, "execution.resolved") {
+		t.Error("should not have execution.resolved when blocked by daily limit")
+	}
+
+	// No game.ended event
+	if hasEvent(events, "game.ended") {
+		t.Error("should not have game.ended when execution blocked by daily limit")
 	}
 }

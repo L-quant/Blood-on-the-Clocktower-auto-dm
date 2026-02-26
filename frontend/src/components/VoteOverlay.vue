@@ -109,7 +109,7 @@ export default {
     ...mapState("vote", [
       "isActive", "subPhase", "nominator", "nominee", "votes",
       "currentVoterIndex", "requiredMajority", "currentYesCount",
-      "myVote", "result"
+      "myVote", "isVotePending", "result"
     ]),
     ...mapGetters("vote", ["voteProgress"]),
     nominatorSeat() {
@@ -122,7 +122,7 @@ export default {
       return this.currentVoterIndex;
     },
     canVote() {
-      return this.subPhase === 'voting' && this.myVote === null;
+      return this.subPhase === 'voting' && this.myVote === null && !this.isVotePending;
     },
     canEndDefense() {
       const mySeat = this.$store.state.seatIndex;
@@ -131,6 +131,7 @@ export default {
   },
   methods: {
     castVote(vote) {
+      this.$store.commit('vote/setVotePending', true);
       this.$store.dispatch("sendVote", vote);
     },
     endDefense() {

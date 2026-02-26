@@ -60,6 +60,10 @@ func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.
 	if yesVotes >= threshold {
 		result = "executed"
 	}
+	// Official rule: only one execution per day
+	if result == "executed" && state.ExecutedToday != "" {
+		result = "not_executed"
+	}
 
 	events := []types.Event{
 		newEvent(cmd, "nomination.resolved", map[string]string{

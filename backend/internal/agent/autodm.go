@@ -380,7 +380,12 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 		event.Data["new_phase"] = "nomination"
 	case "nomination.created":
 		event.Type = "nomination"
-		event.Data["nominator"] = ev.ActorUserID
+		// Prefer explicit nominator from payload (autodm proxy case)
+		if nuid, ok := event.Data["nominator_user_id"]; ok && nuid != "" {
+			event.Data["nominator"] = nuid
+		} else {
+			event.Data["nominator"] = ev.ActorUserID
+		}
 	case "vote.cast":
 		event.Type = "vote"
 	case "execution.resolved":
@@ -394,6 +399,12 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 	}
 
 	event.PlayerID = ev.ActorUserID
+	// For proxy nominations, use the real nominator as PlayerID
+	if ev.EventType == "nomination.created" {
+		if nuid, ok := event.Data["nominator_user_id"]; ok && nuid != "" {
+			event.PlayerID = nuid.(string)
+		}
+	}
 	event.Description = formatEventDescription(ev.EventType, event.Data)
 
 	return event

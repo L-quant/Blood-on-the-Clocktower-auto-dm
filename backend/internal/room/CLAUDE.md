@@ -4,8 +4,10 @@
 房间 Actor 模型：每房间独立命令队列串行处理，管理游戏状态、事件持久化、订阅者广播和自动快照
 
 ## 成员文件
-- `room.go` → RoomActor (命令队列、状态管理、事件广播) 与 RoomManager (多房间注册/查找)
-- `phase_timer.go` → 阶段超时计时器 (PhaseTimer)，超时后以 autodm 身份发送命令推进流程
+- `room.go` → RoomActor (命令队列、状态管理、事件广播、重启计时器恢复) 与 RoomManager (多房间注册/查找)
+- `phase_timer.go` → 阶段超时计时器 (PhaseTimer)，含 IdempotencyKey 和 generation 抗竞态保护
+- `phase_timer_test.go` → PhaseTimer 单元测试 + 重启后计时器恢复测试
+- `schedule_timeouts_test.go` → scheduleTimeouts 集成测试 (含 nomination.resolved 分支)
 
 ## 对外接口
 - `NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, onCrash func(roomID string)) (*RoomActor, error)` → 创建房间 Actor 并加载持久化状态

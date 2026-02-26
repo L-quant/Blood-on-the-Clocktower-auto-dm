@@ -267,6 +267,16 @@ func (s *State) Reduce(event EventPayload) {
 				break
 			}
 		}
+		// Migrate OwnerID to next non-DM player if owner left
+		if s.OwnerID == event.Actor {
+			s.OwnerID = ""
+			for _, uid := range s.SeatOrder {
+				if p, ok := s.Players[uid]; ok && !p.IsDM {
+					s.OwnerID = uid
+					break
+				}
+			}
+		}
 
 	case "seat.claimed":
 		if p, ok := s.Players[event.Actor]; ok {

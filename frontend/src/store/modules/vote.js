@@ -13,6 +13,7 @@ const state = () => ({
   requiredMajority: 0,
   currentYesCount: 0,
   myVote: null, // true | false | null
+  isVotePending: false, // true while vote command is in-flight
   result: null, // 'executed' | 'safe' | null
   history: [] // past vote records
 });
@@ -28,6 +29,7 @@ const mutations = {
     state.requiredMajority = requiredMajority || 0;
     state.currentYesCount = 0;
     state.myVote = null;
+    state.isVotePending = false;
     state.result = null;
   },
   setSubPhase(state, subPhase) {
@@ -46,6 +48,9 @@ const mutations = {
   },
   setMyVote(state, vote) {
     state.myVote = vote;
+  },
+  setVotePending(state, val) {
+    state.isVotePending = val;
   },
   setCurrentVoter(state, index) {
     state.currentVoterIndex = index;
@@ -72,6 +77,7 @@ const mutations = {
     state.currentVoterIndex = -1;
     state.currentYesCount = 0;
     state.myVote = null;
+    state.isVotePending = false;
     state.result = null;
   },
   reset(state) {
@@ -84,6 +90,7 @@ const mutations = {
     state.requiredMajority = 0;
     state.currentYesCount = 0;
     state.myVote = null;
+    state.isVotePending = false;
     state.result = null;
     state.history = [];
   }

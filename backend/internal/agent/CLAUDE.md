@@ -4,8 +4,8 @@
 AI 自动主持人 (Auto-DM) 系统：多代理编排、LLM 路由、记忆管理、工具调用，处理游戏事件并生成主持行为
 
 ## 成员文件
-- `autodm.go` → Auto-DM 主入口，对外 API：事件处理、状态更新、启停控制
-- `autodm_test.go` → Auto-DM 创建、状态更新、事件处理的单元测试
+- `autodm.go` → Auto-DM 主入口，对外 API：事件处理、状态更新、启停控制 (convertEvent 优先读 nominator_user_id 修复代理提名)
+- `autodm_test.go` → Auto-DM 创建、状态更新、事件处理、convertEvent nominator/PlayerID 修复测试
 - `bridge.go` → 房间管理器桥接层，将 agent 工具操作转发到 RoomManager
 - `tools.go` → 游戏工具定义与执行 (发消息、推进阶段等)
 - `types.go` → 核心类型定义：Phase、Action、GameEvent、PlayerState、SubAgent 接口等

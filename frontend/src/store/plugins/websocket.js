@@ -69,7 +69,9 @@ class WebSocketManager {
     this._socket.onclose = (event) => {
       this._socket = null;
       this._stopPing();
+      this._pendingRequests = {};
       this._store.commit('setConnected', false);
+      this._store.commit('vote/setVotePending', false);
 
       // Reconnect unless intentionally closed (code 1000)
       if (event.code !== 1000 && this._roomId) {
@@ -103,9 +105,13 @@ class WebSocketManager {
    */
   send(command, data) {
     if (this._socket && this._socket.readyState === WebSocket.OPEN) {
+      const requestId = Math.random().toString(36).substr(2);
+      // Track pending requests for command_result correlation
+      this._pendingRequests = this._pendingRequests || {};
+      this._pendingRequests[requestId] = command;
       this._socket.send(JSON.stringify({
         type: 'command',
-        request_id: Math.random().toString(36).substr(2),
+        request_id: requestId,
         payload: {
           command_id: Math.random().toString(36).substr(2),
           room_id: this._roomId,
@@ -155,9 +161,24 @@ class WebSocketManager {
         // Server error received
         break;
 
-      case 'command_result':
-        // Could handle success/failure of commands
+      case 'command_result': {
+        let result = parsed.payload;
+        if (typeof result === 'string') {
+          try { result = JSON.parse(result); } catch(e) { break; }
+        }
+        const reqId = parsed.request_id || (result && result.request_id);
+        const cmdType = this._pendingRequests && this._pendingRequests[reqId];
+        if (reqId && this._pendingRequests) {
+          delete this._pendingRequests[reqId];
+        }
+        if (result && result.status === 'rejected') {
+          if (cmdType === 'vote') {
+            this._store.commit('vote/setVotePending', false);
+          }
+          console.warn(`Command [${cmdType}] rejected:`, result.reason);
+        }
         break;
+      }
 
       case 'event': {
         // Backend sends: { type: "event", payload: ProjectedEvent }
@@ -374,12 +395,18 @@ class WebSocketManager {
           vote: voteValue
         });
         store.commit('vote/setCurrentVoter', voterSeat);
+        // Server confirmed — set myVote + clear pending if this is our vote
+        if (pe.actor_user_id === apiService.userId) {
+          store.commit('vote/setMyVote', voteValue);
+          store.commit('vote/setVotePending', false);
+        }
         break;
       }
 
       case 'nomination.resolved': {
         const result = eventData.result === 'executed' ? 'executed' : 'safe';
         store.commit('vote/setSubPhase', 'resolved');
+        store.commit('vote/setVotePending', false);
         store.commit('vote/setResult', result);
         // Accept both votes_for (unified) and yes_votes (legacy compat)
         const yesCount = parseInt(eventData.votes_for, 10)
