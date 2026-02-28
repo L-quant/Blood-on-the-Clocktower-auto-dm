@@ -169,7 +169,14 @@ func main() {
 			HTTPSProxy: cfg.HTTPSProxy,
 		},
 	})
-	roomMgr := room.NewRoomManager(ctx, st, logger, metrics, cfg.SnapshotInterval, autoDM, composer)
+	roomMgr := room.NewRoomManager(ctx, room.RoomDeps{
+		Store:            st,
+		Logger:           logger,
+		Metrics:          metrics,
+		SnapshotInterval: cfg.SnapshotInterval,
+		AutoDM:           autoDM,
+		Composer:         composer,
+	})
 	defer roomMgr.Close()
 	if autoDM.Enabled() {
 		autoDM.SetDispatcher(roomMgr, nil)

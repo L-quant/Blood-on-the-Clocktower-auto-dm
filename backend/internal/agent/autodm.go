@@ -402,7 +402,7 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 	// For proxy nominations, use the real nominator as PlayerID
 	if ev.EventType == "nomination.created" {
 		if nuid, ok := event.Data["nominator_user_id"]; ok && nuid != "" {
-			event.PlayerID = nuid.(string)
+			if s, ok := nuid.(string); ok { event.PlayerID = s }
 		}
 	}
 	event.Description = formatEventDescription(ev.EventType, event.Data)

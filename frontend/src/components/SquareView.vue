@@ -86,7 +86,7 @@ export default {
       }
     },
     extendTime() {
-      this.$store.commit("sendCommand", { type: "extend_time", payload: {} });
+      this.$store.commit("sendCommand", { type: "extend_time", data: {} });
     },
     advanceToNight() {
       this.$store.dispatch("advancePhase", "night");

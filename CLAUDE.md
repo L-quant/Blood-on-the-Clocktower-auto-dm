@@ -32,7 +32,7 @@
 - `frontend/` → Vue 2 单页应用
   - `src/components/` → 24 个 Vue 组件 (屏幕/覆盖层/面板)
   - `src/store/modules/` → 8 个 Vuex 模块: game, players, chat, vote, night, timeline, ui, annotations
-  - `src/store/plugins/` → persistence (localStorage) + websocket (事件监听/命令发送)
+  - `src/store/plugins/` → persistence (localStorage) + websocket (连接管理) + ws_game_events (事件处理) + ws_state_sync (状态同步)
   - `src/services/` → ApiService (REST+WS), SoundService
   - `src/i18n/` → 中英双语 (en.json, zh.json)，浏览器自动检测
   - `src/assets/` → 角色图标 (154+), 字体 (Papyrus/PiratesBay), 音效

@@ -11,7 +11,7 @@
         <!-- Player header -->
         <div class="action-sheet__header">
           <div class="action-sheet__player-info">
-            <span class="action-sheet__seat">{{ $t('square.seat', { n: seatIndex }) }}</span>
+            <span class="action-sheet__seat">{{ $t('square.seat', { n: targetSeatIndex }) }}</span>
             <span class="action-sheet__status" :class="{ dead: !isAlive }">
               {{ isAlive ? '' : '☠️ ' + $t('square.ghost') }}
             </span>
@@ -110,7 +110,6 @@ export default {
       modal: state => state.modals.playerAction
     }),
     ...mapState("game", ["phase"]),
-    ...mapState(["seatIndex"]),
     ...mapGetters("annotations", ["forSeat"]),
     ...mapGetters("players", ["me"]),
     isOpen() {
@@ -118,9 +117,6 @@ export default {
     },
     targetSeatIndex() {
       return this.modal ? this.modal.seatIndex : -1;
-    },
-    seatIndexLabel() {
-      return this.targetSeatIndex;
     },
     annotation() {
       return this.forSeat(this.targetSeatIndex);

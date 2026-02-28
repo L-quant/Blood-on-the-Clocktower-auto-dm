@@ -265,15 +265,9 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 			"order":       fmt.Sprintf("%d", action.Order),
 			"action_type": actionType,
 		}))
-		// no_action roles (e.g. Imp first night): auto-complete immediately
-		if actionType == string(game.ActionNoAction) {
-			events = append(events, newEvent(cmd, "night.action.completed", map[string]string{
-				"user_id": action.UserID,
-				"role_id": action.RoleID,
-				"result":  "首夜无行动",
-			}))
-		}
 	}
+	// Auto-complete no_action roles (e.g. Imp first night)
+	events = append(events, buildNoActionCompletions(cmd, result.NightOrder)...)
 
 	// Transition to first night
 	events = append(events, newEvent(cmd, "phase.first_night", map[string]string{}))
@@ -1057,7 +1051,3 @@ func acceptedResult(commandID string) *types.CommandResult {
 	return &types.CommandResult{CommandID: commandID, Status: "accepted"}
 }
 
-func mustMarshal(v interface{}) []byte {
-	b, _ := json.Marshal(v)
-	return b
-}

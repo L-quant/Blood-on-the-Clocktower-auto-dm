@@ -180,6 +180,7 @@ export default {
       if (!this.canStart || this.starting) return;
       this.starting = true;
       this.$store.dispatch("startGame");
+      this._startingTimer = setTimeout(() => { this.starting = false; }, 20000);
     },
     onEditionChange(ed) {
       // Send to backend
@@ -212,9 +213,7 @@ export default {
       }, 2000);
     }
   },
-  beforeDestroy() {
-    clearTimeout(this.copyTimer);
-  }
+  beforeDestroy() { clearTimeout(this.copyTimer); clearTimeout(this._startingTimer); }
 };
 </script>
 

@@ -42,9 +42,7 @@ const mutations = {
     } else {
       state.votes.push({ seatIndex, vote });
     }
-    if (vote) {
-      state.currentYesCount = state.votes.filter(v => v.vote).length;
-    }
+    state.currentYesCount = state.votes.filter(v => v.vote).length;
   },
   setMyVote(state, vote) {
     state.myVote = vote;

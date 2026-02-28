@@ -54,7 +54,7 @@
             class="vote-overlay__voter"
             :class="{ yes: v.vote, no: !v.vote, current: v.seatIndex === currentVoterSeat }"
           >
-            {{ v.seatIndex }}号{{ v.vote ? '👍' : '👎' }}
+            {{ $t('square.seat', { n: v.seatIndex }) }}{{ v.vote ? '👍' : '👎' }}
           </span>
         </div>
 

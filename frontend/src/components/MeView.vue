@@ -90,7 +90,7 @@ export default {
       if (!this.myRole || !this.myRole.roleId) return '';
       try {
         return require(`../assets/icons/${this.myRole.roleId}.png`);
-      } catch (e) {
+      } catch (_e) {
         return '';
       }
     }

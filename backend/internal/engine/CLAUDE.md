@@ -5,7 +5,9 @@
 
 ## 成员文件
 - `engine.go` → 命令处理器总入口，路由所有命令到具体 handler (advance_phase 支持 DM 兜底权限)
-- `state.go` → 游戏状态结构体定义、Reduce 事件归约、胜负检查、OwnerID 迁移 (player.left)
+- `engine_start_helpers.go` → handleStartGame 辅助函数：parseCustomRoles (payload 解析)、buildNoActionCompletions (首夜 no_action 自动完成)
+- `state.go` → 游戏状态结构体定义、胜负检查、OwnerID 迁移 (player.left)
+- `state_reduce.go` → Reduce 事件归约：按事件类别拆分为独立 handler 方法 (~320 行)
 - `vote_resolve.go` → 统一投票结算入口 (resolveVoteAndCheckWin)，含每日一次处决守卫 (ExecutedToday)，handleVote/handleCloseVote 共用
 - `engine_extend.go` → extend_time 命令：白天讨论延长时间 (最多 MaxExtensions 次)
 - `engine_night_timeout.go` → night_timeout 命令：差异化夜晚超时 (善良方自动完成，邪恶方发 action.reminder)

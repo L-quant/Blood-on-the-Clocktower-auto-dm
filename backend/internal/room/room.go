@@ -64,7 +64,7 @@ type RoomActor struct {
 	phaseTimer *PhaseTimer
 }
 
-func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, composer game.Composer, onCrash func(roomID string)) (*RoomActor, error) {
+func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, deps RoomDeps, onCrash func(roomID string)) (*RoomActor, error) {
 	if loopCtx == nil {
 		loopCtx = context.Background()
 	}
@@ -75,19 +75,19 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 		RoomID:   roomID,
 		ctx:      loopCtx,
 		onCrash:  onCrash,
-		store:    st,
-		logger:   logger,
-		metrics:  metrics,
+		store:    deps.Store,
+		logger:   deps.Logger,
+		metrics:  deps.Metrics,
 		cmdCh:    make(chan CommandRequest, 256),
 		subs:     make(map[string]*Subscriber),
-		snapshot: snapshotInterval,
-		autoDM:   autoDM,
-		composer: composer,
+		snapshot: deps.SnapshotInterval,
+		autoDM:   deps.AutoDM,
+		composer: deps.Composer,
 	}
 	// PhaseTimer dispatches timeout commands through the actor's serial loop.
 	ra.phaseTimer = NewPhaseTimer(roomID, func(cmd types.CommandEnvelope) {
 		ra.Dispatch(cmd)
-	}, logger)
+	}, deps.Logger)
 
 	if err := ra.loadState(loadCtx); err != nil {
 		return nil, err
@@ -420,33 +420,23 @@ func (ra *RoomActor) GetState() engine.State {
 }
 
 type RoomManager struct {
-	mu       sync.Mutex
-	ctx      context.Context
-	cancel   context.CancelFunc
-	actors   map[string]*RoomActor
-	store    *store.Store
-	logger   *zap.Logger
-	metrics  *observability.Metrics
-	snapshot int64
-	autoDM   *agent.AutoDM
-	composer game.Composer
+	mu     sync.Mutex
+	ctx    context.Context
+	cancel context.CancelFunc
+	actors map[string]*RoomActor
+	deps   RoomDeps
 }
 
-func NewRoomManager(ctx context.Context, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, composer game.Composer) *RoomManager {
+func NewRoomManager(ctx context.Context, deps RoomDeps) *RoomManager {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	actorCtx, cancel := context.WithCancel(ctx)
 	return &RoomManager{
-		ctx:      actorCtx,
-		cancel:   cancel,
-		actors:   make(map[string]*RoomActor),
-		store:    st,
-		logger:   logger,
-		metrics:  metrics,
-		snapshot: snapshotInterval,
-		autoDM:   autoDM,
-		composer: composer,
+		ctx:    actorCtx,
+		cancel: cancel,
+		actors: make(map[string]*RoomActor),
+		deps:   deps,
 	}
 }
 
@@ -460,7 +450,7 @@ func (m *RoomManager) GetOrCreate(ctx context.Context, roomID string) (*RoomActo
 	if ra, ok := m.actors[roomID]; ok {
 		return ra, nil
 	}
-	ra, err := NewRoomActor(ctx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.composer, m.handleActorCrash)
+	ra, err := NewRoomActor(ctx, m.ctx, roomID, m.deps, m.handleActorCrash)
 	if err != nil {
 		return nil, err
 	}
@@ -472,9 +462,9 @@ func (m *RoomManager) handleActorCrash(roomID string) {
 	reloadCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ra, err := NewRoomActor(reloadCtx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.composer, m.handleActorCrash)
+	ra, err := NewRoomActor(reloadCtx, m.ctx, roomID, m.deps, m.handleActorCrash)
 	if err != nil {
-		m.logger.Error("failed to restart room actor", zap.String("room_id", roomID), zap.Error(err))
+		m.deps.Logger.Error("failed to restart room actor", zap.String("room_id", roomID), zap.Error(err))
 		return
 	}
 
@@ -482,7 +472,7 @@ func (m *RoomManager) handleActorCrash(roomID string) {
 	m.actors[roomID] = ra
 	m.mu.Unlock()
 
-	m.logger.Warn("room actor restarted", zap.String("room_id", roomID))
+	m.deps.Logger.Warn("room actor restarted", zap.String("room_id", roomID))
 }
 
 // DispatchAsync routes a command to the correct room actor by room ID.

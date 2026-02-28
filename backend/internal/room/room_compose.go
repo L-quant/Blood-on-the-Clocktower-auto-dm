@@ -28,7 +28,7 @@ func (ra *RoomActor) enrichStartGame(ctx context.Context, cmd types.CommandEnvel
 	state := ra.GetState()
 	playerCount := 0
 	for _, p := range state.Players {
-		if p.SeatNumber > 0 {
+		if !p.IsDM {
 			playerCount++
 		}
 	}
@@ -61,13 +61,22 @@ func (ra *RoomActor) enrichStartGame(ctx context.Context, cmd types.CommandEnvel
 	// Merge custom_roles into the command payload
 	var payload map[string]string
 	if cmd.Payload != nil {
-		_ = json.Unmarshal(cmd.Payload, &payload)
+		if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+			ra.logger.Warn("enrichStartGame: failed to unmarshal payload",
+				zap.String("room_id", ra.RoomID), zap.Error(err))
+		}
 	}
 	if payload == nil {
 		payload = make(map[string]string)
 	}
 	payload["custom_roles"] = string(rolesJSON)
-	cmd.Payload, _ = json.Marshal(payload)
+	merged, err := json.Marshal(payload)
+	if err != nil {
+		ra.logger.Warn("enrichStartGame: failed to marshal payload",
+			zap.String("room_id", ra.RoomID), zap.Error(err))
+		return cmd
+	}
+	cmd.Payload = merged
 
 	ra.logger.Info("AI composed roles",
 		zap.String("room_id", ra.RoomID),

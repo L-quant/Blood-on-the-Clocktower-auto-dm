@@ -252,7 +252,7 @@ func (b *RoomBridge) SetTimer(ctx context.Context, args SetTimerArgs) (json.RawM
 
 	payload, _ := json.Marshal(map[string]interface{}{
 		"timer_type": args.TimerType,
-		"deadline":   deadline.Unix(),
+		"deadline":   deadline.UnixMilli(),
 	})
 
 	cmd := Command{

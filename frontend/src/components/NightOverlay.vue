@@ -107,7 +107,7 @@ export default {
       if (!this.roleId) return '';
       try {
         return require(`../assets/icons/${this.roleId}.png`);
-      } catch (e) {
+      } catch (_e) {
         return '';
       }
     }
