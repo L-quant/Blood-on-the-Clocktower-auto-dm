@@ -2,10 +2,12 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
 
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/game"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
 )
 
@@ -200,6 +202,122 @@ func TestHandleWriteEventRejectNonDM(t *testing.T) {
 	}
 }
 
+// TestStartGameNightActionTypes verifies that night.action.queued events
+// include the correct action_type from role definitions.
+func TestStartGameNightActionTypes(t *testing.T) {
+	state := NewState("room1")
+	for i := 1; i <= 7; i++ {
+		uid := fmt.Sprintf("p%d", i)
+		state.Players[uid] = Player{UserID: uid, SeatNumber: i, Alive: true}
+	}
+	state.OwnerID = "p1"
+	state.Phase = PhaseLobby
+
+	cmd := types.CommandEnvelope{
+		CommandID:   uuid.NewString(),
+		RoomID:      "room1",
+		Type:        "start_game",
+		ActorUserID: "p1",
+	}
+	events, _, err := HandleCommand(state, cmd)
+	if err != nil {
+		t.Fatalf("start_game failed: %v", err)
+	}
+
+	for _, e := range events {
+		if e.EventType != "night.action.queued" {
+			continue
+		}
+		var payload map[string]string
+		_ = json.Unmarshal(e.Payload, &payload)
+		roleID := payload["role_id"]
+		actionType := payload["action_type"]
+
+		if actionType == "" {
+			t.Errorf("night.action.queued for %s missing action_type", roleID)
+			continue
+		}
+		role := game.GetRoleByID(roleID)
+		if role == nil {
+			t.Errorf("unknown role %s", roleID)
+			continue
+		}
+		expected := string(role.FirstNightActionType)
+		if actionType != expected {
+			t.Errorf("role %s: got action_type %q, want %q", roleID, actionType, expected)
+		}
+	}
+}
+
+// TestImpFirstNightAutoComplete verifies that the imp (no_action on first night)
+// gets an automatic night.action.completed event.
+func TestImpFirstNightAutoComplete(t *testing.T) {
+	state := NewState("room1")
+	for i := 1; i <= 7; i++ {
+		uid := fmt.Sprintf("p%d", i)
+		state.Players[uid] = Player{UserID: uid, SeatNumber: i, Alive: true}
+	}
+	state.OwnerID = "p1"
+	state.Phase = PhaseLobby
+
+	cmd := types.CommandEnvelope{
+		CommandID:   uuid.NewString(),
+		RoomID:      "room1",
+		Type:        "start_game",
+		ActorUserID: "p1",
+	}
+	events, _, err := HandleCommand(state, cmd)
+	if err != nil {
+		t.Fatalf("start_game failed: %v", err)
+	}
+
+	impQueued := false
+	impCompleted := false
+	for _, e := range events {
+		var payload map[string]string
+		_ = json.Unmarshal(e.Payload, &payload)
+		if e.EventType == "night.action.queued" && payload["role_id"] == "imp" {
+			impQueued = true
+			if payload["action_type"] != "no_action" {
+				t.Errorf("imp first night action_type = %q, want no_action", payload["action_type"])
+			}
+		}
+		if e.EventType == "night.action.completed" && payload["role_id"] == "imp" {
+			impCompleted = true
+		}
+	}
+	if !impQueued {
+		t.Error("imp night.action.queued event not found")
+	}
+	if !impCompleted {
+		t.Error("imp night.action.completed auto-event not found for no_action")
+	}
+}
+
+// TestReduceNightActionActionType verifies that Reduce correctly parses
+// action_type from night.action.queued events.
+func TestReduceNightActionActionType(t *testing.T) {
+	s := NewState("room1")
+	s.Reduce(EventPayload{
+		Seq:   1,
+		Type:  "night.action.queued",
+		Actor: "system",
+		Payload: map[string]string{
+			"user_id":     "p1",
+			"role_id":     "fortuneteller",
+			"order":       "1",
+			"action_type": "select_two",
+		},
+	})
+
+	if len(s.NightActions) != 1 {
+		t.Fatalf("expected 1 night action, got %d", len(s.NightActions))
+	}
+	if s.NightActions[0].ActionType != "select_two" {
+		t.Errorf("action_type = %q, want select_two", s.NightActions[0].ActionType)
+	}
+}
+
 // toEventPayload converts a types.Event to an EventPayload for state reduction.
 func toEventPayload(e types.Event) EventPayload {
 	var payload map[string]string
@@ -209,5 +327,47 @@ func toEventPayload(e types.Event) EventPayload {
 		Type:    e.EventType,
 		Actor:   e.ActorUserID,
 		Payload: payload,
+	}
+}
+
+func TestStartGameWithCustomRoles(t *testing.T) {
+	state := NewState("room1")
+	for i := 0; i < 7; i++ {
+		uid := fmt.Sprintf("user-%d", i)
+		state.Players[uid] = Player{UserID: uid, SeatNumber: i + 1, Alive: true}
+	}
+	state.OwnerID = "user-0"
+	state.Phase = PhaseLobby
+
+	// Create start_game command with custom_roles
+	customRoles := []string{"imp", "scarletwoman", "washerwoman", "empath", "chef", "butler", "saint"}
+	rolesJSON, _ := json.Marshal(customRoles)
+	payload, _ := json.Marshal(map[string]string{"custom_roles": string(rolesJSON)})
+
+	cmd := types.CommandEnvelope{
+		CommandID:   "start-1",
+		RoomID:      "room1",
+		Type:        "start_game",
+		ActorUserID: "user-0",
+		Payload:     payload,
+	}
+	events, _, err := HandleCommand(state, cmd)
+	if err != nil {
+		t.Fatalf("start_game with custom_roles failed: %v", err)
+	}
+
+	// Verify assigned roles match custom_roles
+	assignedRoles := make(map[string]bool)
+	for _, e := range events {
+		if e.EventType == "role.assigned" {
+			var p map[string]string
+			_ = json.Unmarshal(e.Payload, &p)
+			assignedRoles[p["role"]] = true
+		}
+	}
+	for _, roleID := range customRoles {
+		if !assignedRoles[roleID] {
+			t.Errorf("custom role %s not found in assignments", roleID)
+		}
 	}
 }

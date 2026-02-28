@@ -76,6 +76,10 @@ func HandleCommand(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		return handleRequestAction(state, cmd)
 	case "set_timer":
 		return handleSetTimer(state, cmd)
+	case "extend_time":
+		return handleExtendTime(state, cmd)
+	case "night_timeout":
+		return handleNightTimeout(state, cmd)
 	default:
 		return nil, nil, fmt.Errorf("unknown command type: %s", cmd.Type)
 	}
@@ -176,9 +180,19 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 		return nil, nil, fmt.Errorf("too many players, max 15, have %d", playerCount)
 	}
 
+	// Parse optional custom_roles from payload (injected by AI Composer)
+	var payload map[string]string
+	_ = json.Unmarshal(cmd.Payload, &payload)
+	var customRoles []string
+	if cr, ok := payload["custom_roles"]; ok && cr != "" {
+		_ = json.Unmarshal([]byte(cr), &customRoles)
+	}
+
 	// Use SetupAgent to assign roles
 	setupConfig := game.SetupConfig{
 		PlayerCount: playerCount,
+		Edition:     state.Edition,
+		CustomRoles: customRoles,
 	}
 	setupAgent := game.NewSetupAgent(setupConfig)
 	result, err := setupAgent.GenerateAssignments(userIDs, seatOrder)
@@ -241,11 +255,24 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 
 	// Queue first night actions
 	for _, action := range result.NightOrder {
+		actionType := ""
+		if r := game.GetRoleByID(action.RoleID); r != nil {
+			actionType = string(r.FirstNightActionType)
+		}
 		events = append(events, newEvent(cmd, "night.action.queued", map[string]string{
-			"user_id": action.UserID,
-			"role_id": action.RoleID,
-			"order":   fmt.Sprintf("%d", action.Order),
+			"user_id":     action.UserID,
+			"role_id":     action.RoleID,
+			"order":       fmt.Sprintf("%d", action.Order),
+			"action_type": actionType,
 		}))
+		// no_action roles (e.g. Imp first night): auto-complete immediately
+		if actionType == string(game.ActionNoAction) {
+			events = append(events, newEvent(cmd, "night.action.completed", map[string]string{
+				"user_id": action.UserID,
+				"role_id": action.RoleID,
+				"result":  "首夜无行动",
+			}))
+		}
 	}
 
 	// Transition to first night
@@ -701,7 +728,7 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 	switch targetPhase {
 	case "day":
 		// Auto-complete any remaining night actions as timed_out
-		timeoutEvents := CompleteRemainingNightActions(state, cmd)
+		timeoutEvents, _ := CompleteRemainingNightActions(state, cmd)
 		events = append(events, timeoutEvents...)
 
 		// Announce deaths from night
@@ -740,10 +767,15 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 		allRoles := game.GetAllRoles()
 		nightActions := game.GenerateNightOrder(allRoles, assignments, false)
 		for _, action := range nightActions {
+			actionType := ""
+			if r := game.GetRoleByID(action.RoleID); r != nil {
+				actionType = string(r.NightActionType)
+			}
 			events = append(events, newEvent(cmd, "night.action.queued", map[string]string{
-				"user_id": action.UserID,
-				"role_id": action.RoleID,
-				"order":   fmt.Sprintf("%d", action.Order),
+				"user_id":     action.UserID,
+				"role_id":     action.RoleID,
+				"order":       fmt.Sprintf("%d", action.Order),
+				"action_type": actionType,
 			}))
 		}
 

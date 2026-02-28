@@ -12,14 +12,25 @@ import (
 )
 
 // CompleteRemainingNightActions emits night.action.completed events for
-// all incomplete night actions with result="timed_out".
-func CompleteRemainingNightActions(state State, cmd types.CommandEnvelope) []types.Event {
+// incomplete night actions. Uses ActionType to differentiate:
+//   - info / good-side select: auto-complete with timed_out
+//   - evil-side select (imp/poisoner): skip (do not force-complete)
+//
+// Returns (events, hasEvilPending) where hasEvilPending indicates if
+// evil critical actions remain unresolved.
+func CompleteRemainingNightActions(state State, cmd types.CommandEnvelope) ([]types.Event, bool) {
 	var events []types.Event
+	hasEvilPending := false
+	emptyTargets, _ := json.Marshal([]string{})
+
 	for _, a := range state.NightActions {
 		if a.Completed {
 			continue
 		}
-		emptyTargets, _ := json.Marshal([]string{})
+		if isEvilCriticalAction(a) {
+			hasEvilPending = true
+			continue
+		}
 		events = append(events, newEvent(cmd, "night.action.completed", map[string]string{
 			"user_id": a.UserID,
 			"role_id": a.RoleID,
@@ -27,5 +38,14 @@ func CompleteRemainingNightActions(state State, cmd types.CommandEnvelope) []typ
 			"result":  "timed_out",
 		}))
 	}
-	return events
+	return events, hasEvilPending
+}
+
+// isEvilCriticalAction returns true if the action belongs to an evil
+// role with a select-type ability (imp kill, poisoner poison).
+func isEvilCriticalAction(a NightAction) bool {
+	if a.ActionType == "info" || a.ActionType == "no_action" || a.ActionType == "" {
+		return false
+	}
+	return a.RoleID == "imp" || a.RoleID == "poisoner"
 }

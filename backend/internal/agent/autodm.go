@@ -359,7 +359,7 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 
 	// Parse payload
 	var payload map[string]interface{}
-	if err := json.Unmarshal(ev.Payload, &payload); err == nil {
+	if err := json.Unmarshal(ev.Payload, &payload); err == nil && payload != nil {
 		event.Data = payload
 	}
 

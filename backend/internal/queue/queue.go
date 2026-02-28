@@ -190,6 +190,13 @@ func (q *Queue) processMessages(ctx context.Context, msgs <-chan amqp.Delivery) 
 }
 
 func (q *Queue) processMessage(ctx context.Context, msg amqp.Delivery) {
+	defer func() {
+		if r := recover(); r != nil {
+			q.logger.Error("panic in processMessage", "recover", r)
+			msg.Nack(false, false)
+		}
+	}()
+
 	var task Task
 	if err := json.Unmarshal(msg.Body, &task); err != nil {
 		q.logger.Error("Failed to unmarshal task", "error", err)

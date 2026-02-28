@@ -71,11 +71,11 @@
 
       <button
         class="button townsfolk lobby-screen__start-btn"
-        :class="{ disabled: !canStart }"
+        :class="{ disabled: !canStart || starting }"
         @click="startGame"
       >
-        <font-awesome-icon icon="dice" />
-        {{ $t('lobby.startGame') }}
+        <font-awesome-icon :icon="starting ? 'spinner' : 'dice'" :spin="starting" />
+        {{ starting ? $t('lobby.startingGame') : $t('lobby.startGame') }}
       </button>
       <p class="lobby-screen__min-players" v-if="!canStart">
         {{ $t('lobby.minPlayers') }}
@@ -113,7 +113,8 @@ export default {
     return {
       spectatorCount: 0,
       copyLabel: this.$t('lobby.copyLink'),
-      copyTimer: null
+      copyTimer: null,
+      starting: false
     };
   },
   computed: {
@@ -176,7 +177,8 @@ export default {
       });
     },
     startGame() {
-      if (!this.canStart) return;
+      if (!this.canStart || this.starting) return;
+      this.starting = true;
       this.$store.dispatch("startGame");
     },
     onEditionChange(ed) {
@@ -231,7 +233,6 @@ export default {
   &__room-info {
     text-align: center;
   }
-
   &__room-code {
     margin-bottom: 8px;
   }
@@ -240,7 +241,6 @@ export default {
     font-size: 0.8rem;
     opacity: 0.5;
   }
-
   &__room-value {
     font-family: monospace;
     font-size: 1.4rem;
@@ -274,7 +274,6 @@ export default {
   &__status {
     text-align: center;
   }
-
   &__hint {
     font-size: 0.85rem;
     opacity: 0.6;
@@ -290,7 +289,6 @@ export default {
     font-size: 0.75rem;
     opacity: 0.4;
   }
-
   &__config {
     display: flex;
     flex-direction: column;
@@ -312,7 +310,6 @@ export default {
     align-items: center;
     gap: 8px;
   }
-
   &__counter {
     display: flex;
     align-items: center;
@@ -354,7 +351,6 @@ export default {
     min-width: 30px;
     text-align: center;
   }
-
   &__team-preview {
     text-align: center;
   }
@@ -364,7 +360,6 @@ export default {
     opacity: 0.7;
     margin: 4px 0 0;
   }
-
   &__start-btn {
     width: 100%;
     max-width: 280px;
@@ -382,7 +377,6 @@ export default {
     text-align: center;
     margin: 0;
   }
-
   &__bottom-actions {
     display: flex;
     flex-direction: column;
@@ -398,7 +392,6 @@ export default {
     font-size: 0.85rem;
   }
 }
-
 @keyframes lobby-pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 0.3; }

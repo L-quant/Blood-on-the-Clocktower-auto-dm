@@ -20,7 +20,7 @@
 - `ChatView.vue` → 多频道聊天 (公共/密语/邪恶/AI 助手)
 - `TimelineView.vue` → 事件时间线 (含过滤按钮)
 - `MeView.vue` → 个人角色展示：能力、鬼牌、笔记
-- `NightOverlay.vue` → 夜晚行动界面：唤醒→选择目标→等待→结果
+- `NightOverlay.vue` → 夜晚行动界面：按 actionType 分流 (select→选人, info/passive→自动提交, no_action→确认跳过)
 - `VoteOverlay.vue` → 投票界面：提名信息、进度条、投票按钮
 - `PhaseTransition.vue` → 全屏阶段切换动画通知
 - `TopBar.vue` → 顶部栏：连接状态、阶段信息、房间码、设置

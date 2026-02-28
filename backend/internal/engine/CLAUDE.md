@@ -7,8 +7,13 @@
 - `engine.go` → 命令处理器总入口，路由所有命令到具体 handler (advance_phase 支持 DM 兜底权限)
 - `state.go` → 游戏状态结构体定义、Reduce 事件归约、胜负检查、OwnerID 迁移 (player.left)
 - `vote_resolve.go` → 统一投票结算入口 (resolveVoteAndCheckWin)，含每日一次处决守卫 (ExecutedToday)，handleVote/handleCloseVote 共用
-- `night_timeout.go` → 夜晚超时自动补全未完成行动 (CompleteRemainingNightActions)
-- `engine_test.go` → 命令处理与基本游戏流程测试
+- `engine_extend.go` → extend_time 命令：白天讨论延长时间 (最多 MaxExtensions 次)
+- `engine_night_timeout.go` → night_timeout 命令：差异化夜晚超时 (善良方自动完成，邪恶方发 action.reminder)
+- `night_timeout.go` → 夜晚超时自动补全：按 ActionType 区分，info/good 自动 timed_out，evil critical (imp/poisoner) 跳过
+- `engine_test.go` → 命令处理、游戏流程、action_type 验证测试
+- `engine_extend_test.go` → extend_time 命令测试 (正常/超限/错误阶段/Reduce)
+- `engine_night_timeout_test.go` → night_timeout 命令测试 (全完成→天亮/邪恶待定→提醒/错误阶段)
+- `night_timeout_test.go` → 夜晚超时补全与 isEvilCriticalAction 测试
 - `vote_resolve_test.go` → 投票结算、事件一致性、autodm 权限、阈值、OwnerID 迁移、DM 权限、每日一次处决测试
 - `scarlet_woman_test.go` → 恶魔继承 (Starpass) 与 Scarlet Woman 优先级测试
 - `win_check_test.go` → 胜负条件测试 (恶魔死亡、人数不足、Saint、Mayor 等)
@@ -24,7 +29,7 @@
 - `(*State) CheckWinCondition() (ended bool, winner, reason string)` → 检查游戏结束条件
 - `MarshalState(s State) (string, error)` → 序列化状态为 JSON
 - `UnmarshalState(raw string) (State, error)` → 从 JSON 反序列化状态
-- `CompleteRemainingNightActions(state State, cmd types.CommandEnvelope) []types.Event` → 为未完成夜晚行动生成 timed_out 事件
+- `CompleteRemainingNightActions(state State, cmd types.CommandEnvelope) ([]types.Event, bool)` → 按 ActionType 补全未完成夜晚行动，返回 (事件, 是否有邪恶关键行动未完成)
 
 ## 依赖
 - `internal/game` → 角色定义、夜晚行动解析 (NightAgent)、游戏初始化

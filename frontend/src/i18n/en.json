@@ -28,6 +28,7 @@
     "you": "You",
     "owner": "Host",
     "minPlayers": "Minimum 5 players required",
+    "startingGame": "AI is composing roles...",
     "confirmLeave": "Are you sure you want to leave?"
   },
   "game": {
@@ -49,7 +50,9 @@
     "gameOver": "Game Over",
     "backToLobby": "Back to Lobby",
     "newGame": "New Game",
-    "advanceToNight": "Enter Night"
+    "advanceToNight": "Enter Night",
+    "extendTime": "Extend Discussion",
+    "extensionsRemaining": "{count} remaining"
   },
   "square": {
     "title": "Square",
@@ -115,11 +118,13 @@
     "selectTarget": "Select your target",
     "selectTwoTargets": "Select two targets",
     "passive": "Your ability triggers automatically",
+    "noAction": "No action needed tonight",
     "waiting": "Waiting for other players...",
     "result": "Result",
     "confirm": "Confirm",
     "skip": "Skip",
-    "progress": "{current} of {total}"
+    "progress": "{current} of {total}",
+    "timedOut": "Your night action has timed out"
   },
   "vote": {
     "nomination": "Nomination",
@@ -181,7 +186,9 @@
     "minion": "Minion",
     "demon": "Demon",
     "traveler": "Traveler",
-    "fabled": "Fabled"
+    "fabled": "Fabled",
+    "good": "Good",
+    "evil": "Evil"
   },
   "nav": {
     "square": "Square",
@@ -194,6 +201,52 @@
     "failedToJoinRoom": "Failed to join room",
     "noResponse": "No response",
     "assistantUnavailable": "Assistant unavailable"
+  },
+  "roles": {
+    "washerwoman": "Washerwoman",
+    "washerwoman_ability": "You start knowing that 1 of 2 players is a particular Townsfolk.",
+    "librarian": "Librarian",
+    "librarian_ability": "You start knowing that 1 of 2 players is a particular Outsider. (Or that zero are in play.)",
+    "investigator": "Investigator",
+    "investigator_ability": "You start knowing that 1 of 2 players is a particular Minion.",
+    "chef": "Chef",
+    "chef_ability": "You start knowing how many pairs of evil players there are.",
+    "empath": "Empath",
+    "empath_ability": "Each night, you learn how many of your 2 alive neighbours are evil.",
+    "fortuneteller": "Fortune Teller",
+    "fortuneteller_ability": "Each night, choose 2 players: you learn if either is a Demon. There is a good player that registers as a Demon to you.",
+    "undertaker": "Undertaker",
+    "undertaker_ability": "Each night*, you learn which character died by execution today.",
+    "monk": "Monk",
+    "monk_ability": "Each night*, choose a player (not yourself): they are safe from the Demon tonight.",
+    "ravenkeeper": "Ravenkeeper",
+    "ravenkeeper_ability": "If you die at night, you are woken to choose a player: you learn their character.",
+    "virgin": "Virgin",
+    "virgin_ability": "The 1st time you are nominated, if the nominator is a Townsfolk, they are executed immediately.",
+    "slayer": "Slayer",
+    "slayer_ability": "Once per game, during the day, publicly choose a player: if they are the Demon, they die.",
+    "soldier": "Soldier",
+    "soldier_ability": "You are safe from the Demon.",
+    "mayor": "Mayor",
+    "mayor_ability": "If only 3 players live & no execution occurs, your team wins. If you die at night, another player might die instead.",
+    "butler": "Butler",
+    "butler_ability": "Each night, choose a player (not yourself): tomorrow, you may only vote if they are voting too.",
+    "drunk": "Drunk",
+    "drunk_ability": "You do not know you are the Drunk. You think you are a Townsfolk character, but you are not.",
+    "recluse": "Recluse",
+    "recluse_ability": "You might register as evil & as a Minion or Demon, even if dead.",
+    "saint": "Saint",
+    "saint_ability": "If you die by execution, your team loses.",
+    "poisoner": "Poisoner",
+    "poisoner_ability": "Each night, choose a player: they are poisoned tonight and tomorrow day.",
+    "spy": "Spy",
+    "spy_ability": "Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.",
+    "scarletwoman": "Scarlet Woman",
+    "scarletwoman_ability": "If there are 5 or more players alive & the Demon dies, you become the Demon.",
+    "baron": "Baron",
+    "baron_ability": "There are extra Outsiders in play. [+2 Outsiders]",
+    "imp": "Imp",
+    "imp_ability": "Each night*, choose a player: they die. If you kill yourself this way, a Minion becomes the Imp."
   },
   "toast": {
     "firstNight": "The First Night begins...",
@@ -210,6 +263,7 @@
     "connected": "Connected to room",
     "roleAssigned": "Your role has been assigned!",
     "seatClaimed": "You have been seated",
-    "copied": "Copied to clipboard"
+    "copied": "Copied to clipboard",
+    "timeExtended": "Discussion time extended!"
   }
 }

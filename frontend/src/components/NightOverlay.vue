@@ -15,12 +15,13 @@
         </div>
         <h2 class="night-overlay__wake-title">{{ $t('night.wakeUp') }}</h2>
         <p class="night-overlay__role-name">{{ localizedRoleName }}</p>
-        <p class="night-overlay__ability">{{ abilityText }}</p>
+        <p class="night-overlay__ability" v-if="actionType !== 'no_action'">{{ abilityText }}</p>
+        <p class="night-overlay__ability" v-else>{{ $t('night.noAction') }}</p>
         <button
           class="button townsfolk night-overlay__continue"
           @click="goToSelecting"
         >
-          {{ actionType === 'passive' || actionType === 'info' ? $t('night.confirm') : $t('night.selectTarget') }}
+          {{ isAutoAction ? $t('night.confirm') : $t('night.selectTarget') }}
         </button>
       </div>
 
@@ -94,6 +95,9 @@ export default {
       "result", "progress"
     ]),
     ...mapGetters("night", ["isActive", "canSubmit"]),
+    isAutoAction() {
+      return this.actionType === 'passive' || this.actionType === 'info' || this.actionType === 'no_action';
+    },
     localizedRoleName() {
       if (!this.roleId) return this.roleName || '';
       const key = 'roles.' + this.roleId;
@@ -110,7 +114,9 @@ export default {
   },
   methods: {
     goToSelecting() {
-      if (this.actionType === 'passive' || this.actionType === 'info') {
+      if (this.actionType === 'no_action') {
+        this.dismiss();
+      } else if (this.actionType === 'passive' || this.actionType === 'info') {
         this.submitAction();
       } else {
         this.$store.commit("night/setStep", "selecting");

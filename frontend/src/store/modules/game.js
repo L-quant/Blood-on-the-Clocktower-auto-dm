@@ -10,13 +10,18 @@ const state = () => ({
   winReason: '',
   alivePlayers: 0,
   deadPlayers: 0,
-  phaseDeadline: 0 // unix ms, 0 = no deadline
+  phaseDeadline: 0, // unix ms, 0 = no deadline
+  extensionsUsed: 0,
+  maxExtensions: 3
 });
 
 const mutations = {
   setPhase(state, phase) {
     state.phase = phase;
     state.phaseDeadline = 0;
+    if (phase === 'day') {
+      state.extensionsUsed = 0;
+    }
   },
   setPhaseDeadline(state, deadline) {
     state.phaseDeadline = deadline;
@@ -40,6 +45,12 @@ const mutations = {
     state.alivePlayers = alive;
     state.deadPlayers = dead;
   },
+  setExtensionsUsed(state, count) {
+    state.extensionsUsed = count;
+  },
+  setMaxExtensions(state, count) {
+    state.maxExtensions = count;
+  },
   reset(state) {
     state.phase = 'lobby';
     state.dayCount = 0;
@@ -48,6 +59,8 @@ const mutations = {
     state.alivePlayers = 0;
     state.deadPlayers = 0;
     state.phaseDeadline = 0;
+    state.extensionsUsed = 0;
+    state.maxExtensions = 3;
   }
 };
 

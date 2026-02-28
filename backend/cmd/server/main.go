@@ -160,7 +160,16 @@ func main() {
 			zap.String("base_url", cfg.AutoDMLLMBaseURL))
 	}
 
-	roomMgr := room.NewRoomManager(ctx, st, logger, metrics, cfg.SnapshotInterval, autoDM)
+	composer := agent.NewComposer(agent.LLMRoutingConfig{
+		Default: agent.LLMClientConfig{
+			BaseURL:    cfg.AutoDMLLMBaseURL,
+			APIKey:     cfg.AutoDMLLMAPIKey,
+			Model:      cfg.AutoDMLLMModel,
+			Timeout:    cfg.AutoDMLLMTimeout,
+			HTTPSProxy: cfg.HTTPSProxy,
+		},
+	})
+	roomMgr := room.NewRoomManager(ctx, st, logger, metrics, cfg.SnapshotInterval, autoDM, composer)
 	defer roomMgr.Close()
 	if autoDM.Enabled() {
 		autoDM.SetDispatcher(roomMgr, nil)

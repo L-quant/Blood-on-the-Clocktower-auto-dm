@@ -1,0 +1,3 @@
+[  265488ms] [WARNING] [vue-i18n] Value of key 'teams.good' is not a string or function ! @ webpack-internal:///./node_modules/vue-i18n/dist/vue-i18n.esm.js:60
+[  265488ms] [WARNING] [vue-i18n] Value of key 'teams.good' is not a string or function ! @ webpack-internal:///./node_modules/vue-i18n/dist/vue-i18n.esm.js:60
+[  265488ms] [WARNING] [vue-i18n] Cannot translate the value of keypath 'teams.good'. Use the value of keypath as default. @ webpack-internal:///./node_modules/vue-i18n/dist/vue-i18n.esm.js:60

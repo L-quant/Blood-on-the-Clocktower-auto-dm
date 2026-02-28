@@ -1,20 +1,49 @@
 #!/usr/bin/env bash
-# Hook: PreToolUse (Write) — 检查文件体积是否超标
+# Hook: PreToolUse (Write|Edit) — 检查文件体积是否超标
 # Go ≤ 500 行, Vue ≤ 400 行, JS ≤ 300 行
 # engine.go 特殊：禁止新增函数
 
 set -euo pipefail
 
 INPUT=$(cat)
+TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty')
 FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.file_path // empty')
-CONTENT=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.content // empty')
 
-if [ -z "$FILE_PATH" ] || [ -z "$CONTENT" ]; then
+if [ -z "$FILE_PATH" ]; then
+  exit 0
+fi
+
+EXT="${FILE_PATH##*.}"
+
+# Determine effective content after tool applies
+if [ "$TOOL_NAME" = "Write" ]; then
+  CONTENT=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.content // empty')
+  if [ -z "$CONTENT" ]; then
+    exit 0
+  fi
+elif [ "$TOOL_NAME" = "Edit" ]; then
+  if [ ! -f "$FILE_PATH" ]; then
+    exit 0
+  fi
+  OLD_STR=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.old_string // empty')
+  NEW_STR=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.new_string // empty')
+  if [ -z "$OLD_STR" ]; then
+    exit 0
+  fi
+  # Simulate edit: replace old_string with new_string in file
+  CONTENT=$(python3 -c "
+import sys, json
+with open(sys.argv[1], 'r') as f:
+    content = f.read()
+old = sys.argv[2]
+new = sys.argv[3]
+print(content.replace(old, new, 1))
+" "$FILE_PATH" "$OLD_STR" "$NEW_STR" 2>/dev/null || cat "$FILE_PATH")
+else
   exit 0
 fi
 
 LINE_COUNT=$(printf '%s\n' "$CONTENT" | wc -l | tr -d ' ')
-EXT="${FILE_PATH##*.}"
 
 case "$EXT" in
   go)

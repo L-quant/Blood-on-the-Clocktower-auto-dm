@@ -47,7 +47,7 @@ func makeEvent(eventType string) store.StoredEvent {
 }
 
 func TestScheduleTimeouts_NominationResolved(t *testing.T) {
-	cfg := engine.GameConfig{NominationTimeoutSec: 1}
+	cfg := engine.GameConfig{NominationPhaseDurationSec: 1}
 	ra, dispatched, mu := newTestScheduleActor(cfg, 5)
 
 	ra.scheduleTimeouts([]store.StoredEvent{makeEvent("nomination.resolved")}, cfg)
@@ -72,7 +72,7 @@ func TestScheduleTimeouts_NominationResolved(t *testing.T) {
 }
 
 func TestScheduleTimeouts_NominationResolved_ThenGameEnded(t *testing.T) {
-	cfg := engine.GameConfig{NominationTimeoutSec: 1}
+	cfg := engine.GameConfig{NominationPhaseDurationSec: 1}
 	ra, dispatched, mu := newTestScheduleActor(cfg, 5)
 
 	events := []store.StoredEvent{
@@ -91,14 +91,14 @@ func TestScheduleTimeouts_NominationResolved_ThenGameEnded(t *testing.T) {
 
 func TestScheduleTimeouts_FullCycle(t *testing.T) {
 	cfg := engine.GameConfig{
-		DiscussionDurationSec: 1,
-		DefenseDurationSec:    1,
-		VotingDurationSec:     1,
-		NominationTimeoutSec:  1,
+		DiscussionDurationSec:      1,
+		DefenseDurationSec:         1,
+		VotingDurationSec:          1,
+		NominationPhaseDurationSec: 1,
 	}
 	ra, dispatched, mu := newTestScheduleActor(cfg, 3)
 
-	// Step 1: phase.day → schedules advance_phase(night)
+	// Step 1: phase.day → schedules advance_phase(nomination)
 	ra.scheduleTimeouts([]store.StoredEvent{makeEvent("phase.day")}, cfg)
 	time.Sleep(1200 * time.Millisecond)
 

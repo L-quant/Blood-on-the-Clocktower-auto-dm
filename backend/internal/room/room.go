@@ -23,6 +23,7 @@ import (
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/engine"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/game"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/projection"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/store"
@@ -59,10 +60,11 @@ type RoomActor struct {
 	subs       map[string]*Subscriber
 	snapshot   int64
 	autoDM     *agent.AutoDM
+	composer   game.Composer
 	phaseTimer *PhaseTimer
 }
 
-func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, onCrash func(roomID string)) (*RoomActor, error) {
+func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, composer game.Composer, onCrash func(roomID string)) (*RoomActor, error) {
 	if loopCtx == nil {
 		loopCtx = context.Background()
 	}
@@ -80,6 +82,7 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 		subs:     make(map[string]*Subscriber),
 		snapshot: snapshotInterval,
 		autoDM:   autoDM,
+		composer: composer,
 	}
 	// PhaseTimer dispatches timeout commands through the actor's serial loop.
 	ra.phaseTimer = NewPhaseTimer(roomID, func(cmd types.CommandEnvelope) {
@@ -107,7 +110,7 @@ func (ra *RoomActor) recoverTimeoutFromState() {
 	switch state.Phase {
 	case engine.PhaseFirstNight, engine.PhaseNight:
 		dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
-		ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "day"})
+		ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 	case engine.PhaseDay:
 		switch state.SubPhase {
 		case engine.SubPhaseDefense:
@@ -117,16 +120,14 @@ func (ra *RoomActor) recoverTimeoutFromState() {
 			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(state.Players))
 			ra.phaseTimer.Schedule(dur, "close_vote", nil)
 		case engine.SubPhaseNominationOpen:
-			// [P2] 提名窗口应走 NominationTimeoutSec，不是 DiscussionDurationSec
-			dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+			dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 		default:
 			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
-			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 		}
 	case engine.PhaseNomination:
-		// [P3] PhaseNomination 状态恢复：走 NominationTimeoutSec → 夜晚
-		dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+		dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 		ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 	}
 	ra.logger.Info("recovered phase timer from state",
@@ -234,6 +235,11 @@ func (ra *RoomActor) handleCommand(ctx context.Context, cmd types.CommandEnvelop
 		_ = json.Unmarshal([]byte(dedup.ResultJSON), &result)
 		return &result, nil
 	}
+	// Intercept start_game to inject AI-composed roles
+	if cmd.Type == "start_game" {
+		cmd = ra.enrichStartGame(ctx, cmd)
+	}
+
 	currentState := ra.GetState()
 
 	events, result, err := engine.HandleCommand(currentState, cmd)
@@ -340,11 +346,11 @@ func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.Gam
 		switch e.EventType {
 		case "phase.first_night", "phase.night":
 			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
-			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "day"})
+			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 
 		case "phase.day":
 			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
-			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 
 		case "nomination.created":
 			dur := time.Duration(cfg.DefenseDurationSec) * time.Second
@@ -355,8 +361,16 @@ func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.Gam
 			ra.phaseTimer.Schedule(dur, "close_vote", nil)
 
 		case "nomination.resolved":
-			dur := time.Duration(cfg.NominationTimeoutSec) * time.Second
+			dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
+
+		case "time.extended":
+			dur := time.Duration(cfg.ExtensionDurationSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
+
+		case "action.reminder":
+			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
+			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 
 		case "game.ended":
 			ra.phaseTimer.Cancel()
@@ -415,9 +429,10 @@ type RoomManager struct {
 	metrics  *observability.Metrics
 	snapshot int64
 	autoDM   *agent.AutoDM
+	composer game.Composer
 }
 
-func NewRoomManager(ctx context.Context, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM) *RoomManager {
+func NewRoomManager(ctx context.Context, st *store.Store, logger *zap.Logger, metrics *observability.Metrics, snapshotInterval int64, autoDM *agent.AutoDM, composer game.Composer) *RoomManager {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -431,6 +446,7 @@ func NewRoomManager(ctx context.Context, st *store.Store, logger *zap.Logger, me
 		metrics:  metrics,
 		snapshot: snapshotInterval,
 		autoDM:   autoDM,
+		composer: composer,
 	}
 }
 
@@ -444,7 +460,7 @@ func (m *RoomManager) GetOrCreate(ctx context.Context, roomID string) (*RoomActo
 	if ra, ok := m.actors[roomID]; ok {
 		return ra, nil
 	}
-	ra, err := NewRoomActor(ctx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.handleActorCrash)
+	ra, err := NewRoomActor(ctx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.composer, m.handleActorCrash)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +472,7 @@ func (m *RoomManager) handleActorCrash(roomID string) {
 	reloadCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ra, err := NewRoomActor(reloadCtx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.handleActorCrash)
+	ra, err := NewRoomActor(reloadCtx, m.ctx, roomID, m.store, m.logger, m.metrics, m.snapshot, m.autoDM, m.composer, m.handleActorCrash)
 	if err != nil {
 		m.logger.Error("failed to restart room actor", zap.String("room_id", roomID), zap.Error(err))
 		return

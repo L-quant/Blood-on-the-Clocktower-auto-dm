@@ -17,9 +17,23 @@
     <!-- Alive/dead counter -->
     <AliveCounter />
 
-    <!-- Phase action: advance to night (room owner, day phase, no active vote) -->
-    <div class="square-view__phase-action" v-if="canAdvanceToNight">
-      <button class="square-view__advance-btn" @click="advanceToNight">
+    <!-- Phase action: extend discussion / advance to night -->
+    <div class="square-view__phase-action" v-if="canExtendTime || canAdvanceToNight">
+      <button
+        v-if="canExtendTime"
+        class="square-view__extend-btn"
+        @click="extendTime"
+      >
+        {{ $t('game.extendTime') }}
+        <span class="square-view__extend-count">
+          {{ $t('game.extensionsRemaining', { count: extensionsRemaining }) }}
+        </span>
+      </button>
+      <button
+        v-if="canAdvanceToNight"
+        class="square-view__advance-btn"
+        @click="advanceToNight"
+      >
         {{ $t('game.advanceToNight') }}
       </button>
     </div>
@@ -39,8 +53,14 @@ export default {
   name: "SquareView",
   components: { PlayerCircle, AliveCounter, PlayerActionSheet },
   computed: {
-    ...mapState("game", ["phase"]),
+    ...mapState("game", ["phase", "extensionsUsed", "maxExtensions"]),
     ...mapState("vote", { voteSubPhase: "subPhase" }),
+    extensionsRemaining() {
+      return this.maxExtensions - this.extensionsUsed;
+    },
+    canExtendTime() {
+      return this.phase === 'day' && this.extensionsRemaining > 0;
+    },
     canAdvanceToNight() {
       const isDay = this.phase === 'day' || this.phase === 'nomination';
       const noActiveVote = this.voteSubPhase === 'none' || this.voteSubPhase === 'resolved';
@@ -64,6 +84,9 @@ export default {
         this.$store.commit("chat/setActiveWhisperTarget", player.seatIndex);
         this.$store.commit("ui/setActiveTab", "chat");
       }
+    },
+    extendTime() {
+      this.$store.commit("sendCommand", { type: "extend_time", payload: {} });
     },
     advanceToNight() {
       this.$store.dispatch("advancePhase", "night");
@@ -92,6 +115,29 @@ export default {
   &__phase-action {
     text-align: center;
     padding: 8px 16px;
+  }
+
+  &__extend-btn {
+    padding: 8px 20px;
+    border: 2px solid $townsfolk;
+    border-radius: 8px;
+    background: rgba($townsfolk, 0.1);
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 200ms;
+    margin-right: 8px;
+
+    &:active {
+      background: rgba($townsfolk, 0.25);
+      transform: scale(0.95);
+    }
+  }
+
+  &__extend-count {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-left: 4px;
   }
 
   &__advance-btn {

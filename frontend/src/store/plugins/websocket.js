@@ -19,6 +19,7 @@
  */
 
 import apiService from "../../services/ApiService";
+import i18n from "../../i18n";
 
 const WS_URL = process.env.VUE_APP_WS_URL || 'ws://localhost:8080/ws';
 
@@ -279,11 +280,13 @@ class WebSocketManager {
         const roleId = eventData.role || '';
         // Look up role metadata from roles.json for display name & ability
         const roleData = store.getters.rolesByKey.get(roleId);
+        const localName = i18n.te('roles.' + roleId) ? i18n.t('roles.' + roleId) : (roleData ? roleData.name : roleId);
+        const localAbility = i18n.te('roles.' + roleId + '_ability') ? i18n.t('roles.' + roleId + '_ability') : (roleData ? roleData.ability : '');
         store.commit('players/setMyRole', {
           roleId: roleId,
-          roleName: roleData ? roleData.name : roleId,
+          roleName: localName,
           team: eventData.team || '',
-          ability: roleData ? roleData.ability : ''
+          ability: localAbility
         });
         break;
       }
@@ -428,43 +431,25 @@ class WebSocketManager {
         // Already handled by nomination.resolved + player.died
         break;
 
+      case 'time.extended': {
+        const deadline = parseInt(eventData.deadline, 10) || 0;
+        const remaining = parseInt(eventData.extensions_remaining, 10) || 0;
+        store.commit('game/setPhaseDeadline', deadline);
+        store.commit('game/setExtensionsUsed', store.state.game.maxExtensions - remaining);
+        break;
+      }
+
       // ── Night actions ──
       case 'night.action.queued':
         // Check if this is my action
         if (eventData.user_id === apiService.userId) {
           const nightRoleId = eventData.role_id || '';
           const nightRoleData = store.getters.rolesByKey.get(nightRoleId);
-          const roleName = nightRoleData ? nightRoleData.name : nightRoleId;
-          const abilityText = nightRoleData ? nightRoleData.ability : '';
+          const roleName = i18n.te('roles.' + nightRoleId) ? i18n.t('roles.' + nightRoleId) : (nightRoleData ? nightRoleData.name : nightRoleId);
+          const abilityText = i18n.te('roles.' + nightRoleId + '_ability') ? i18n.t('roles.' + nightRoleId + '_ability') : (nightRoleData ? nightRoleData.ability : '');
 
-          // Determine action type from role data
-          let actionType = 'passive';
-          if (nightRoleData) {
-            // Roles that select targets at night
-            const selectOneRoles = [
-              'poisoner', 'monk', 'fortuneteller', 'imp', 'spy',
-              'washerwoman', 'librarian', 'investigator', 'empath',
-              'undertaker', 'ravenkeeper', 'innkeeper', 'gambler',
-              'exorcist', 'courtier', 'gossip', 'chambermaid',
-              'dreamer', 'snakecharmer', 'flowergirl', 'seamstress',
-              'mathematician', 'juggler', 'sage', 'oracle',
-              'pukka', 'shabaloth', 'po', 'fanggu',
-              'vigormortis', 'nodashii', 'vortox',
-              'zombuul', 'witch', 'cerenovus', 'pithag',
-              'assassin', 'godfather', 'devilsadvocate',
-              'lycanthrope', 'lunatic', 'grandmother',
-              'bountyhunter', 'pixie', 'choirboy', 'nightwatchman',
-              'balloonist'
-            ];
-            const selectTwoRoles = ['fortuneteller'];
-            if (selectTwoRoles.includes(nightRoleId)) {
-              actionType = 'select_two';
-            } else if (selectOneRoles.includes(nightRoleId)) {
-              actionType = 'select_one';
-            } else {
-              actionType = 'passive';
-            }
-          }
+          // Use action_type from backend event payload
+          const actionType = eventData.action_type || 'passive';
 
           store.commit('night/openPanel', {
             roleId: nightRoleId,
@@ -473,18 +458,24 @@ class WebSocketManager {
             actionType: actionType
           });
 
-          // Populate available targets (all other players)
-          const allPlayers = store.state.players.players;
-          const targets = allPlayers
-            .filter(p => !p.isMe && p.isAlive)
-            .map(p => ({ seatIndex: p.seatIndex, id: p.id }));
-          store.commit('night/setTargets', targets);
+          // select_one / select_two: populate target list for selection UI
+          // info: NightOverlay shows "能力自动触发", user confirms → submitAction
+          // no_action: NightOverlay shows "本夜无需行动", user confirms → dismiss
+          if (actionType === 'select_one' || actionType === 'select_two') {
+            const allPlayers = store.state.players.players;
+            const targets = allPlayers
+              .filter(p => !p.isMe && p.isAlive)
+              .map(p => ({ seatIndex: p.seatIndex, id: p.id }));
+            store.commit('night/setTargets', targets);
+          }
         }
         break;
 
       case 'night.action.completed':
         if (eventData.user_id === apiService.userId) {
-          store.commit('night/setResult', eventData.result || '');
+          const rawResult = eventData.result || '';
+          const localResult = rawResult === 'timed_out' ? i18n.t('night.timedOut') : rawResult;
+          store.commit('night/setResult', localResult);
         }
         break;
 

@@ -28,6 +28,7 @@
     "you": "你",
     "owner": "房主",
     "minPlayers": "至少需要 5 名玩家",
+    "startingGame": "AI 正在配置角色...",
     "confirmLeave": "确定要离开房间吗？"
   },
   "game": {
@@ -49,7 +50,9 @@
     "gameOver": "游戏结束",
     "backToLobby": "返回大厅",
     "newGame": "新游戏",
-    "advanceToNight": "进入夜晚"
+    "advanceToNight": "进入夜晚",
+    "extendTime": "延长讨论",
+    "extensionsRemaining": "剩余 {count} 次"
   },
   "square": {
     "title": "广场",
@@ -115,11 +118,13 @@
     "selectTarget": "选择你的目标",
     "selectTwoTargets": "选择两个目标",
     "passive": "你的能力自动触发",
+    "noAction": "本夜无需行动",
     "waiting": "等待其他玩家...",
     "result": "结果",
     "confirm": "确认",
     "skip": "跳过",
-    "progress": "第 {current}/{total} 位"
+    "progress": "第 {current}/{total} 位",
+    "timedOut": "你的夜晚行动已超时"
   },
   "vote": {
     "nomination": "提名",
@@ -181,7 +186,9 @@
     "minion": "爪牙",
     "demon": "恶魔",
     "traveler": "旅行者",
-    "fabled": "传说"
+    "fabled": "传说",
+    "good": "善良阵营",
+    "evil": "邪恶阵营"
   },
   "nav": {
     "square": "广场",
@@ -197,27 +204,49 @@
   },
   "roles": {
     "washerwoman": "洗衣妇",
+    "washerwoman_ability": "你在首个夜晚会得知2名玩家中有1名是特定的村民。",
     "librarian": "图书管理员",
+    "librarian_ability": "你在首个夜晚会得知2名玩家中有1名是特定的外来者，或得知场上没有外来者。",
     "investigator": "调查员",
+    "investigator_ability": "你在首个夜晚会得知2名玩家中有1名是特定的爪牙。",
     "chef": "厨师",
+    "chef_ability": "你在首个夜晚会得知场上有多少对相邻的邪恶玩家。",
     "empath": "共情者",
+    "empath_ability": "每个夜晚，你会得知你两侧存活的邻居中有多少名是邪恶的。",
     "fortuneteller": "占卜师",
+    "fortuneteller_ability": "每个夜晚，选择2名玩家：你会得知他们中是否有恶魔。有一名善良玩家会被你探测为恶魔。",
     "undertaker": "送葬者",
+    "undertaker_ability": "每个夜晚*，你会得知今天被处决的玩家的角色。",
     "monk": "僧侣",
+    "monk_ability": "每个夜晚*，选择一名玩家（非自己）：他们今晚免受恶魔伤害。",
     "ravenkeeper": "渡鸦守护者",
+    "ravenkeeper_ability": "如果你在夜晚死亡，你会被唤醒并选择一名玩家：你会得知他们的角色。",
     "virgin": "贞洁者",
+    "virgin_ability": "你第一次被提名时，如果提名者是村民，他们会被立即处决。",
     "slayer": "杀手",
+    "slayer_ability": "游戏中一次，在白天，公开选择一名玩家：如果他们是恶魔，他们死亡。",
     "soldier": "士兵",
+    "soldier_ability": "你免受恶魔的伤害。",
     "mayor": "市长",
+    "mayor_ability": "如果只剩3名玩家存活且没有处决发生，你的阵营获胜。如果你在夜晚死亡，另一名玩家可能代替你死亡。",
     "butler": "管家",
+    "butler_ability": "每个夜晚，选择一名玩家（非自己）：明天，只有当他们投票时你才能投票。",
     "drunk": "酒鬼",
+    "drunk_ability": "你不知道自己是酒鬼。你认为自己是一名村民角色，但你不是。",
     "recluse": "隐士",
+    "recluse_ability": "你可能被探测为邪恶阵营、爪牙或恶魔，即使你已经死亡。",
     "saint": "圣徒",
+    "saint_ability": "如果你被处决致死，你的阵营失败。",
     "poisoner": "下毒者",
+    "poisoner_ability": "每个夜晚，选择一名玩家：他们今晚和明天白天中毒。",
     "spy": "间谍",
+    "spy_ability": "每个夜晚，你可以查看魔典。你可能被探测为善良阵营、村民或外来者，即使你已经死亡。",
     "scarletwoman": "猩红女郎",
+    "scarletwoman_ability": "如果场上有5名或更多玩家存活且恶魔死亡，你将成为恶魔。",
     "baron": "男爵",
+    "baron_ability": "场上有额外的外来者。[+2 外来者]",
     "imp": "小恶魔",
+    "imp_ability": "每个夜晚*，选择一名玩家：他们死亡。如果你用这种方式杀死自己，一名爪牙将成为小恶魔。",
     "bureaucrat": "官僚",
     "thief": "小偷",
     "gunslinger": "枪手",
@@ -342,6 +371,7 @@
     "connected": "已连接到房间",
     "roleAssigned": "你的角色已分配！",
     "seatClaimed": "你已入座",
-    "copied": "已复制到剪贴板"
+    "copied": "已复制到剪贴板",
+    "timeExtended": "讨论时间已延长！"
   }
 }

@@ -71,12 +71,13 @@ type Nomination struct {
 }
 
 type NightAction struct {
-	UserID    string   `json:"user_id"`
-	RoleID    string   `json:"role_id"`
-	Order     int      `json:"order"`
-	Completed bool     `json:"completed"`
-	TargetIDs []string `json:"target_ids,omitempty"`
-	Result    string   `json:"result,omitempty"`
+	UserID     string   `json:"user_id"`
+	RoleID     string   `json:"role_id"`
+	Order      int      `json:"order"`
+	ActionType string   `json:"action_type,omitempty"`
+	Completed  bool     `json:"completed"`
+	TargetIDs  []string `json:"target_ids,omitempty"`
+	Result     string   `json:"result,omitempty"`
 }
 
 type PendingDeath struct {
@@ -112,6 +113,7 @@ type State struct {
 	LastSeq         int64             `json:"last_seq"`
 	PhaseStartedAt  int64             `json:"phase_started_at"`
 	PhaseEndsAt     int64             `json:"phase_ends_at"`
+	ExtensionsUsed  int               `json:"extensions_used"`
 	Config          GameConfig        `json:"config"`
 	AIDecisionLog   []AIDecisionEntry `json:"ai_decision_log"`
 }
@@ -134,7 +136,10 @@ type GameConfig struct {
 	NominationTimeoutSec  int `json:"nomination_timeout_sec"`
 	DefenseDurationSec    int `json:"defense_duration_sec"`
 	VotingDurationSec     int `json:"voting_duration_sec"`
-	NightActionTimeoutSec int `json:"night_action_timeout_sec"`
+	NightActionTimeoutSec    int `json:"night_action_timeout_sec"`
+	ExtensionDurationSec     int `json:"extension_duration_sec"`
+	MaxExtensions            int `json:"max_extensions"`
+	NominationPhaseDurationSec int `json:"nomination_phase_duration_sec"`
 }
 
 func DefaultGameConfig() GameConfig {
@@ -143,7 +148,10 @@ func DefaultGameConfig() GameConfig {
 		NominationTimeoutSec:  10,
 		DefenseDurationSec:    60,
 		VotingDurationSec:     3,
-		NightActionTimeoutSec: 30,
+		NightActionTimeoutSec:    30,
+		ExtensionDurationSec:     60,
+		MaxExtensions:            3,
+		NominationPhaseDurationSec: 120,
 	}
 }
 
@@ -363,6 +371,7 @@ func (s *State) Reduce(event EventPayload) {
 		s.Nomination = nil
 		s.NominationQueue = []Nomination{}
 		s.ExecutedToday = ""
+		s.ExtensionsUsed = 0
 
 	case "phase.nomination":
 		s.Phase = PhaseNomination
@@ -485,8 +494,9 @@ func (s *State) Reduce(event EventPayload) {
 
 	case "night.action.queued":
 		action := NightAction{
-			UserID: event.Payload["user_id"],
-			RoleID: event.Payload["role_id"],
+			UserID:     event.Payload["user_id"],
+			RoleID:     event.Payload["role_id"],
+			ActionType: event.Payload["action_type"],
 		}
 		if orderStr, ok := event.Payload["order"]; ok {
 			if parsed, err := json.Number(orderStr).Int64(); err == nil {
@@ -591,6 +601,14 @@ func (s *State) Reduce(event EventPayload) {
 		if deadlineStr, ok := event.Payload["deadline"]; ok {
 			if deadline, err := json.Number(deadlineStr).Int64(); err == nil {
 				s.PhaseEndsAt = deadline * 1000 // convert unix seconds to millis
+			}
+		}
+
+	case "time.extended":
+		s.ExtensionsUsed++
+		if deadlineStr, ok := event.Payload["deadline"]; ok {
+			if deadline, err := json.Number(deadlineStr).Int64(); err == nil {
+				s.PhaseEndsAt = deadline
 			}
 		}
 

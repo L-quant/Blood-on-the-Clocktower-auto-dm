@@ -28,6 +28,7 @@ type Script struct {
 // SetupConfig holds configuration for game setup.
 type SetupConfig struct {
 	Script      *Script
+	Edition     string   // Edition ID (tb, bmr, snv)
 	PlayerCount int
 	CustomRoles []string // Override automatic role selection
 	BaronActive bool     // Add +2 outsiders
@@ -86,58 +87,34 @@ func (sa *SetupAgent) GenerateAssignments(userIDs []string, seatOrder []int) (*S
 		return nil, fmt.Errorf("no distribution for %d players", playerCount)
 	}
 
-	// Adjust for Baron
-	outsiderCount := dist.Outsiders
-	townsfolkCount := dist.Townsfolk
-
-	// Check if Baron is in the script and will be assigned
+	var err error
 	baronInPlay := false
-	if sa.config.BaronActive {
-		baronInPlay = true
-		outsiderCount += 2
-		townsfolkCount -= 2
-		if townsfolkCount < 0 {
-			townsfolkCount = 0
-		}
-	}
 
-	// Get available roles by type
+	// Get available roles by type (needed for bluffs even with CustomRoles)
 	availableTownsfolk := GetRolesByType(RoleTownsfolk)
 	availableOutsiders := GetRolesByType(RoleOutsider)
-	availableMinions := GetRolesByType(RoleMinion)
-	availableDemons := GetRolesByType(RoleDemon)
 
-	// Select roles
-	selectedRoles := make([]Role, 0, playerCount)
+	var selectedRoles []Role
 
-	// Select demon(s)
-	demons, err := selectRandomRoles(availableDemons, dist.Demons)
-	if err != nil {
-		return nil, fmt.Errorf("selecting demons: %w", err)
+	if len(sa.config.CustomRoles) > 0 {
+		// Use AI-provided custom roles
+		selectedRoles, err = resolveCustomRoles(sa.config.CustomRoles, playerCount)
+		if err != nil {
+			return nil, fmt.Errorf("setup.GenerateAssignments: %w", err)
+		}
+		for _, r := range selectedRoles {
+			if r.ID == "baron" {
+				baronInPlay = true
+				break
+			}
+		}
+	} else {
+		// Random role selection
+		selectedRoles, baronInPlay, err = selectRolesRandomly(dist, playerCount)
+		if err != nil {
+			return nil, fmt.Errorf("setup.GenerateAssignments: %w", err)
+		}
 	}
-	selectedRoles = append(selectedRoles, demons...)
-
-	// Select minions
-	minions, err := selectRandomRoles(availableMinions, dist.Minions)
-	if err != nil {
-		return nil, fmt.Errorf("selecting minions: %w", err)
-	}
-	selectedRoles = append(selectedRoles, minions...)
-
-	// Select outsiders
-	outsiders, err := selectRandomRoles(availableOutsiders, outsiderCount)
-	if err != nil {
-		return nil, fmt.Errorf("selecting outsiders: %w", err)
-	}
-	selectedRoles = append(selectedRoles, outsiders...)
-
-	// Select townsfolk (fill remaining slots)
-	remainingSlots := playerCount - len(selectedRoles)
-	townsfolk, err := selectRandomRoles(availableTownsfolk, remainingSlots)
-	if err != nil {
-		return nil, fmt.Errorf("selecting townsfolk: %w", err)
-	}
-	selectedRoles = append(selectedRoles, townsfolk...)
 
 	// Shuffle selected roles
 	shuffledRoles, err := shuffleRoles(selectedRoles)
@@ -365,6 +342,69 @@ func GenerateNightOrder(roles []Role, assignments map[string]Assignment, firstNi
 		})
 	}
 	return actions
+}
+
+// resolveCustomRoles converts role ID strings to Role objects and validates count.
+func resolveCustomRoles(roleIDs []string, playerCount int) ([]Role, error) {
+	if len(roleIDs) != playerCount {
+		return nil, fmt.Errorf("custom roles count %d != player count %d", len(roleIDs), playerCount)
+	}
+	roles := make([]Role, 0, playerCount)
+	for _, id := range roleIDs {
+		role := GetRoleByID(id)
+		if role == nil {
+			return nil, fmt.Errorf("unknown role ID: %s", id)
+		}
+		roles = append(roles, *role)
+	}
+	return roles, nil
+}
+
+// selectRolesRandomly picks roles randomly according to distribution with Baron auto-detection.
+func selectRolesRandomly(dist *PlayerDistribution, playerCount int) ([]Role, bool, error) {
+	availableDemons := GetRolesByType(RoleDemon)
+	availableMinions := GetRolesByType(RoleMinion)
+	availableOutsiders := GetRolesByType(RoleOutsider)
+	availableTownsfolk := GetRolesByType(RoleTownsfolk)
+
+	selected := make([]Role, 0, playerCount)
+	baronInPlay := false
+
+	demons, err := selectRandomRoles(availableDemons, dist.Demons)
+	if err != nil {
+		return nil, false, fmt.Errorf("selecting demons: %w", err)
+	}
+	selected = append(selected, demons...)
+
+	minions, err := selectRandomRoles(availableMinions, dist.Minions)
+	if err != nil {
+		return nil, false, fmt.Errorf("selecting minions: %w", err)
+	}
+	selected = append(selected, minions...)
+
+	outsiderCount := dist.Outsiders
+	for _, m := range minions {
+		if m.ID == "baron" {
+			baronInPlay = true
+			outsiderCount += 2
+			break
+		}
+	}
+
+	outsiders, err := selectRandomRoles(availableOutsiders, outsiderCount)
+	if err != nil {
+		return nil, false, fmt.Errorf("selecting outsiders: %w", err)
+	}
+	selected = append(selected, outsiders...)
+
+	remaining := playerCount - len(selected)
+	townsfolk, err := selectRandomRoles(availableTownsfolk, remaining)
+	if err != nil {
+		return nil, false, fmt.Errorf("selecting townsfolk: %w", err)
+	}
+	selected = append(selected, townsfolk...)
+
+	return selected, baronInPlay, nil
 }
 
 // describeNightAction returns a description of the night action.

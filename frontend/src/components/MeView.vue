@@ -19,7 +19,7 @@
       </div>
       <div class="me-view__ability">
         <span class="me-view__label">{{ $t('me.ability') }}</span>
-        <p class="me-view__ability-text">{{ myRole.ability }}</p>
+        <p class="me-view__ability-text">{{ abilityText }}</p>
       </div>
     </div>
 
@@ -36,7 +36,7 @@
           v-for="(bluff, i) in bluffs"
           :key="i"
           class="me-view__bluff"
-        >{{ bluff || '—' }}</span>
+        >{{ bluffName(bluff) }}</span>
       </div>
     </div>
 
@@ -81,6 +81,11 @@ export default {
       const key = 'roles.' + this.myRole.roleId;
       return this.$te(key) ? this.$t(key) : this.myRole.roleName;
     },
+    abilityText() {
+      if (!this.myRole || !this.myRole.roleId) return '';
+      const key = 'roles.' + this.myRole.roleId + '_ability';
+      return this.$te(key) ? this.$t(key) : this.myRole.ability;
+    },
     roleIcon() {
       if (!this.myRole || !this.myRole.roleId) return '';
       try {
@@ -104,6 +109,11 @@ export default {
       this.saveDebounce = setTimeout(() => {
         this.$store.commit("ui/setNotes", this.notesText);
       }, 500);
+    },
+    bluffName(bluff) {
+      if (!bluff) return '—';
+      const key = 'roles.' + bluff;
+      return this.$te(key) ? this.$t(key) : bluff;
     },
     openSettings() {
       this.$emit("open-settings");

@@ -133,7 +133,7 @@ export default {
       return this.targetPlayer ? this.targetPlayer.isAlive : true;
     },
     canNominate() {
-      if (this.phase !== 'day') return false;
+      if (this.phase !== 'day' && this.phase !== 'nomination') return false;
       if (!this.me) return false;
       if (!this.me.isAlive) return false;
       if (this.me.hasNominatedToday) return false;

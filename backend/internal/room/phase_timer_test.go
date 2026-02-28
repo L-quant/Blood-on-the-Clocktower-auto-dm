@@ -169,8 +169,8 @@ func TestRecoverTimeout_Night(t *testing.T) {
 	if len(*dispatched) != 1 {
 		t.Fatalf("expected 1 dispatch, got %d", len(*dispatched))
 	}
-	if (*dispatched)[0].Type != "advance_phase" {
-		t.Errorf("expected advance_phase, got %s", (*dispatched)[0].Type)
+	if (*dispatched)[0].Type != "night_timeout" {
+		t.Errorf("expected night_timeout, got %s", (*dispatched)[0].Type)
 	}
 }
 
@@ -268,12 +268,12 @@ func TestRecoverTimeout_Ended(t *testing.T) {
 	}
 }
 
-// [P2] nomination_open subphase should use NominationTimeoutSec, not DiscussionDurationSec.
+// [P2] nomination_open subphase should use NominationPhaseDurationSec.
 func TestRecoverTimeout_DayNominationOpen(t *testing.T) {
 	state := engine.NewState("test-room")
 	state.Phase = engine.PhaseDay
 	state.SubPhase = engine.SubPhaseNominationOpen
-	state.Config.NominationTimeoutSec = 1
+	state.Config.NominationPhaseDurationSec = 1
 	state.Config.DiscussionDurationSec = 10 // must NOT use this
 
 	ra, dispatched, mu := newTestRoomActor(state)
@@ -292,11 +292,11 @@ func TestRecoverTimeout_DayNominationOpen(t *testing.T) {
 	}
 }
 
-// [P3] PhaseNomination recovery path should schedule NominationTimeoutSec.
+// [P3] PhaseNomination recovery path should schedule NominationPhaseDurationSec.
 func TestRecoverTimeout_PhaseNomination(t *testing.T) {
 	state := engine.NewState("test-room")
 	state.Phase = engine.PhaseNomination
-	state.Config.NominationTimeoutSec = 1
+	state.Config.NominationPhaseDurationSec = 1
 
 	ra, dispatched, mu := newTestRoomActor(state)
 	ra.recoverTimeoutFromState()

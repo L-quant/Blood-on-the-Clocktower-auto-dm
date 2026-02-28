@@ -8,7 +8,7 @@
       <img
         class="home-screen__logo"
         src="/static/apple-icon.png"
-        alt="Blood on the Clocktower"
+        :alt="$t('app.title')"
       />
       <h1 class="home-screen__title">{{ $t('app.title') }}</h1>
       <p class="home-screen__subtitle">{{ $t('app.subtitle') }}</p>
