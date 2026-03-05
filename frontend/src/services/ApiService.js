@@ -12,7 +12,7 @@
  * This enables multi-player testing with multiple tabs.
  */
 
-const API_BASE = process.env.VUE_APP_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.VUE_APP_API_URL || 'http://localhost:8888';
 const TOKEN_KEY = 'botc_token';
 const USER_ID_KEY = 'botc_user_id';
 

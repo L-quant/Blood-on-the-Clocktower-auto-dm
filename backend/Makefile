@@ -66,6 +66,12 @@ dev: docker-up
 	@sleep 5
 	$(MAKE) run
 
+# Start backend with hot-reload (air watches .go file changes, auto rebuild+restart)
+dev-watch: docker-up
+	@echo "Waiting for MySQL to be ready..."
+	@sleep 5
+	air
+
 # Run with AutoDM enabled (requires GEMINI_API_KEY in .env or environment)
 run-autodm: build
 	@if [ -f .env ]; then \
@@ -126,6 +132,7 @@ help:
 	@echo "  run-env         Run with .env file loaded"
 	@echo "  run-autodm      Run with AutoDM enabled"
 	@echo "  dev             Start docker + run server (development)"
+	@echo "  dev-watch       Start docker + run server with hot-reload (air)"
 	@echo "  test            Run tests"
 	@echo "  test-coverage   Run tests with coverage report"
 	@echo "  lint            Run linter"

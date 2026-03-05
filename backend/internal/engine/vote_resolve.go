@@ -4,7 +4,8 @@
 // handleCloseVote（autodm 强制结算）提供唯一结算路径，保证：
 //   - 阈值计算一致：(aliveCount+1)/2
 //   - 事件字段一致：nomination.resolved(votes_for, votes_against, threshold)
-//   - 处决后用 state.Copy() 再做终局检查
+//   - "待处决"(on_the_block) 延迟处决：投票达标不立即处决，
+//     而是记录到 OnTheBlock，白天结束时统一处决得票最高者
 package engine
 
 import (
@@ -13,34 +14,19 @@ import (
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
 )
 
-// resolveVoteAndCheckWin tallies votes, resolves the nomination, and checks
-// for win conditions in one atomic step. Returns the resolution result string
-// ("executed" / "not_executed") and the combined events slice.
+// resolveVoteAndCheckWin tallies votes, resolves the nomination using on-the-block
+// rules, and returns the resolution result string and combined events slice.
+// Execution is deferred to handleAdvancePhase("night").
 func resolveVoteAndCheckWin(state State, cmd types.CommandEnvelope) (string, []types.Event) {
 	result, events := resolveNomination(state, cmd)
-
-	if result != "executed" {
-		return result, events
-	}
-
-	// Apply death to a copy before checking win condition,
-	// because the emitted player.died hasn't been reduced yet.
-	stateCopy := state.Copy()
-	nomineeID := state.Nomination.Nominee
-	if p, ok := stateCopy.Players[nomineeID]; ok {
-		p.Alive = false
-		stateCopy.Players[nomineeID] = p
-	}
-	stateCopy.ExecutedToday = nomineeID
-
-	winEvents := checkWinCondition(stateCopy, cmd)
-	events = append(events, winEvents...)
-
 	return result, events
 }
 
 // resolveNomination tallies the current nomination's votes and produces
-// nomination.resolved + execution events. It does NOT check win conditions.
+// nomination.resolved events. Uses "on_the_block" pattern:
+//   - votes >= threshold → "on_the_block" (replaces current if strictly more votes)
+//   - votes >= threshold but == current on-block votes → "tied" (clears block)
+//   - votes < threshold → "not_on_the_block"
 func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.Event) {
 	nom := state.Nomination
 
@@ -52,18 +38,9 @@ func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.
 	}
 
 	aliveCount := state.GetAliveCount()
-	// Official BotC rule: votes >= ceil(alive/2) i.e. >=50% rounded up.
-	// Go integer arithmetic: (n+1)/2 == ceil(n/2).
 	threshold := (aliveCount + 1) / 2
 
-	result := "not_executed"
-	if yesVotes >= threshold {
-		result = "executed"
-	}
-	// Official rule: only one execution per day
-	if result == "executed" && state.ExecutedToday != "" {
-		result = "not_executed"
-	}
+	result := determineBlockResult(yesVotes, threshold, state.OnTheBlock)
 
 	events := []types.Event{
 		newEvent(cmd, "nomination.resolved", map[string]string{
@@ -74,16 +51,22 @@ func resolveNomination(state State, cmd types.CommandEnvelope) (string, []types.
 		}),
 	}
 
-	if result == "executed" {
-		events = append(events, newEvent(cmd, "execution.resolved", map[string]string{
-			"result":   "executed",
-			"executed": nom.Nominee,
-		}))
-		events = append(events, newEvent(cmd, "player.died", map[string]string{
-			"user_id": nom.Nominee,
-			"cause":   "execution",
-		}))
-	}
-
 	return result, events
+}
+
+// determineBlockResult decides the nomination outcome per official BotC rules.
+func determineBlockResult(yesVotes, threshold int, current *OnTheBlockInfo) string {
+	if yesVotes < threshold {
+		return "not_on_the_block"
+	}
+	if current == nil {
+		return "on_the_block"
+	}
+	if yesVotes > current.VotesFor {
+		return "on_the_block"
+	}
+	if yesVotes == current.VotesFor {
+		return "tied"
+	}
+	return "not_on_the_block"
 }

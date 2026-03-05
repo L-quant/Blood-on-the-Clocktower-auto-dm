@@ -13,6 +13,7 @@
       <ChatView v-show="activeTab === 'chat'" />
       <TimelineView v-show="activeTab === 'timeline'" />
       <MeView v-show="activeTab === 'me'" @open-settings="$emit('open-settings')" />
+      <NightInfoLog v-show="activeTab === 'me'" />
     </template>
 
     <!-- Tablet/Desktop: multi-column layout -->
@@ -20,6 +21,7 @@
       <!-- Left sidebar (desktop only, via CSS) -->
       <div class="game-screen__sidebar">
         <MeView @open-settings="$emit('open-settings')" />
+        <NightInfoLog />
       </div>
 
       <!-- Center: Town Square -->
@@ -56,10 +58,11 @@ import SquareView from "./SquareView";
 import ChatView from "./ChatView";
 import TimelineView from "./TimelineView";
 import MeView from "./MeView";
+import NightInfoLog from "./NightInfoLog";
 
 export default {
   name: "GameScreen",
-  components: { SquareView, ChatView, TimelineView, MeView },
+  components: { SquareView, ChatView, TimelineView, MeView, NightInfoLog },
   data() {
     return {
       rightTab: 'chat'

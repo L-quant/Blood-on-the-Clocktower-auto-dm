@@ -28,7 +28,7 @@ type Script struct {
 // SetupConfig holds configuration for game setup.
 type SetupConfig struct {
 	Script      *Script
-	Edition     string   // Edition ID (tb, bmr, snv)
+	Edition     string // Edition ID (tb, bmr, snv)
 	PlayerCount int
 	CustomRoles []string // Override automatic role selection
 	BaronActive bool     // Add +2 outsiders
@@ -46,14 +46,15 @@ type SetupResult struct {
 
 // Assignment represents a player's assigned role.
 type Assignment struct {
-	UserID        string   `json:"user_id"`
-	SeatNumber    int      `json:"seat_number"`
-	Role          string   `json:"role"`
-	TrueRole      string   `json:"true_role"`      // For drunk: actual role
-	PerceivedRole string   `json:"perceived_role"` // For drunk: what they think
-	Team          Team     `json:"team"`
-	Teammates     []string `json:"teammates,omitempty"` // For evil team
-	DemonID       string   `json:"demon_id,omitempty"`  // For minions
+	UserID          string   `json:"user_id"`
+	SeatNumber      int      `json:"seat_number"`
+	Role            string   `json:"role"`
+	TrueRole        string   `json:"true_role"`      // For drunk: actual role
+	PerceivedRole   string   `json:"perceived_role"` // For drunk: what they think
+	Team            Team     `json:"team"`
+	Teammates       []string `json:"teammates,omitempty"`         // For evil team
+	DemonID         string   `json:"demon_id,omitempty"`          // For minions
+	SpyApparentRole string   `json:"spy_apparent_role,omitempty"` // 间谍的假身份
 }
 
 // NightAction represents a night wake action.
@@ -195,6 +196,9 @@ func (sa *SetupAgent) GenerateAssignments(userIDs []string, seatOrder []int) (*S
 
 	// Generate bluff roles (3 roles not in play for demon)
 	bluffRoles := generateBluffs(shuffledRoles, availableTownsfolk, availableOutsiders)
+
+	// Assign SpyApparentRole: pick a random not-in-play good role for spy
+	assignSpyApparentRole(shuffledRoles, assignments, availableTownsfolk, availableOutsiders)
 
 	// Generate first night order
 	nightOrder := GenerateNightOrder(shuffledRoles, assignments, true)
@@ -405,6 +409,40 @@ func selectRolesRandomly(dist *PlayerDistribution, playerCount int) ([]Role, boo
 	selected = append(selected, townsfolk...)
 
 	return selected, baronInPlay, nil
+}
+
+// assignSpyApparentRole picks a random not-in-play good role for spy.
+// If spy is present, assigns SpyApparentRole from out-of-play townsfolk/outsider roles.
+func assignSpyApparentRole(inPlay []Role, assignments map[string]Assignment, townsfolk, outsiders []Role) {
+	inPlayIDs := make(map[string]bool, len(inPlay))
+	for _, r := range inPlay {
+		inPlayIDs[r.ID] = true
+	}
+
+	var candidates []string
+	for _, r := range townsfolk {
+		if !inPlayIDs[r.ID] {
+			candidates = append(candidates, r.ID)
+		}
+	}
+	for _, r := range outsiders {
+		if !inPlayIDs[r.ID] {
+			candidates = append(candidates, r.ID)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return
+	}
+
+	for uid, a := range assignments {
+		if a.TrueRole == "spy" {
+			idx, _ := randInt(len(candidates))
+			a.SpyApparentRole = candidates[idx]
+			assignments[uid] = a
+			break
+		}
+	}
 }
 
 // describeNightAction returns a description of the night action.

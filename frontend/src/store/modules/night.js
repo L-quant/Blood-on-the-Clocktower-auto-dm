@@ -5,7 +5,7 @@
 
 const state = () => ({
   isMyTurn: false,
-  step: 'idle', // 'idle' | 'woken' | 'selecting' | 'waiting' | 'result' | 'done'
+  step: 'idle', // 'idle' | 'role_reveal' | 'team_reveal' | 'sleeping' | 'woken' | 'selecting' | 'waiting' | 'result' | 'done'
   roleId: '',
   roleName: '',
   abilityText: '',
@@ -13,6 +13,10 @@ const state = () => ({
   targets: [], // available targets
   selectedTargets: [],
   result: '',
+  pendingPrompt: null, // queued prompt data when not yet sleeping
+  nightInfoDetail: null, // { roleId, infoType, content, message } from night.info event
+  teamRecognition: null, // { team, demonId, minionIds, bluffs } from team.recognition event
+  nightInfoHistory: [], // accumulated night info records across all nights
   progress: {
     current: 0,
     total: 0
@@ -55,14 +59,76 @@ const mutations = {
     state.result = result;
     state.step = 'result';
   },
+  setNightInfoDetail(state, detail) {
+    state.nightInfoDetail = detail;
+  },
+  setTeamRecognition(state, data) {
+    state.teamRecognition = data;
+  },
+  showTeamReveal(state) {
+    if (state.teamRecognition) {
+      state.step = 'team_reveal';
+      state.isMyTurn = true;
+    }
+  },
+  pushNightInfo(state, entry) {
+    state.nightInfoHistory.push(entry);
+  },
+  clearNightInfoHistory(state) {
+    state.nightInfoHistory = [];
+  },
   setProgress(state, { current, total }) {
     state.progress.current = current;
     state.progress.total = total;
   },
   closePanel(state) {
     state.isMyTurn = false;
-    state.step = 'idle';
+    state.step = 'sleeping';
     state.selectedTargets = [];
+  },
+  showRoleReveal(state) {
+    console.log('[night/showRoleReveal] current step:', state.step);
+    if (state.step === 'idle') {
+      state.step = 'role_reveal';
+    }
+  },
+  /** Queue a night prompt; only wake if already sleeping */
+  queuePrompt(state, data) {
+    console.log('[night/queuePrompt] current step:', state.step, 'data:', data.roleId, data.actionType);
+    if (state.step === 'sleeping') {
+      console.log('[night/queuePrompt] already sleeping → waking immediately');
+      state.isMyTurn = true;
+      state.step = 'woken';
+      state.roleId = data.roleId || '';
+      state.roleName = data.roleName || '';
+      state.abilityText = data.abilityText || '';
+      state.actionType = data.actionType || 'passive';
+      state.targets = data.targets || [];
+      state.selectedTargets = [];
+      state.result = '';
+      state.pendingPrompt = null;
+    } else {
+      console.log('[night/queuePrompt] step is', state.step, '→ storing as pendingPrompt');
+      state.pendingPrompt = data;
+    }
+  },
+  /** Consume queued prompt when entering sleeping */
+  consumePendingPrompt(state) {
+    console.log('[night/consumePendingPrompt] pendingPrompt:', !!state.pendingPrompt, 'step:', state.step);
+    if (state.pendingPrompt && state.step === 'sleeping') {
+      const p = state.pendingPrompt;
+      state.pendingPrompt = null;
+      state.isMyTurn = true;
+      state.step = 'woken';
+      state.roleId = p.roleId || '';
+      state.roleName = p.roleName || '';
+      state.abilityText = p.abilityText || '';
+      state.actionType = p.actionType || 'passive';
+      state.targets = p.targets || [];
+      state.selectedTargets = [];
+      state.result = '';
+      console.log('[night/consumePendingPrompt] woke up as', p.roleId);
+    }
   },
   reset(state) {
     state.isMyTurn = false;
@@ -74,6 +140,10 @@ const mutations = {
     state.targets = [];
     state.selectedTargets = [];
     state.result = '';
+    state.pendingPrompt = null;
+    state.nightInfoDetail = null;
+    state.teamRecognition = null;
+    // nightInfoHistory 不在此清除，需跨夜保留；仅在游戏结束/重新开始时通过 clearNightInfoHistory 清除
     state.progress = { current: 0, total: 0 };
   }
 };
@@ -85,7 +155,11 @@ const getters = {
     if (state.actionType === 'select_two') return state.selectedTargets.length === 2;
     return false;
   },
-  isActive: state => state.step !== 'idle' && state.step !== 'done'
+  isActive: state => state.step !== 'idle' && state.step !== 'done',
+  isDemon: (state) => {
+    if (!state.teamRecognition) return false;
+    return state.teamRecognition.demonId !== '' && state.teamRecognition.bluffs && state.teamRecognition.bluffs.length > 0;
+  }
 };
 
 export default {

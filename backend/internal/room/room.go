@@ -47,21 +47,22 @@ type Subscriber struct {
 }
 
 type RoomActor struct {
-	RoomID     string
-	ctx        context.Context
-	onCrash    func(roomID string)
-	subsMu     sync.RWMutex
-	stateMu    sync.RWMutex
-	state      engine.State
-	store      *store.Store
-	logger     *zap.Logger
-	metrics    *observability.Metrics
-	cmdCh      chan CommandRequest
-	subs       map[string]*Subscriber
-	snapshot   int64
-	autoDM     *agent.AutoDM
-	composer   game.Composer
-	phaseTimer *PhaseTimer
+	RoomID      string
+	ctx         context.Context
+	onCrash     func(roomID string)
+	subsMu      sync.RWMutex
+	stateMu     sync.RWMutex
+	state       engine.State
+	store       *store.Store
+	logger      *zap.Logger
+	metrics     *observability.Metrics
+	cmdCh       chan CommandRequest
+	subs        map[string]*Subscriber
+	snapshot    int64
+	autoDM      *agent.AutoDM
+	composer    game.Composer
+	phaseTimer  *PhaseTimer
+	botNotifier BotEventNotifier
 }
 
 func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID string, deps RoomDeps, onCrash func(roomID string)) (*RoomActor, error) {
@@ -72,17 +73,18 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 		loadCtx = context.Background()
 	}
 	ra := &RoomActor{
-		RoomID:   roomID,
-		ctx:      loopCtx,
-		onCrash:  onCrash,
-		store:    deps.Store,
-		logger:   deps.Logger,
-		metrics:  deps.Metrics,
-		cmdCh:    make(chan CommandRequest, 256),
-		subs:     make(map[string]*Subscriber),
-		snapshot: deps.SnapshotInterval,
-		autoDM:   deps.AutoDM,
-		composer: deps.Composer,
+		RoomID:      roomID,
+		ctx:         loopCtx,
+		onCrash:     onCrash,
+		store:       deps.Store,
+		logger:      deps.Logger,
+		metrics:     deps.Metrics,
+		cmdCh:       make(chan CommandRequest, 256),
+		subs:        make(map[string]*Subscriber),
+		snapshot:    deps.SnapshotInterval,
+		autoDM:      deps.AutoDM,
+		composer:    deps.Composer,
+		botNotifier: deps.BotNotifier,
 	}
 	// PhaseTimer dispatches timeout commands through the actor's serial loop.
 	ra.phaseTimer = NewPhaseTimer(roomID, func(cmd types.CommandEnvelope) {
@@ -100,7 +102,7 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 
 // recoverTimeoutFromState re-schedules the appropriate phase timer
 // after loading persisted state (e.g., after server restart).
-// Uses full timeout duration (not elapsed-time delta) — better to wait extra than miss.
+// Skips scheduling when timeout durations are 0 (timeouts disabled).
 func (ra *RoomActor) recoverTimeoutFromState() {
 	state := ra.state
 	if state.Phase == "" || state.Phase == engine.PhaseLobby || state.Phase == engine.PhaseEnded {
@@ -109,24 +111,42 @@ func (ra *RoomActor) recoverTimeoutFromState() {
 	cfg := state.Config
 	switch state.Phase {
 	case engine.PhaseFirstNight, engine.PhaseNight:
+		if cfg.NightActionTimeoutSec <= 0 {
+			return
+		}
 		dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
 		ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 	case engine.PhaseDay:
 		switch state.SubPhase {
 		case engine.SubPhaseDefense:
+			if cfg.DefenseDurationSec <= 0 {
+				return
+			}
 			dur := time.Duration(cfg.DefenseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "end_defense", nil)
 		case engine.SubPhaseVoting:
+			if cfg.VotingDurationSec <= 0 {
+				return
+			}
 			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(state.Players))
 			ra.phaseTimer.Schedule(dur, "close_vote", nil)
 		case engine.SubPhaseNominationOpen:
+			if cfg.NominationPhaseDurationSec <= 0 {
+				return
+			}
 			dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 		default:
+			if cfg.DiscussionDurationSec <= 0 {
+				return
+			}
 			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 		}
 	case engine.PhaseNomination:
+		if cfg.NominationPhaseDurationSec <= 0 {
+			return
+		}
 		dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 		ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 	}
@@ -154,6 +174,10 @@ func (ra *RoomActor) loadState(ctx context.Context) error {
 	} else {
 		ra.state = engine.NewState(ra.RoomID)
 	}
+	// Always reset GameConfig to current defaults (old snapshots may
+	// contain non-zero timeout values from before timeouts were disabled).
+	ra.state.Config = engine.DefaultGameConfig()
+
 	afterSeq := ra.state.LastSeq
 	events, err := ra.store.LoadEventsAfter(ctx, ra.RoomID, afterSeq, 0)
 	if err != nil {
@@ -336,39 +360,66 @@ func (ra *RoomActor) broadcast(ctx context.Context, events []store.StoredEvent, 
 		if ra.autoDM != nil && ra.autoDM.Enabled() {
 			go ra.autoDM.OnEvent(ctx, ev, state)
 		}
+
+		// Notify bots to respond to game events
+		if ra.botNotifier != nil {
+			go ra.botNotifier.OnEvent(ctx, ra.RoomID, ev)
+		}
 	}
 }
 
 // scheduleTimeouts inspects emitted events and schedules phase timeouts.
 // Each new schedule cancels the previous timer automatically.
+// When duration is 0, no timer is scheduled (timeouts disabled).
 func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.GameConfig) {
 	for _, e := range events {
 		switch e.EventType {
 		case "phase.first_night", "phase.night":
+			if cfg.NightActionTimeoutSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 
 		case "phase.day":
+			if cfg.DiscussionDurationSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.DiscussionDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 
 		case "nomination.created":
+			if cfg.DefenseDurationSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.DefenseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "end_defense", nil)
 
 		case "defense.ended":
+			if cfg.VotingDurationSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.VotingDurationSec) * time.Second * time.Duration(len(ra.state.Players))
 			ra.phaseTimer.Schedule(dur, "close_vote", nil)
 
 		case "nomination.resolved":
+			if cfg.NominationPhaseDurationSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.NominationPhaseDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "night"})
 
 		case "time.extended":
+			if cfg.ExtensionDurationSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.ExtensionDurationSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 
 		case "action.reminder":
+			if cfg.NightActionTimeoutSec <= 0 {
+				continue
+			}
 			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
 			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
 
@@ -442,6 +493,14 @@ func NewRoomManager(ctx context.Context, deps RoomDeps) *RoomManager {
 
 func (m *RoomManager) Close() {
 	m.cancel()
+}
+
+// SetBotNotifier sets the bot event notifier after construction.
+// Must be called before any rooms are created.
+func (m *RoomManager) SetBotNotifier(notifier BotEventNotifier) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deps.BotNotifier = notifier
 }
 
 func (m *RoomManager) GetOrCreate(ctx context.Context, roomID string) (*RoomActor, error) {

@@ -120,11 +120,27 @@
     "passive": "Your ability triggers automatically",
     "noAction": "No action needed tonight",
     "waiting": "Waiting for other players...",
+    "yourRole": "Your Role",
+    "enterNight": "Enter Night",
+    "sleeping": "Night falls…",
+    "sleepingHint": "Close your eyes and wait to be woken",
     "result": "Result",
     "confirm": "Confirm",
     "skip": "Skip",
     "progress": "{current} of {total}",
     "timedOut": "Your night action has timed out"
+  },
+  "nightLog": {
+    "title": "Night Info Log"
+  },
+  "teamReveal": {
+    "title": "Evil Team",
+    "yourDemon": "Your Demon",
+    "yourMinions": "Your Minions",
+    "fellowMinions": "Fellow Minions",
+    "bluffs": "Bluff Roles",
+    "demonSummary": "Minions: {minions}; Bluffs: {bluffs}",
+    "minionSummary": "Demon: {demon}"
   },
   "vote": {
     "nomination": "Nomination",
@@ -136,8 +152,12 @@
     "voteNo": "No",
     "yourTurn": "Your turn to vote!",
     "waiting": "Waiting for votes...",
+    "waitingForVoter": "Waiting for Seat {n} to vote...",
     "executed": "Executed!",
     "safe": "Safe",
+    "onTheBlock": "On the Block!",
+    "tied": "Tied — No Execution",
+    "close": "Close",
     "history": "Vote History",
     "defensePhase": "Defense in progress...",
     "endDefense": "End Defense",

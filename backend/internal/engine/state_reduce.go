@@ -71,8 +71,16 @@ func (s *State) Reduce(event EventPayload) {
 		s.reduceNightActionQueued(event)
 	case "night.action.completed":
 		s.reduceNightActionCompleted(event)
+	case "night.action.prompt":
+		// No-op: prompt is a signal to the frontend, no state change needed
 	case "ability.resolved":
 		// Additional ability handling if needed
+	case "night.info":
+		s.reduceNightInfo(event)
+	case "team.recognition":
+		// No-op: informational event for frontend — no state mutation
+	case "poison.rollback":
+		s.reducePlayerUnpoison(event.Payload["user_id"])
 	case "demon.changed":
 		s.reduceDemonChanged(event)
 	case "public.chat", "whisper.sent", "evil_team.chat":
@@ -185,6 +193,9 @@ func (s *State) reduceRoleAssigned(event EventPayload) {
 		p.TrueRole = p.Role
 	}
 	p.Team = event.Payload["team"]
+	if sar, ok := event.Payload["spy_apparent_role"]; ok && sar != "" {
+		p.SpyApparentRole = sar
+	}
 	s.Players[userID] = p
 	if event.Payload["is_demon"] == "true" {
 		s.DemonID = userID
@@ -229,8 +240,38 @@ func (s *State) reducePhaseDay() {
 	s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.DiscussionDurationSec) * time.Second).UnixMilli()
 	s.Nomination = nil
 	s.NominationQueue = []Nomination{}
+	s.OnTheBlock = nil
 	s.ExecutedToday = ""
 	s.ExtensionsUsed = 0
+}
+
+// buildVoteOrder produces the sequential voting list (user_ids) starting
+// from the seat after nomineeSeat, clockwise, including only eligible voters.
+func (s *State) buildVoteOrder(nomineeSeat int) []string {
+	n := len(s.SeatOrder)
+	if n == 0 {
+		return []string{}
+	}
+	nomineeIdx := -1
+	for i, uid := range s.SeatOrder {
+		if s.Players[uid].SeatNumber == nomineeSeat {
+			nomineeIdx = i
+			break
+		}
+	}
+	if nomineeIdx < 0 {
+		return []string{}
+	}
+	order := make([]string, 0, n)
+	for offset := 1; offset <= n; offset++ {
+		idx := (nomineeIdx + offset) % n
+		uid := s.SeatOrder[idx]
+		p := s.Players[uid]
+		if p.Alive || p.HasGhostVote {
+			order = append(order, uid)
+		}
+	}
+	return order
 }
 
 func (s *State) reduceNominationCreated(event EventPayload) {
@@ -256,16 +297,24 @@ func (s *State) reduceNominationCreated(event EventPayload) {
 		NominatorSeat: nominator.SeatNumber,
 		NomineeSeat:   nominee.SeatNumber,
 		Votes:         make(map[string]bool),
-		VoteOrder:     []string{},
+		VoteOrder:     s.buildVoteOrder(nominee.SeatNumber),
 		Threshold:     threshold,
 		StartedAt:     now,
 		DefenseEndsAt: now + int64(s.Config.DefenseDurationSec*1000),
 	}
 	s.SubPhase = SubPhaseDefense
-	nominator.HasNominated = true
-	nominee.WasNominated = true
-	s.Players[nominatorID] = nominator
-	s.Players[nomineeID] = nominee
+	// FIX: Handle self-nomination — when nominator == nominee, both flags
+	// must be set on the same struct copy to avoid overwrite.
+	if nominatorID == nomineeID {
+		nominator.HasNominated = true
+		nominator.WasNominated = true
+		s.Players[nominatorID] = nominator
+	} else {
+		nominator.HasNominated = true
+		nominee.WasNominated = true
+		s.Players[nominatorID] = nominator
+		s.Players[nomineeID] = nominee
+	}
 }
 
 func (s *State) reduceDefenseEnded() {
@@ -283,12 +332,13 @@ func (s *State) reduceVoteCast(event EventPayload) {
 	}
 	vote := event.Payload["vote"] == "yes"
 	s.Nomination.Votes[event.Actor] = vote
-	s.Nomination.VoteOrder = append(s.Nomination.VoteOrder, event.Actor)
 	if vote {
 		s.Nomination.VotesFor++
 	} else {
 		s.Nomination.VotesAgainst++
 	}
+	// Advance sequential voter index
+	s.Nomination.CurrentVoterIdx++
 	if p, ok := s.Players[event.Actor]; ok && !p.Alive && vote {
 		p.HasGhostVote = false
 		s.Players[event.Actor] = p
@@ -300,10 +350,30 @@ func (s *State) reduceNominationResolved(event EventPayload) {
 		return
 	}
 	s.Nomination.Resolved = true
-	s.Nomination.Result = event.Payload["result"]
+	result := event.Payload["result"]
+	s.Nomination.Result = result
 	s.NominationQueue = append(s.NominationQueue, *s.Nomination)
 	s.SubPhase = SubPhaseNominationOpen
-	s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.NominationTimeoutSec) * time.Second).UnixMilli()
+	s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.NominationPhaseDurationSec) * time.Second).UnixMilli()
+
+	// On-the-block logic: track the nominee with the most votes
+	votesFor := 0
+	if vf, ok := event.Payload["votes_for"]; ok {
+		if parsed, err := json.Number(vf).Int64(); err == nil {
+			votesFor = int(parsed)
+		}
+	}
+	switch result {
+	case "on_the_block":
+		nominee := s.Players[s.Nomination.Nominee]
+		s.OnTheBlock = &OnTheBlockInfo{
+			UserID:     s.Nomination.Nominee,
+			VotesFor:   votesFor,
+			SeatNumber: nominee.SeatNumber,
+		}
+	case "tied":
+		s.OnTheBlock = nil // Tie clears the block — no execution
+	}
 }
 
 func (s *State) reduceExecutionResolved(event EventPayload) {
@@ -365,7 +435,14 @@ func (s *State) reduceNightActionCompleted(event EventPayload) {
 			break
 		}
 	}
-	s.CurrentAction++
+	// Recalculate CurrentAction: index of first uncompleted action
+	s.CurrentAction = len(s.NightActions)
+	for i, a := range s.NightActions {
+		if !a.Completed {
+			s.CurrentAction = i
+			break
+		}
+	}
 }
 
 func (s *State) reduceDemonChanged(event EventPayload) {
@@ -421,5 +498,33 @@ func (s *State) reduceReminderAdded(event EventPayload) {
 	if reminder, rOk := event.Payload["reminder"]; rOk {
 		p.Reminders = append(p.Reminders, reminder)
 		s.Players[uid] = p
+	}
+}
+
+func (s *State) reduceNightInfo(event EventPayload) {
+	uid, ok := event.Payload["user_id"]
+	if !ok {
+		return
+	}
+	p, pOk := s.Players[uid]
+	if !pOk {
+		return
+	}
+	if p.NightInfo == nil {
+		p.NightInfo = make(map[string]string)
+	}
+	p.NightInfo["info_type"] = event.Payload["info_type"]
+	p.NightInfo["content"] = event.Payload["content"]
+	p.NightInfo["message"] = event.Payload["message"]
+	if isFalse, ok := event.Payload["is_false"]; ok {
+		p.NightInfo["is_false"] = isFalse
+	}
+	s.Players[uid] = p
+}
+
+func (s *State) reducePlayerUnpoison(userID string) {
+	if p, ok := s.Players[userID]; ok {
+		p.IsPoisoned = false
+		s.Players[userID] = p
 	}
 }

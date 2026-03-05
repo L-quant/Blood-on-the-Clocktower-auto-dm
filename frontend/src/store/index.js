@@ -352,6 +352,7 @@ export default new Vuex.Store({
       commit('chat/reset');
       commit('timeline/clear');
       commit('night/reset');
+      commit('night/clearNightInfoHistory');
       commit('vote/reset');
       commit('ui/reset');
       commit('ui/setScreen', 'home');

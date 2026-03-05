@@ -5,13 +5,22 @@
 package room
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/agent"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/game"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/observability"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/store"
+	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
 )
+
+// BotEventNotifier allows the room to notify bots about events
+// without directly importing the bot package.
+type BotEventNotifier interface {
+	OnEvent(ctx context.Context, roomID string, ev types.Event)
+}
 
 // RoomDeps holds shared dependencies for creating RoomActors.
 type RoomDeps struct {
@@ -21,4 +30,5 @@ type RoomDeps struct {
 	SnapshotInterval int64
 	AutoDM           *agent.AutoDM
 	Composer         game.Composer
+	BotNotifier      BotEventNotifier
 }

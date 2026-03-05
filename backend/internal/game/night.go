@@ -63,17 +63,18 @@ type GameContext struct {
 
 // PlayerState represents a player's current state.
 type PlayerState struct {
-	UserID       string
-	SeatNumber   int
-	Role         string
-	TrueRole     string
-	Team         Team
-	IsAlive      bool
-	IsPoisoned   bool
-	IsDrunk      bool
-	IsProtected  bool
-	HasVoted     bool
-	HasGhostVote bool
+	UserID          string
+	SeatNumber      int
+	Role            string
+	TrueRole        string
+	Team            Team
+	IsAlive         bool
+	IsPoisoned      bool
+	IsDrunk         bool
+	IsProtected     bool
+	HasVoted        bool
+	HasGhostVote    bool
+	SpyApparentRole string // 间谍显示的假善良角色（Setup时分配）
 }
 
 // NightAgent handles night ability resolution.
@@ -769,10 +770,14 @@ func (na *NightAgent) resolveImp(req AbilityRequest, malfunctioning bool) (*Abil
 // === HELPER FUNCTIONS ===
 
 // registersAsEvil returns true if the player should register as evil for detection abilities.
-// This accounts for the Recluse ability (might register as evil).
+// 间谍在信息角色面前注册为善良（官方规则）；隐士可能注册为邪恶。
 func (na *NightAgent) registersAsEvil(userID string) bool {
 	p := na.ctx.Players[userID]
 	if p == nil {
+		return false
+	}
+	// 间谍：对信息角色注册为善良
+	if p.TrueRole == "spy" {
 		return false
 	}
 	if p.Team == TeamEvil {

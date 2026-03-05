@@ -9,23 +9,25 @@ const state = () => ({
   nominator: null, // { seatIndex }
   nominee: null, // { seatIndex }
   votes: [], // [{ seatIndex, vote: true/false }]
-  currentVoterIndex: -1,
+  voteOrder: [], // Sequential voting order (seat numbers, clockwise from nominee+1)
+  currentVoterSeatIndex: -1, // Seat number of who votes next
   requiredMajority: 0,
   currentYesCount: 0,
   myVote: null, // true | false | null
   isVotePending: false, // true while vote command is in-flight
-  result: null, // 'executed' | 'safe' | null
+  result: null, // 'on_the_block' | 'not_on_the_block' | 'tied' | null
   history: [] // past vote records
 });
 
 const mutations = {
-  startNomination(state, { nominatorSeat, nomineeSeat, requiredMajority }) {
+  startNomination(state, { nominatorSeat, nomineeSeat, requiredMajority, voteOrder }) {
     state.isActive = true;
     state.subPhase = 'defense';
     state.nominator = { seatIndex: nominatorSeat };
     state.nominee = { seatIndex: nomineeSeat };
     state.votes = [];
-    state.currentVoterIndex = -1;
+    state.voteOrder = voteOrder || [];
+    state.currentVoterSeatIndex = voteOrder && voteOrder.length > 0 ? voteOrder[0] : -1;
     state.requiredMajority = requiredMajority || 0;
     state.currentYesCount = 0;
     state.myVote = null;
@@ -43,6 +45,13 @@ const mutations = {
       state.votes.push({ seatIndex, vote });
     }
     state.currentYesCount = state.votes.filter(v => v.vote).length;
+    // Advance to next voter in sequence
+    const currentIdx = state.voteOrder.indexOf(seatIndex);
+    if (currentIdx >= 0 && currentIdx + 1 < state.voteOrder.length) {
+      state.currentVoterSeatIndex = state.voteOrder[currentIdx + 1];
+    } else {
+      state.currentVoterSeatIndex = -1; // All voted
+    }
   },
   setMyVote(state, vote) {
     state.myVote = vote;
@@ -50,8 +59,8 @@ const mutations = {
   setVotePending(state, val) {
     state.isVotePending = val;
   },
-  setCurrentVoter(state, index) {
-    state.currentVoterIndex = index;
+  setCurrentVoter(state, seatIndex) {
+    state.currentVoterSeatIndex = seatIndex;
   },
   setResult(state, result) {
     state.result = result;
@@ -72,7 +81,8 @@ const mutations = {
     state.nominator = null;
     state.nominee = null;
     state.votes = [];
-    state.currentVoterIndex = -1;
+    state.voteOrder = [];
+    state.currentVoterSeatIndex = -1;
     state.currentYesCount = 0;
     state.myVote = null;
     state.isVotePending = false;
@@ -84,7 +94,8 @@ const mutations = {
     state.nominator = null;
     state.nominee = null;
     state.votes = [];
-    state.currentVoterIndex = -1;
+    state.voteOrder = [];
+    state.currentVoterSeatIndex = -1;
     state.requiredMajority = 0;
     state.currentYesCount = 0;
     state.myVote = null;

@@ -224,6 +224,7 @@ func main() {
 	}
 
 	botMgr := bot.NewManager(observability.ZapToSlog(logger))
+	roomMgr.SetBotNotifier(botMgr)
 
 	wsServer := realtime.NewWSServer(jwtMgr, st, roomMgr, logger, metrics)
 	server := api.NewServer(st, jwtMgr, roomMgr, wsServer, logger,

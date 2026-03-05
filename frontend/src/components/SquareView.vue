@@ -69,14 +69,11 @@ export default {
   },
   methods: {
     onNodeClick(player) {
-      if (player.isMe) {
-        this.$store.commit("ui/setActiveTab", "me");
-      } else {
-        this.$store.commit("ui/openModal", {
-          modal: "playerAction",
-          data: { seatIndex: player.seatIndex }
-        });
-      }
+      // Open action sheet for any player (including self — allows self-nomination)
+      this.$store.commit("ui/openModal", {
+        modal: "playerAction",
+        data: { seatIndex: player.seatIndex }
+      });
     },
     onNodeLongPress(player) {
       if (!player.isMe) {

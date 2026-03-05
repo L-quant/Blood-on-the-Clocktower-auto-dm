@@ -57,3 +57,47 @@ func buildNoActionCompletions(cmd types.CommandEnvelope, nightOrder []game.Night
 	}
 	return events
 }
+
+// buildTeamRecognitionFromSetup 根据 SetupResult 生成首夜邪恶阵营互认事件。
+// 爪牙得知恶魔身份 + 其他爪牙，恶魔得知爪牙身份 + 伪装角色。
+func buildTeamRecognitionFromSetup(cmd types.CommandEnvelope, result *game.SetupResult) []types.Event {
+	var demonID string
+	var minionIDs []string
+
+	for uid, a := range result.Assignments {
+		if a.TrueRole == "imp" {
+			demonID = uid
+		}
+		r := game.GetRoleByID(a.TrueRole)
+		if r != nil && r.Type == game.RoleMinion {
+			minionIDs = append(minionIDs, uid)
+		}
+	}
+	if demonID == "" {
+		return nil
+	}
+
+	minionIDsJSON, _ := json.Marshal(minionIDs)
+	bluffsJSON, _ := json.Marshal(result.BluffRoles)
+
+	var events []types.Event
+	for _, mid := range minionIDs {
+		a := result.Assignments[mid]
+		events = append(events, newEvent(cmd, "team.recognition", map[string]string{
+			"user_id":    mid,
+			"team":       "evil",
+			"role":       a.TrueRole,
+			"demon_id":   demonID,
+			"minion_ids": string(minionIDsJSON),
+		}))
+	}
+	events = append(events, newEvent(cmd, "team.recognition", map[string]string{
+		"user_id":    demonID,
+		"team":       "evil",
+		"role":       "imp",
+		"demon_id":   demonID,
+		"minion_ids": string(minionIDsJSON),
+		"bluffs":     string(bluffsJSON),
+	}))
+	return events
+}

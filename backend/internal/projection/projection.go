@@ -36,6 +36,9 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 	switch event.EventType {
 	case "player.poisoned", "player.protected", "demon.changed":
 		return false
+	case "poison.rollback":
+		// Internal resolution event; never shown to players
+		return false
 	// FIX-6: Filter evil_team.chat so only evil players can see it
 	case "evil_team.chat":
 		player, ok := state.Players[viewer.UserID]
@@ -43,7 +46,23 @@ func allowed(event types.Event, state engine.State, viewer types.Viewer) bool {
 			return false
 		}
 		return player.Team == "evil"
-	case "night.action.queued", "night.action.completed":
+	case "night.info":
+		// Only the target player sees their own night info
+		var payload map[string]string
+		_ = json.Unmarshal(event.Payload, &payload)
+		return viewer.UserID == payload["user_id"]
+	case "team.recognition":
+		// Only the target evil player sees their team recognition
+		var payload map[string]string
+		_ = json.Unmarshal(event.Payload, &payload)
+		return viewer.UserID == payload["user_id"]
+	case "night.action.queued":
+		// Internal state-building event; players receive night.action.prompt instead
+		return false
+	case "ai.decision":
+		// Contains sensitive data (roles, results, poison status); DM only
+		return false
+	case "night.action.prompt", "night.action.completed":
 		// Allow players to see their own night action events
 		var payload map[string]string
 		_ = json.Unmarshal(event.Payload, &payload)
@@ -81,6 +100,25 @@ func sanitizePayload(event types.Event, viewer types.Viewer) json.RawMessage {
 		delete(payload, "true_role")
 		delete(payload, "is_demon")
 		delete(payload, "is_minion")
+		delete(payload, "spy_apparent_role")
+		b, _ := json.Marshal(payload)
+		return b
+	}
+	// Strip is_false from night.info — players should not know if info is real/fake
+	if !viewer.IsDM && event.EventType == "night.info" {
+		var payload map[string]string
+		_ = json.Unmarshal(event.Payload, &payload)
+		delete(payload, "is_false")
+		b, _ := json.Marshal(payload)
+		return b
+	}
+	// Strip bluffs from team.recognition for minions (only demon gets bluffs)
+	if !viewer.IsDM && event.EventType == "team.recognition" {
+		var payload map[string]string
+		_ = json.Unmarshal(event.Payload, &payload)
+		if payload["user_id"] != payload["demon_id"] {
+			delete(payload, "bluffs")
+		}
 		b, _ := json.Marshal(payload)
 		return b
 	}

@@ -6,6 +6,10 @@
 import apiService from "../../services/ApiService";
 import i18n from "../../i18n";
 
+// 已处理事件的 seq 去重集合，防止 WS 订阅追赶与广播重叠导致重复处理
+const _processedSeqs = new Set();
+const MAX_DEDUP_SIZE = 500;
+
 /**
  * Process a ProjectedEvent from the backend.
  * @param {object} pe - ProjectedEvent { event_type, data, seq, server_ts, actor_user_id }
@@ -13,12 +17,23 @@ import i18n from "../../i18n";
  */
 export function processGameEvent(pe, store) {
   if (!pe || !pe.event_type) return;
+  // 按 seq 去重：同一事件只处理一次
+  if (pe.seq && _processedSeqs.has(pe.seq)) return;
+  if (pe.seq) {
+    _processedSeqs.add(pe.seq);
+    if (_processedSeqs.size > MAX_DEDUP_SIZE) {
+      const arr = Array.from(_processedSeqs);
+      arr.splice(0, arr.length - MAX_DEDUP_SIZE / 2).forEach(s => _processedSeqs.delete(s));
+    }
+  }
   const eventType = pe.event_type;
   let eventData = pe.data;
   if (typeof eventData === 'string') {
     try { eventData = JSON.parse(eventData); } catch (_e) { eventData = {}; }
   }
   if (!eventData) eventData = {};
+
+  console.log('[DBG] processGameEvent:', eventType);
 
   switch (eventType) {
     case 'player.joined':
@@ -41,16 +56,19 @@ export function processGameEvent(pe, store) {
       if (eventData.max_players) store.commit('setSeatCount', parseInt(eventData.max_players, 10) || 8);
       break;
     case 'game.started':
-      store.commit('game/setPhase', 'first_night');
       store.commit('ui/setScreen', 'game');
+      store.commit('night/clearNightInfoHistory');
+      _processedSeqs.clear();
       break;
     case 'phase.first_night':
       store.commit('game/setPhase', 'first_night');
       store.commit('game/setDayCount', 0);
+      store.commit('night/showRoleReveal');
       addPhaseTimeline('first_night', store);
       break;
     case 'phase.night':
       store.commit('game/setPhase', 'night');
+      store.commit('night/setStep', 'sleeping');
       store.commit('players/resetNominationFlags');
       addPhaseTimeline('night', store);
       break;
@@ -62,12 +80,17 @@ export function processGameEvent(pe, store) {
       addPhaseTimeline('nomination', store);
       break;
     case 'nomination.created':
+      console.log('[DBG] nomination.created raw data:', JSON.stringify(eventData));
       handleNominationCreated(eventData, store);
+      console.log('[DBG] after handleNominationCreated - voteOrder:', store.state.vote.voteOrder, 'currentVoter:', store.state.vote.currentVoterSeatIndex, 'subPhase:', store.state.vote.subPhase);
       break;
     case 'defense.ended':
+      console.log('[DBG] defense.ended received, setting subPhase to voting');
       store.commit('vote/setSubPhase', 'voting');
+      console.log('[DBG] after defense.ended - subPhase:', store.state.vote.subPhase, 'currentVoter:', store.state.vote.currentVoterSeatIndex, 'mySeat:', store.state.seatIndex);
       break;
     case 'vote.cast':
+      console.log('[DBG] vote.cast received:', JSON.stringify(eventData));
       handleVoteCast(pe, eventData, store);
       break;
     case 'nomination.resolved':
@@ -79,10 +102,18 @@ export function processGameEvent(pe, store) {
       handleTimeExtended(eventData, store);
       break;
     case 'night.action.queued':
-      handleNightActionQueued(eventData, store);
+      break;
+    case 'night.action.prompt':
+      handleNightActionPrompt(eventData, store);
       break;
     case 'night.action.completed':
       handleNightActionCompleted(eventData, store);
+      break;
+    case 'night.info':
+      handleNightInfo(eventData, store);
+      break;
+    case 'team.recognition':
+      handleTeamRecognition(eventData, store);
       break;
     case 'player.died':
     case 'player.executed':
@@ -113,6 +144,9 @@ export function processGameEvent(pe, store) {
     case 'ai.decision':
     case 'slayer.shot':
     case 'poison.cleared':
+    case 'poison.rollback':
+    case 'player.poisoned':
+    case 'player.protected':
     case 'action.requested':
       break;
     default:
@@ -151,6 +185,11 @@ function handleSeatClaimed(pe, d, store) {
 }
 
 function handleRoleAssigned(d, store) {
+  // 防御性校验：只接受属于自己的角色分配事件
+  if (d.user_id && d.user_id !== apiService.userId) {
+    console.warn('[handleRoleAssigned] ignoring event for other user:', d.user_id);
+    return;
+  }
   const roleId = d.role || '';
   const roleData = store.getters.rolesByKey.get(roleId);
   const localName = i18n.te('roles.' + roleId) ? i18n.t('roles.' + roleId) : (roleData ? roleData.name : roleId);
@@ -159,6 +198,8 @@ function handleRoleAssigned(d, store) {
 }
 
 function handleBluffsAssigned(d, store) {
+  // 防御性校验：bluffs 只应分配给恶魔玩家自己
+  if (d.user_id && d.user_id !== apiService.userId) return;
   let bluffs = d.bluffs;
   if (typeof bluffs === 'string') {
     try { bluffs = JSON.parse(bluffs); } catch (_e) { bluffs = []; }
@@ -172,6 +213,12 @@ function handlePhaseDay(store) {
   store.commit('game/setDayCount', newDayCount);
   store.commit('players/resetNominationFlags');
   store.commit('vote/endVote');
+  // 安全护栏：若正在展示团队认知界面，延迟重置夜晚状态
+  if (store.state.night.step === 'team_reveal') {
+    store._pendingNightReset = true;
+  } else {
+    store.commit('night/reset');
+  }
   store.commit('timeline/addEvent', { type: 'phase_change', dayCount: newDayCount, data: { phase: 'day' } });
 }
 
@@ -184,7 +231,12 @@ function handleNominationCreated(d, store) {
   const nomineeSeat = parseInt(d.nominee_seat, 10) || 0;
   const alivePlayers = store.state.players.players.filter(p => p.isAlive);
   const requiredMajority = Math.ceil(alivePlayers.length / 2);
-  store.commit('vote/startNomination', { nominatorSeat, nomineeSeat, requiredMajority });
+  // Parse sequential vote order (seat numbers, clockwise from nominee+1)
+  let voteOrder = [];
+  if (d.vote_order) {
+    try { voteOrder = JSON.parse(d.vote_order); } catch (_e) { voteOrder = []; }
+  }
+  store.commit('vote/startNomination', { nominatorSeat, nomineeSeat, requiredMajority, voteOrder });
   store.commit('players/updatePlayer', { seatIndex: nominatorSeat, property: 'hasNominatedToday', value: true });
   store.commit('players/updatePlayer', { seatIndex: nomineeSeat, property: 'isNominatedToday', value: true });
 }
@@ -193,7 +245,7 @@ function handleVoteCast(pe, d, store) {
   const voterSeat = parseInt(d.voter_seat, 10) || 0;
   const voteValue = d.vote === 'yes';
   store.commit('vote/castVote', { seatIndex: voterSeat, vote: voteValue });
-  store.commit('vote/setCurrentVoter', voterSeat);
+  // Note: castVote already advances currentVoterSeatIndex to the next voter
   if (pe.actor_user_id === apiService.userId) {
     store.commit('vote/setMyVote', voteValue);
     store.commit('vote/setVotePending', false);
@@ -201,10 +253,22 @@ function handleVoteCast(pe, d, store) {
 }
 
 function handleNominationResolved(d, store) {
-  const result = d.result === 'executed' ? 'executed' : 'safe';
+  let result;
+  switch (d.result) {
+    case 'on_the_block': result = 'on_the_block'; break;
+    case 'tied': result = 'tied'; break;
+    case 'executed': result = 'executed'; break; // legacy compat
+    default: result = 'safe';
+  }
   store.commit('vote/setSubPhase', 'resolved');
   store.commit('vote/setVotePending', false);
   store.commit('vote/setResult', result);
+
+  // Auto-close VoteOverlay after 3 seconds
+  setTimeout(() => {
+    store.commit('vote/endVote');
+  }, 3000);
+
   const yesCount = parseInt(d.votes_for, 10) || parseInt(d.yes_votes, 10) || store.state.vote.currentYesCount;
   store.commit('timeline/addEvent', {
     type: 'vote_result', dayCount: store.state.game.dayCount,
@@ -219,26 +283,39 @@ function handleTimeExtended(d, store) {
   store.commit('game/setExtensionsUsed', store.state.game.maxExtensions - remaining);
 }
 
-function handleNightActionQueued(d, store) {
+function handleNightActionPrompt(d, store) {
+  console.log('[DBG] handleNightActionPrompt:', d.user_id, 'my:', apiService.userId, 'role:', d.role_id, 'action_type:', d.action_type);
   if (d.user_id !== apiService.userId) return;
   const nightRoleId = d.role_id || '';
   const nightRoleData = store.getters.rolesByKey.get(nightRoleId);
   const roleName = i18n.te('roles.' + nightRoleId) ? i18n.t('roles.' + nightRoleId) : (nightRoleData ? nightRoleData.name : nightRoleId);
   const abilityText = i18n.te('roles.' + nightRoleId + '_ability') ? i18n.t('roles.' + nightRoleId + '_ability') : (nightRoleData ? nightRoleData.ability : '');
   const actionType = d.action_type || 'passive';
-  store.commit('night/openPanel', { roleId: nightRoleId, roleName, abilityText, actionType });
+  let targets = [];
   if (actionType === 'select_one' || actionType === 'select_two') {
-    const targets = store.state.players.players
+    targets = store.state.players.players
       .filter(p => !p.isMe && p.isAlive)
       .map(p => ({ seatIndex: p.seatIndex, id: p.id }));
-    store.commit('night/setTargets', targets);
   }
+  store.commit('night/queuePrompt', { roleId: nightRoleId, roleName, abilityText, actionType, targets });
 }
 
 function handleNightActionCompleted(d, store) {
   if (d.user_id !== apiService.userId) return;
+  // Skip auto-complete results during game start (e.g. imp first night no_action)
+  // to avoid overriding role_reveal or idle state
+  const step = store.state.night.step;
+  if (step === 'idle' || step === 'role_reveal' || step === 'sleeping') return;
+  // night.action.completed 现在只记录意图，不含 result。
+  // 信息结果由后续 night.info 事件提供。
+  // 只处理 timed_out 的特殊提示。
   const rawResult = d.result || '';
-  store.commit('night/setResult', rawResult === 'timed_out' ? i18n.t('night.timedOut') : rawResult);
+  if (rawResult === 'timed_out') {
+    store.commit('night/setResult', i18n.t('night.timedOut'));
+  } else {
+    // 行动已提交，显示等待状态（等待 night.info）
+    store.commit('night/setStep', 'waiting');
+  }
 }
 
 function handlePlayerDied(d, store) {
@@ -266,4 +343,80 @@ function handleWhisperSent(pe, d, store) {
 function handleEvilChat(pe, d, store) {
   if (pe.actor_user_id === apiService.userId) return;
   store.commit('chat/addEvilMessage', { seatIndex: parseInt(d.sender_seat, 10) || -1, text: d.message || '' });
+}
+
+function handleNightInfo(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  const message = d.message || '';
+  // 设置夜晚信息结果（如果当前还在夜晚面板中）
+  store.commit('night/setResult', message);
+  // 存储详细信息供 UI 展示
+  let content = d.content;
+  if (typeof content === 'string') {
+    try { content = JSON.parse(content); } catch (_e) { /* keep as string */ }
+  }
+  const detail = {
+    roleId: d.role_id || '',
+    infoType: d.info_type || '',
+    content,
+    message
+  };
+  store.commit('night/setNightInfoDetail', detail);
+  // 追加到历史记录（夜晚编号 = dayCount + 1，因为 night.info 在 phase.day 之前触发）
+  store.commit('night/pushNightInfo', {
+    ...detail,
+    nightNumber: store.state.game.dayCount + 1
+  });
+}
+
+function handleTeamRecognition(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  let minionIds = d.minion_ids;
+  if (typeof minionIds === 'string') {
+    try { minionIds = JSON.parse(minionIds); } catch (_e) { minionIds = []; }
+  }
+  let bluffs = d.bluffs;
+  if (typeof bluffs === 'string') {
+    try { bluffs = JSON.parse(bluffs); } catch (_e) { bluffs = []; }
+  }
+  const data = {
+    team: d.team || 'evil',
+    demonId: d.demon_id || '',
+    minionIds: minionIds || [],
+    bluffs: bluffs || []
+  };
+  store.commit('night/setTeamRecognition', data);
+  // 已在 team_reveal 或 sleeping 状态时，确保展示数据
+  const curStep = store.state.night.step;
+  if (curStep === 'sleeping' || curStep === 'idle') {
+    store.commit('night/showTeamReveal');
+  }
+  // 如果是 team_reveal 状态（数据换到 team_reveal 后才到），无需额外操作，计算属性自动更新
+
+  // 构建队友信息文本追加到夜晚查验历史
+  const isDemon = data.bluffs && data.bluffs.length > 0;
+  const players = store.state.players.players;
+  let message = '';
+  if (isDemon) {
+    const mNames = data.minionIds.map(id => {
+      const p = players.find(pl => pl.id === id);
+      return p ? i18n.t('lobby.seat', { n: p.seatIndex }) : id;
+    }).join(', ');
+    const bNames = data.bluffs.map(b => {
+      const key = 'roles.' + b;
+      return i18n.te(key) ? i18n.t(key) : b;
+    }).join(', ');
+    message = i18n.t('teamReveal.demonSummary', { minions: mNames, bluffs: bNames });
+  } else {
+    const dp = players.find(pl => pl.id === data.demonId);
+    const dName = dp ? i18n.t('lobby.seat', { n: dp.seatIndex }) : data.demonId;
+    message = i18n.t('teamReveal.minionSummary', { demon: dName });
+  }
+  store.commit('night/pushNightInfo', {
+    roleId: isDemon ? 'imp' : (d.role || 'minion'),
+    infoType: 'team_recognition',
+    content: data,
+    message,
+    nightNumber: 1
+  });
 }

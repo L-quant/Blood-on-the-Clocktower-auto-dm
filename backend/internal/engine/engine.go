@@ -224,6 +224,11 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 			payload["is_minion"] = "true"
 		}
 
+		// Spy: emit apparent role for info resolution
+		if assignment.SpyApparentRole != "" {
+			payload["spy_apparent_role"] = assignment.SpyApparentRole
+		}
+
 		events = append(events, newEvent(cmd, "role.assigned", payload))
 	}
 
@@ -271,6 +276,20 @@ func handleStartGame(state State, cmd types.CommandEnvelope) ([]types.Event, *ty
 
 	// Transition to first night
 	events = append(events, newEvent(cmd, "phase.first_night", map[string]string{}))
+
+	// 首夜开始时：邪恶阵营互认（爪牙认恶魔、恶魔认爪牙+伪装角色）
+	events = append(events, buildTeamRecognitionFromSetup(cmd, result)...)
+
+	// Prompt the first actionable player (sequential night actions)
+	// Build NightAction slice matching engine state format for prompt helper
+	queuedActions := buildEngineNightActions(result.NightOrder, true)
+	autoCompleted := buildNoActionSet(result.NightOrder)
+	for i := range queuedActions {
+		if autoCompleted[queuedActions[i].UserID] {
+			queuedActions[i].Completed = true
+		}
+	}
+	events = append(events, buildFirstPrompt(cmd, queuedActions)...)
 
 	return events, acceptedResult(cmd.CommandID), nil
 }
@@ -389,12 +408,20 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 
 	events := []types.Event{
 		newEvent(cmd, "nomination.created", map[string]string{
-			"nominee":            nomineeID,
-			"nominee_seat":       fmt.Sprintf("%d", nominee.SeatNumber),
-			"nominator_seat":     fmt.Sprintf("%d", nominator.SeatNumber),
-			"nominator_user_id":  actorID,
+			"nominee":           nomineeID,
+			"nominee_seat":      fmt.Sprintf("%d", nominee.SeatNumber),
+			"nominator_seat":    fmt.Sprintf("%d", nominator.SeatNumber),
+			"nominator_user_id": actorID,
+			"vote_order":        buildVoteOrderJSON(state, nominee.SeatNumber),
 		}),
 	}
+
+	// Emit timer for defense phase countdown
+	defenseDeadline := time.Now().Add(time.Duration(state.Config.DefenseDurationSec) * time.Second).UnixMilli()
+	events = append(events, newEvent(cmd, "timer.set", map[string]string{
+		"timer_type": "defense",
+		"deadline":   fmt.Sprintf("%d", defenseDeadline),
+	}))
 
 	// Check for Virgin ability — FIX-16: only triggers once per game
 	if nominee.TrueRole == "virgin" && !nominee.IsPoisoned {
@@ -426,6 +453,40 @@ func handleNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 	return events, acceptedResult(cmd.CommandID), nil
 }
 
+// buildVoteOrderJSON generates the clockwise voting sequence starting from
+// the seat after the nominee. Only includes eligible voters (alive or has ghost vote).
+// Returns a JSON-serialized array of seat numbers for frontend consumption.
+// The backend stores user_ids in Nomination.VoteOrder (built by reducer).
+func buildVoteOrderJSON(state State, nomineeSeat int) string {
+	n := len(state.SeatOrder)
+	if n == 0 {
+		return "[]"
+	}
+	// Find nominee index in SeatOrder
+	nomineeIdx := -1
+	for i, uid := range state.SeatOrder {
+		if state.Players[uid].SeatNumber == nomineeSeat {
+			nomineeIdx = i
+			break
+		}
+	}
+	if nomineeIdx < 0 {
+		return "[]"
+	}
+	// Build ordered seats starting from nominee+1, wrapping around (nominee last)
+	seats := []int{}
+	for offset := 1; offset <= n; offset++ {
+		idx := (nomineeIdx + offset) % n
+		uid := state.SeatOrder[idx]
+		p := state.Players[uid]
+		if p.Alive || p.HasGhostVote {
+			seats = append(seats, p.SeatNumber)
+		}
+	}
+	data, _ := json.Marshal(seats)
+	return string(data)
+}
+
 func handleEndDefense(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
 	if state.Nomination == nil || state.SubPhase != SubPhaseDefense {
 		return nil, nil, fmt.Errorf("no defense phase active")
@@ -441,7 +502,17 @@ func handleEndDefense(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, fmt.Errorf("only nominator, nominee, DM, or autodm can end defense")
 	}
 
-	return []types.Event{newEvent(cmd, "defense.ended", nil)}, acceptedResult(cmd.CommandID), nil
+	// Emit timer for voting phase countdown
+	votingDeadline := time.Now().Add(time.Duration(state.Config.VotingDurationSec) * time.Duration(len(state.Players)) * time.Second).UnixMilli()
+	events := []types.Event{
+		newEvent(cmd, "defense.ended", nil),
+		newEvent(cmd, "timer.set", map[string]string{
+			"timer_type": "voting",
+			"deadline":   fmt.Sprintf("%d", votingDeadline),
+		}),
+	}
+
+	return events, acceptedResult(cmd.CommandID), nil
 }
 
 func handleVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
@@ -464,14 +535,22 @@ func handleVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.C
 		return nil, nil, ErrNoGhostVote
 	}
 
-	// Butler check: butler may only vote if their master is also voting yes
+	// Sequential voting: only the current voter may vote
+	if err := validateSequentialVoter(state, cmd.ActorUserID); err != nil {
+		return nil, nil, err
+	}
+
+	// Butler check: butler may only vote yes if their master voted yes
 	if voter.TrueRole == "butler" && voter.ButlerMaster != "" {
 		masterVote, masterVoted := state.Nomination.Votes[voter.ButlerMaster]
 		if !masterVoted {
-			return nil, nil, fmt.Errorf("butler must wait for master to vote first")
-		}
-		if !masterVote {
-			// Master voted no — butler may only vote no
+			// Master hasn't voted yet — butler can only vote no
+			var p map[string]string
+			_ = json.Unmarshal(cmd.Payload, &p)
+			if p["vote"] == "yes" {
+				return nil, nil, fmt.Errorf("butler cannot vote yes until master votes yes")
+			}
+		} else if !masterVote {
 			var p map[string]string
 			_ = json.Unmarshal(cmd.Payload, &p)
 			if p["vote"] == "yes" {
@@ -492,25 +571,33 @@ func handleVote(state State, cmd types.CommandEnvelope) ([]types.Event, *types.C
 		"voter_seat": fmt.Sprintf("%d", voter.SeatNumber),
 	})}
 
-	// Check if all alive players have voted
-	allVoted := true
+	// Record vote locally for auto-resolve check
 	state.Nomination.Votes[cmd.ActorUserID] = vote == "yes"
-	for uid, p := range state.Players {
-		if p.Alive || p.HasGhostVote {
-			if _, voted := state.Nomination.Votes[uid]; !voted {
-				allVoted = false
-				break
-			}
-		}
-	}
+	nextIdx := state.Nomination.CurrentVoterIdx + 1
 
-	if allVoted {
-		// Auto-resolve nomination via unified path
+	// Check if this was the last voter
+	if nextIdx >= len(state.Nomination.VoteOrder) {
 		_, resolveEvents := resolveVoteAndCheckWin(state, cmd)
 		events = append(events, resolveEvents...)
 	}
 
 	return events, acceptedResult(cmd.CommandID), nil
+}
+
+// validateSequentialVoter checks that the actor is the current voter in order.
+func validateSequentialVoter(state State, actorID string) error {
+	nom := state.Nomination
+	if len(nom.VoteOrder) == 0 {
+		return nil // No order set (legacy), allow any voter
+	}
+	if nom.CurrentVoterIdx >= len(nom.VoteOrder) {
+		return fmt.Errorf("all voters have already voted")
+	}
+	currentVoter := nom.VoteOrder[nom.CurrentVoterIdx]
+	if actorID != currentVoter {
+		return fmt.Errorf("not your turn to vote, waiting for seat to vote first")
+	}
+	return nil
 }
 
 func handleResolveNomination(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
@@ -529,30 +616,13 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 
 	player := state.Players[cmd.ActorUserID]
 
-	// Validate night order: check that this player is the current expected action
-	if state.CurrentAction < len(state.NightActions) {
-		expected := state.NightActions[state.CurrentAction]
-		if expected.UserID != cmd.ActorUserID {
-			// Allow if the player has a queued action that hasn't been completed yet
-			found := false
-			for _, a := range state.NightActions {
-				if a.UserID == cmd.ActorUserID && !a.Completed {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return nil, nil, fmt.Errorf("not your turn to act (expected %s)", expected.UserID)
-			}
-		}
+	// Strict sequential enforcement: only the current action's player may act
+	if err := validateCurrentNightAction(state, cmd.ActorUserID); err != nil {
+		return nil, nil, err
 	}
 
 	var payload map[string]string
 	_ = json.Unmarshal(cmd.Payload, &payload)
-
-	// Build game context for night agent
-	ctx := buildGameContext(state)
-	nightAgent := game.NewNightAgent(ctx)
 
 	var targetIDs []string
 	if targets := payload["targets"]; targets != "" {
@@ -562,112 +632,17 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		targetIDs = []string{target}
 	}
 
-	req := game.AbilityRequest{
-		UserID:       cmd.ActorUserID,
-		RoleID:       player.TrueRole,
-		TargetIDs:    targetIDs,
-		ActionType:   payload["action_type"],
-		NightNumber:  state.NightCount,
-		IsFirstNight: state.Phase == PhaseFirstNight,
-	}
-
-	result, err := nightAgent.ResolveAbility(req)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	events := []types.Event{}
-
-	// Process effects
-	for _, effect := range result.Effects {
-		switch effect.Type {
-		case "kill":
-			events = append(events, newEvent(cmd, "player.died", map[string]string{
-				"user_id": effect.TargetID,
-				"cause":   "demon",
-			}))
-		case "protect":
-			events = append(events, newEvent(cmd, "player.protected", map[string]string{
-				"user_id": effect.TargetID,
-			}))
-		case "poison":
-			events = append(events, newEvent(cmd, "player.poisoned", map[string]string{
-				"user_id": effect.TargetID,
-			}))
-		case "starpass":
-			// The old demon dies
-			events = append(events, newEvent(cmd, "player.died", map[string]string{
-				"user_id": effect.TargetID,
-				"cause":   "starpass",
-			}))
-			// Find a minion to become demon - prioritize Scarlet Woman
-			var candidateMinions []string
-			var scarletWomanID string
-
-			for _, minionID := range state.MinionIDs {
-				p := state.Players[minionID]
-				if p.Alive {
-					candidateMinions = append(candidateMinions, minionID)
-					if p.TrueRole == "scarletwoman" {
-						scarletWomanID = minionID
-					}
-				}
-			}
-
-			if len(candidateMinions) > 0 {
-				newDemonID := ""
-				if scarletWomanID != "" {
-					newDemonID = scarletWomanID
-				} else {
-					idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(candidateMinions))))
-					if err != nil {
-						newDemonID = candidateMinions[0]
-					} else {
-						newDemonID = candidateMinions[idx.Int64()]
-					}
-				}
-
-				events = append(events, newEvent(cmd, "demon.changed", map[string]string{
-					"old_demon": cmd.ActorUserID,
-					"new_demon": newDemonID,
-				}))
-			}
-		}
-	}
-
 	targetsJSON, _ := json.Marshal(targetIDs)
+
+	// 收集层：仅记录意图，不调用 ResolveAbility，不生成效果事件
 	events = append(events, newEvent(cmd, "night.action.completed", map[string]string{
 		"user_id": cmd.ActorUserID,
 		"role_id": player.TrueRole,
 		"targets": string(targetsJSON),
-		"result":  result.Message,
 	}))
 
-	// Log AI decision for post-game review
-	trueResultStr := ""
-	givenResultStr := result.Message
-	if result.TrueResult != nil {
-		trueBytes, _ := json.Marshal(result.TrueResult)
-		trueResultStr = string(trueBytes)
-	}
-	if result.FakeResult != nil {
-		fakeBytes, _ := json.Marshal(result.FakeResult)
-		givenResultStr = string(fakeBytes)
-	}
-	events = append(events, newEvent(cmd, "ai.decision", map[string]string{
-		"night":        fmt.Sprintf("%d", state.NightCount),
-		"user_id":      cmd.ActorUserID,
-		"player_name":  player.Name,
-		"role":         player.TrueRole,
-		"targets":      string(targetsJSON),
-		"true_result":  trueResultStr,
-		"given_result": givenResultStr,
-		"is_poisoned":  fmt.Sprintf("%v", result.IsPoisoned),
-		"is_drunk":     fmt.Sprintf("%v", result.IsDrunk),
-		"timestamp":    fmt.Sprintf("%d", time.Now().UnixMilli()),
-	}))
-
-	// Auto-advance to day if all night actions are completed
+	// Prompt next player or trigger resolution
 	allDone := true
 	for _, a := range state.NightActions {
 		if a.UserID == cmd.ActorUserID {
@@ -678,22 +653,26 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 			break
 		}
 	}
+	if !allDone {
+		// Emit prompt for next player in sequence
+		promptEvents := buildNextPrompt(cmd, state.NightActions, cmd.ActorUserID)
+		events = append(events, promptEvents...)
+	}
 	if allDone && len(state.NightActions) > 0 {
-		// All night actions done — transition to day
-		// Deaths from abilities are already emitted above
+		// 所有行动收集完毕 → 统一结算 → 信息分发 → 天亮
+		resolveEvents := resolveNight(state, cmd)
+		events = append(events, resolveEvents...)
+
+		// 应用结算效果到 state 副本，用于信息分发
+		stateCopy := state.Copy()
+		applyResolveEffects(&stateCopy, resolveEvents)
+
+		infoEvents := distributeNightInfo(stateCopy, cmd)
+		events = append(events, infoEvents...)
+
 		events = append(events, newEvent(cmd, "phase.day", nil))
 
-		// FIX-15: Apply kills to a state copy before checking win condition,
-		// because the emitted "player.died" events haven't been reduced yet.
-		stateCopy := state.Copy()
-		for _, effect := range result.Effects {
-			if effect.Type == "kill" {
-				if p, ok := stateCopy.Players[effect.TargetID]; ok {
-					p.Alive = false
-					stateCopy.Players[effect.TargetID] = p
-				}
-			}
-		}
+		// 胜负检查
 		winEvents := checkWinCondition(stateCopy, cmd)
 		events = append(events, winEvents...)
 	}
@@ -742,6 +721,23 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 		events = append(events, newEvent(cmd, "phase.day", nil))
 
 	case "night":
+		// Execute on-the-block player before entering night (only if no execution yet)
+		if state.OnTheBlock != nil && state.ExecutedToday == "" {
+			events = append(events, newEvent(cmd, "execution.resolved", map[string]string{
+				"result":   "executed",
+				"executed": state.OnTheBlock.UserID,
+			}))
+			events = append(events, newEvent(cmd, "player.died", map[string]string{
+				"user_id": state.OnTheBlock.UserID,
+				"cause":   "execution",
+			}))
+			if p, ok := state.Players[state.OnTheBlock.UserID]; ok {
+				p.Alive = false
+				state.Players[state.OnTheBlock.UserID] = p
+			}
+			state.ExecutedToday = state.OnTheBlock.UserID
+		}
+
 		// Clear poison at dusk (official rule: poisoned "tonight and tomorrow day")
 		events = append(events, newEvent(cmd, "poison.cleared", nil))
 		events = append(events, newEvent(cmd, "phase.night", nil))
@@ -772,9 +768,11 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 				"action_type": actionType,
 			}))
 		}
+		// Prompt first actionable player for nights 2+
+		queuedOtherNight := buildEngineNightActions(nightActions, false)
+		events = append(events, buildFirstPrompt(cmd, queuedOtherNight)...)
 
 	case "nomination":
-		events = append(events, newEvent(cmd, "phase.nomination", nil))
 
 	default:
 		return nil, nil, fmt.Errorf("invalid target phase: %s", targetPhase)
@@ -1006,14 +1004,15 @@ func buildGameContext(state State) *game.GameContext {
 			team = game.TeamEvil
 		}
 		ctx.Players[uid] = &game.PlayerState{
-			UserID:      uid,
-			SeatNumber:  p.SeatNumber,
-			Role:        p.Role,
-			TrueRole:    p.TrueRole,
-			Team:        team,
-			IsAlive:     p.Alive,
-			IsPoisoned:  p.IsPoisoned,
-			IsProtected: p.IsProtected,
+			UserID:          uid,
+			SeatNumber:      p.SeatNumber,
+			Role:            p.Role,
+			TrueRole:        p.TrueRole,
+			Team:            team,
+			IsAlive:         p.Alive,
+			IsPoisoned:      p.IsPoisoned,
+			IsProtected:     p.IsProtected,
+			SpyApparentRole: p.SpyApparentRole,
 		}
 
 		if p.IsPoisoned {
@@ -1050,4 +1049,3 @@ func newEvent(cmd types.CommandEnvelope, eventType string, payload map[string]st
 func acceptedResult(commandID string) *types.CommandResult {
 	return &types.CommandResult{CommandID: commandID, Status: "accepted"}
 }
-
