@@ -71,8 +71,8 @@
   },
   "chat": {
     "title": "聊天",
-    "public": "公开",
-    "whisper": "悄悄话",
+    "public": "公聊",
+    "whisper": "私聊",
     "evil": "邪恶阵营",
     "assistant": "AI 助手",
     "placeholder": "输入消息...",
@@ -131,7 +131,11 @@
     "timedOut": "你的夜晚行动已超时"
   },
   "nightLog": {
-    "title": "夜晚查验记录"
+    "title": "夜晚查验记录",
+    "grimoireTitle": "魔典",
+    "grimoireNight": "第 {n} 夜",
+    "drunk": "醉酒",
+    "poisoned": "中毒"
   },
   "teamReveal": {
     "title": "邪恶阵营",
@@ -148,6 +152,8 @@
     "nomineeLabel": "{n}号",
     "currentVotes": "当前: {count} 票",
     "requiredVotes": "需要 {count} 票",
+    "summary": "{nominator}号 提 {nominee}号，投票玩家：{voters} ({count}票)",
+    "noVoters": "无",
     "voteYes": "赞成",
     "voteNo": "反对",
     "yourTurn": "轮到你投票了！",

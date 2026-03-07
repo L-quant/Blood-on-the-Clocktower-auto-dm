@@ -4,7 +4,7 @@
 房间 Actor 模型：每房间独立命令队列串行处理，管理游戏状态、事件持久化、订阅者广播和自动快照
 
 ## 成员文件
-- `room.go` → RoomActor (命令队列、状态管理、事件广播、重启计时器恢复) 与 RoomManager。计时器行为：白天讨论→提名 (非直接入夜)，夜晚→night_timeout (差异化超时)，time.extended 重调度，nomination.resolved→NominationPhaseDurationSec。start_game 命令拦截调用 Composer
+- `room.go` → RoomActor (命令队列、状态管理、事件广播、重启计时器恢复) 与 RoomManager。计时器行为：白天讨论→提名 (非直接入夜)、nomination.resolved→NominationPhaseDurationSec、time.extended 重调度；夜晚超时路径当前版本显式禁用。start_game 命令拦截调用 Composer
 - `room_config.go` → RoomDeps 配置结构体 (Store/Logger/Metrics/SnapshotInterval/AutoDM/Composer)，减少 NewRoomActor/NewRoomManager 参数数量
 - `room_compose.go` → enrichStartGame：拦截 start_game 命令，调用 game.Composer 生成角色列表注入 custom_roles (15s 超时，失败回退随机)
 - `phase_timer.go` → 阶段超时计时器 (PhaseTimer)，含 IdempotencyKey 和 generation 抗竞态保护

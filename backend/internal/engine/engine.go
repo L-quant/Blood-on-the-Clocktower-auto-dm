@@ -698,27 +698,16 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 	targetPhase := payload["phase"]
 	events := []types.Event{}
 
+	if targetPhase == "day" && (state.Phase == PhaseFirstNight || state.Phase == PhaseNight) {
+		return nil, nil, fmt.Errorf("night cannot be forced to day; complete all night actions instead")
+	}
+
 	switch targetPhase {
 	case "day":
 		// Auto-complete any remaining night actions as timed_out
 		timeoutEvents, _ := CompleteRemainingNightActions(state, cmd)
 		events = append(events, timeoutEvents...)
-
-		// Announce deaths from night
-		for _, death := range state.PendingDeaths {
-			if !death.Protected {
-				events = append(events, newEvent(cmd, "player.died", map[string]string{
-					"user_id": death.UserID,
-					"cause":   death.Cause,
-				}))
-				// Update local state for immediate win check
-				if p, ok := state.Players[death.UserID]; ok {
-					p.Alive = false
-					state.Players[death.UserID] = p
-				}
-			}
-		}
-		events = append(events, newEvent(cmd, "phase.day", nil))
+		events = append(events, finalizeNightFromCompletions(state, cmd, timeoutEvents)...)
 
 	case "night":
 		// Execute on-the-block player before entering night (only if no execution yet)
@@ -776,6 +765,10 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 
 	default:
 		return nil, nil, fmt.Errorf("invalid target phase: %s", targetPhase)
+	}
+
+	if targetPhase == "day" {
+		return events, acceptedResult(cmd.CommandID), nil
 	}
 
 	// Check win condition

@@ -131,7 +131,11 @@
     "timedOut": "Your night action has timed out"
   },
   "nightLog": {
-    "title": "Night Info Log"
+    "title": "Night Info Log",
+    "grimoireTitle": "Grimoire",
+    "grimoireNight": "Night {n}",
+    "drunk": "Drunk",
+    "poisoned": "Poisoned"
   },
   "teamReveal": {
     "title": "Evil Team",

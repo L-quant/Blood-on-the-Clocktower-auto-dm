@@ -353,6 +353,7 @@ export default new Vuex.Store({
       commit('timeline/clear');
       commit('night/reset');
       commit('night/clearNightInfoHistory');
+      commit('night/clearGrimoireHistory');
       commit('vote/reset');
       commit('ui/reset');
       commit('ui/setScreen', 'home');

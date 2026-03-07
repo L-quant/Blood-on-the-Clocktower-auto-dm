@@ -298,6 +298,11 @@ export default {
       padding: 8px 12px;
       font-size: 0.8rem;
     }
+
+    option {
+      background: #424B54;
+      color: white;
+    }
   }
 
   &__quick-actions {

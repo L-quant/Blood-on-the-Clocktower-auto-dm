@@ -4,7 +4,7 @@
 游戏状态机核心：命令分发 (28 种命令)、事件生成 (30+ 种事件)、状态归约、胜负判定
 
 ## 成员文件
-- `engine.go` → 命令处理器总入口，路由所有命令到具体 handler (advance_phase 支持 DM 兜底权限)；handleAbility 仅记录意图，全部完成后触发三层流水线
+- `engine.go` → 命令处理器总入口，路由所有命令到具体 handler (advance_phase 支持 DM 兜底权限，但夜晚禁止强制切到 day)；handleAbility 仅记录意图，全部完成后触发三层流水线
 - `engine_start_helpers.go` → handleStartGame 辅助函数：parseCustomRoles (payload 解析)、buildNoActionCompletions (首夜 no_action 自动完成)
 - `engine_night_resolve.go` → 夜晚统一结算层：resolveNight (投毒→僧侣→恶魔击杀→红唇继承→投毒者死亡回滚)、applyResolveEffects (效果应用到 state 副本)
 - `engine_night_info.go` → 夜晚信息分发层：distributeNightInfo (生成 night.info 事件)、generateTeamRecognition (首夜邪恶互认)、generateSpyGrimoire (间谍魔典)
@@ -13,7 +13,7 @@
 - `state_reduce.go` → Reduce 事件归约：处理 35+ 种事件 (含 night.info / team.recognition / poison.rollback)
 - `vote_resolve.go` → 统一投票结算入口 (resolveVoteAndCheckWin)，含每日一次处决守卫 (ExecutedToday)，handleVote/handleCloseVote 共用
 - `engine_extend.go` → extend_time 命令：白天讨论延长时间 (最多 MaxExtensions 次)
-- `engine_night_timeout.go` → night_timeout 命令：差异化夜晚超时 (善良方自动完成，邪恶方发 action.reminder)
+- `engine_night_timeout.go` → night_timeout 命令入口（当前版本显式禁用，调用即返回错误）
 - `night_timeout.go` → 夜晚超时自动补全：按 ActionType 区分，info/good 自动 timed_out，evil critical (imp/poisoner) 跳过
 - `engine_test.go` → 命令处理、游戏流程、action_type 验证测试
 - `engine_extend_test.go` → extend_time 命令测试 (正常/超限/错误阶段/Reduce)

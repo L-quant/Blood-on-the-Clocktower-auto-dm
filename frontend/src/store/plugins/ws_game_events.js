@@ -58,6 +58,7 @@ export function processGameEvent(pe, store) {
     case 'game.started':
       store.commit('ui/setScreen', 'game');
       store.commit('night/clearNightInfoHistory');
+      store.commit('night/clearGrimoireHistory');
       _processedSeqs.clear();
       break;
     case 'phase.first_night':
@@ -270,9 +271,31 @@ function handleNominationResolved(d, store) {
   }, 3000);
 
   const yesCount = parseInt(d.votes_for, 10) || parseInt(d.yes_votes, 10) || store.state.vote.currentYesCount;
+
+  // 优化播报：x提x，投票玩家xxxxx
+  const nominatorSeat = store.state.vote.nominator ? store.state.vote.nominator.seatIndex : -1;
+  const nomineeSeat = store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1;
+  const voters = store.state.vote.votes
+    .filter(v => v.vote)
+    .map(v => `${v.seatIndex}号`)
+    .join('、');
+  
+  const summary = i18n.t('vote.summary', {
+    nominator: nominatorSeat > 0 ? nominatorSeat : '?',
+    nominee: nomineeSeat > 0 ? nomineeSeat : '?',
+    voters: voters || i18n.t('vote.noVoters'),
+    count: yesCount
+  });
+
+  store.commit('chat/addPublicMessage', { 
+    seatIndex: -1, 
+    text: summary, 
+    isSystem: true 
+  });
+
   store.commit('timeline/addEvent', {
     type: 'vote_result', dayCount: store.state.game.dayCount,
-    data: { nomineeSeat: store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1, yesCount, result }
+    data: { nomineeSeat, yesCount, result }
   });
 }
 
@@ -362,10 +385,18 @@ function handleNightInfo(d, store) {
     message
   };
   store.commit('night/setNightInfoDetail', detail);
+  const nightNumber = store.state.game.dayCount + 1;
+  if (detail.infoType === 'grimoire') {
+    store.commit('night/setGrimoireEntry', {
+      ...detail,
+      nightNumber
+    });
+    return;
+  }
   // 追加到历史记录（夜晚编号 = dayCount + 1，因为 night.info 在 phase.day 之前触发）
   store.commit('night/pushNightInfo', {
     ...detail,
-    nightNumber: store.state.game.dayCount + 1
+    nightNumber
   });
 }
 

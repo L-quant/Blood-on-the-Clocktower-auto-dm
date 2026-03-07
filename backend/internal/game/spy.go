@@ -20,6 +20,7 @@ type PlayerSnapshot struct {
 	Alignment string   `json:"alignment"` // "good" | "evil"
 	IsAlive   bool     `json:"is_alive"`
 	Poisoned  bool     `json:"poisoned"`
+	IsDrunk   bool     `json:"is_drunk"`
 	Protected bool     `json:"protected"`
 	Reminders []string `json:"reminders"` // reminder tokens
 }
@@ -73,6 +74,9 @@ func BuildGrimoireSnapshot(ctx *GameContext) *GrimoireSnapshot {
 		if ctx.PoisonedIDs[uid] {
 			reminders = append(reminders, "中毒")
 		}
+		if ctx.DrunkID == uid {
+			reminders = append(reminders, "醉酒")
+		}
 		if ctx.ProtectedIDs[uid] {
 			reminders = append(reminders, "被保护")
 		}
@@ -83,6 +87,7 @@ func BuildGrimoireSnapshot(ctx *GameContext) *GrimoireSnapshot {
 			Alignment: alignment,
 			IsAlive:   p.IsAlive,
 			Poisoned:  ctx.PoisonedIDs[uid],
+			IsDrunk:   ctx.DrunkID == uid,
 			Protected: ctx.ProtectedIDs[uid],
 			Reminders: reminders,
 		})
