@@ -11,7 +11,7 @@
 - 测试方式：
   - 使用安装的 `develop-web-game` skill 对应 Playwright 环境，开启可见浏览器（headful）
   - 在同一浏览器会话中逐步点击完成玩家路径（非 loadtest）
-  - 每一步留存截图、状态与事件证据
+  - 每一步记录状态与事件证据，并将关键证据内嵌到本文件
 
 ## 覆盖路径
 - 首页创建房间
@@ -38,14 +38,12 @@
   - 提名投票后进入夜晚，界面长期停留在“夜幕降临…闭上眼睛，等待被唤醒”。
   - 无可用前端操作可继续推进，玩家体验为“整局被硬锁死”。
 - 本轮复现：G1/G2/G3 全部复现。
-- 证据：
-  - G1 截图：`.playwright-mcp/2026-03-07-manual-game1/12-night-progress-20s.png`
-  - G2 截图：`.playwright-mcp/2026-03-07-manual-game2/12-night-20s.png`
-  - G3 截图：`.playwright-mcp/2026-03-07-manual-game3/11-night-60s-total.png`
-  - 对应状态：
-    - `.playwright-mcp/2026-03-07-manual-game1/state-night-stuck.json`
-    - `.playwright-mcp/2026-03-07-manual-game2/state-night-stuck.json`
-    - `.playwright-mcp/2026-03-07-manual-game3/state-night-stuck.json`
+- 证据（状态快照摘要）：
+  - G1：`phase=night`, `day_count=1`, `night_count=2`, 未完成夜间行动 1 个（`info`，`timed_out=null`）
+  - G2：`phase=night`, `day_count=1`, `night_count=2`, 未完成夜间行动 2 个（均为 `info`，`timed_out=null`）
+  - G3：`phase=night`, `day_count=1`, `night_count=2`, 未完成夜间行动 2 个（`select_two` + `info`，`timed_out=null`）
+- 证据（事件链摘要）：
+  - 3 局都出现：`phase.day -> nomination.created -> nomination.resolved -> phase.night -> night.action.prompt(...)`，随后停滞在 `phase.night`
 - 后端状态共性：`night_actions` 中存在 `completed=false` 的 bot 行动，同时 `timed_out=null`，房间持续 `phase=night`。
 - 影响：阻断级，当前版本无法完成“完整一局”。
 - 建议：
@@ -55,9 +53,9 @@
 
 ### P0-02 默认前后端端口配置不一致，默认启动不可玩
 - 现象：前端默认请求 `localhost:8888`，后端默认监听 `:8080`，创建房间直接失败。
-- 证据：
-  - `.playwright-mcp/2026-03-07-default-config-check/shot-0.png`
-  - `.playwright-mcp/2026-03-07-default-config-check/errors-0.json`（`ERR_CONNECTION_REFUSED` / `ERR_CONNECTION_CLOSED`）
+- 证据（控制台错误）：
+  - `Failed to load resource: net::ERR_CONNECTION_REFUSED`
+  - `Failed to load resource: net::ERR_CONNECTION_CLOSED`
 - 影响：新环境默认体验即失败。
 - 建议：统一默认 API/WS 地址（或增加 dev proxy）。
 
@@ -78,10 +76,88 @@
 - 建议：在 `frontend/src/main.js` 补齐对应 FontAwesome 图标注册。
 
 ## 本轮证据目录
-- `.playwright-mcp/2026-03-07-manual-game1/`
-- `.playwright-mcp/2026-03-07-manual-game2/`
-- `.playwright-mcp/2026-03-07-manual-game3/`
-- `.playwright-mcp/2026-03-07-default-config-check/`
+- 原始截图/JSON 已用于归纳并内嵌关键结论；如需追查，可按房间 ID 在后端事件库复盘。
+
+## 关键原始证据摘录（内嵌）
+### G1 夜晚卡死状态
+```json
+{
+  "room_id": "d8e44b08-77ab-4ff1-a87f-4b9d47b39bd5",
+  "phase": "night",
+  "day_count": 1,
+  "night_count": 2,
+  "pending_night_actions": [
+    {
+      "user_id": "bot-9cd7b5c0",
+      "action_type": "info",
+      "completed": false,
+      "timed_out": null
+    }
+  ]
+}
+```
+
+### G2 夜晚卡死状态
+```json
+{
+  "room_id": "00b64b2b-9092-470b-acb3-477b659d2721",
+  "phase": "night",
+  "day_count": 1,
+  "night_count": 2,
+  "pending_night_actions": [
+    {
+      "user_id": "bot-039b5a1b",
+      "action_type": "info",
+      "completed": false,
+      "timed_out": null
+    },
+    {
+      "user_id": "bot-58577191",
+      "action_type": "info",
+      "completed": false,
+      "timed_out": null
+    }
+  ]
+}
+```
+
+### G3 夜晚卡死状态
+```json
+{
+  "room_id": "91830dd2-e320-4c03-8de5-68102700d000",
+  "phase": "night",
+  "day_count": 1,
+  "night_count": 2,
+  "pending_night_actions": [
+    {
+      "user_id": "bot-9ce8d5c1",
+      "action_type": "select_two",
+      "completed": false,
+      "timed_out": null
+    },
+    {
+      "user_id": "bot-5f379b09",
+      "action_type": "info",
+      "completed": false,
+      "timed_out": null
+    }
+  ]
+}
+```
+
+### 端口不一致时的错误摘录
+```json
+[
+  {
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  },
+  {
+    "type": "console.error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED"
+  }
+]
+```
 
 ## 修复优先级建议
 1. 先修 P0-01 夜晚死锁（不修复无法完成整局）
