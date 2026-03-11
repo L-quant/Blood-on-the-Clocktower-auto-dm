@@ -98,7 +98,22 @@
     "phaseChange": "阶段变更",
     "playerDied": "{n}号 死亡",
     "nominationResult": "{nominator}号 提名 {nominee}号",
-    "voteResult": "投票结果: {result}"
+    "voteResult": "投票结果: {result}",
+    "slayerShotMiss": "{shooter}号宣称自己是猎手向{target}号开枪，无事发生",
+    "slayerShotKill": "{shooter}号宣称自己是猎手向{target}号开枪，{target}号玩家死亡",
+    "slayerShotKillNight": "{shooter}号宣称自己是猎手向{target}号开枪，{target}号玩家死亡，天黑入夜"
+  },
+  "skills": {
+    "title": "技能",
+    "fireSlayer": "发动猎手技能",
+    "selectTarget": "选择号码",
+    "used": "已发动",
+    "submitting": "发动中...",
+    "onlyTb": "当前仅暗流涌动剧本开放此技能面板。",
+    "slayerHint": "公开宣称自己是猎手并选择一名玩家开枪。若你不是真猎手，或猎手中毒/打空，则无事发生。",
+    "dayOnly": "仅能在白天、提名或投票阶段发动。",
+    "noTargets": "当前没有可选目标。",
+    "failed": "发动技能失败"
   },
   "me": {
     "title": "我的",
@@ -135,7 +150,8 @@
     "grimoireTitle": "魔典",
     "grimoireNight": "第 {n} 夜",
     "drunk": "醉酒",
-    "poisoned": "中毒"
+    "poisoned": "中毒",
+    "protected": "被保护"
   },
   "teamReveal": {
     "title": "邪恶阵营",
@@ -220,6 +236,7 @@
     "square": "广场",
     "chat": "聊天",
     "timeline": "事件",
+    "skills": "技能",
     "me": "我的"
   },
   "errors": {

@@ -12,6 +12,7 @@
       <SquareView v-show="activeTab === 'square'" />
       <ChatView v-show="activeTab === 'chat'" />
       <TimelineView v-show="activeTab === 'timeline'" />
+      <SkillsView v-show="activeTab === 'skills'" />
       <MeView v-show="activeTab === 'me'" @open-settings="$emit('open-settings')" />
       <NightInfoLog v-show="activeTab === 'me'" />
     </template>
@@ -42,10 +43,16 @@
             :class="{ active: rightTab === 'timeline' }"
             @click="rightTab = 'timeline'"
           >{{ $t('nav.timeline') }}</button>
+          <button
+            class="game-screen__right-tab"
+            :class="{ active: rightTab === 'skills' }"
+            @click="rightTab = 'skills'"
+          >{{ $t('nav.skills') }}</button>
         </div>
         <div class="game-screen__right-content">
           <ChatView v-show="rightTab === 'chat'" />
           <TimelineView v-show="rightTab === 'timeline'" />
+          <SkillsView v-show="rightTab === 'skills'" />
         </div>
       </div>
     </template>
@@ -57,12 +64,13 @@ import { mapState } from "vuex";
 import SquareView from "./SquareView";
 import ChatView from "./ChatView";
 import TimelineView from "./TimelineView";
+import SkillsView from "./SkillsView";
 import MeView from "./MeView";
 import NightInfoLog from "./NightInfoLog";
 
 export default {
   name: "GameScreen",
-  components: { SquareView, ChatView, TimelineView, MeView, NightInfoLog },
+  components: { SquareView, ChatView, TimelineView, SkillsView, MeView, NightInfoLog },
   data() {
     return {
       rightTab: 'chat'

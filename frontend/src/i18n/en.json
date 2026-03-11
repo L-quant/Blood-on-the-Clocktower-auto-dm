@@ -98,7 +98,22 @@
     "phaseChange": "Phase Change",
     "playerDied": "Seat {n} died",
     "nominationResult": "Seat {nominator} nominated Seat {nominee}",
-    "voteResult": "Vote result: {result}"
+    "voteResult": "Vote result: {result}",
+    "slayerShotMiss": "Seat {shooter} claimed to be the Slayer and shot Seat {target}, but nothing happened",
+    "slayerShotKill": "Seat {shooter} claimed to be the Slayer and shot Seat {target}; Seat {target} died",
+    "slayerShotKillNight": "Seat {shooter} claimed to be the Slayer and shot Seat {target}; Seat {target} died, and night falls"
+  },
+  "skills": {
+    "title": "Skills",
+    "fireSlayer": "Use Slayer Ability",
+    "selectTarget": "Select Target",
+    "used": "Used",
+    "submitting": "Resolving...",
+    "onlyTb": "This skills panel is currently available only for Trouble Brewing.",
+    "slayerHint": "Publicly claim to be the Slayer and choose a player to shoot. If you are not the real Slayer, or the Slayer is poisoned or misses, nothing happens.",
+    "dayOnly": "Only available during day, nomination, or voting.",
+    "noTargets": "No valid targets right now.",
+    "failed": "Failed to use skill"
   },
   "me": {
     "title": "Me",
@@ -135,7 +150,8 @@
     "grimoireTitle": "Grimoire",
     "grimoireNight": "Night {n}",
     "drunk": "Drunk",
-    "poisoned": "Poisoned"
+    "poisoned": "Poisoned",
+    "protected": "Protected"
   },
   "teamReveal": {
     "title": "Evil Team",
@@ -218,6 +234,7 @@
     "square": "Square",
     "chat": "Chat",
     "timeline": "Timeline",
+    "skills": "Skills",
     "me": "Me"
   },
   "errors": {

@@ -5,6 +5,7 @@
 
 ## 成员文件
 - `engine.go` → 命令处理器总入口，路由所有命令到具体 handler (advance_phase 支持 DM 兜底权限，但夜晚禁止强制切到 day)；handleAbility 仅记录意图，全部完成后触发三层流水线
+- `engine_day_flow.go` → 白天阶段辅助逻辑：isDaytimePhase 与 buildNightTransitionEvents（猎手命中恶魔且红衣女郎接任后直接转夜）
 - `engine_start_helpers.go` → handleStartGame 辅助函数：parseCustomRoles (payload 解析)、buildNoActionCompletions (首夜 no_action 自动完成)
 - `engine_night_resolve.go` → 夜晚统一结算层：resolveNight (投毒→僧侣→恶魔击杀→红唇继承→投毒者死亡回滚)、applyResolveEffects (效果应用到 state 副本)
 - `engine_night_info.go` → 夜晚信息分发层：distributeNightInfo (生成 night.info 事件)、generateTeamRecognition (首夜邪恶互认)、generateSpyGrimoire (间谍魔典)
@@ -18,7 +19,9 @@
 - `engine_test.go` → 命令处理、游戏流程、action_type 验证测试
 - `engine_extend_test.go` → extend_time 命令测试 (正常/超限/错误阶段/Reduce)
 - `engine_night_timeout_test.go` → night_timeout 命令测试 (全完成→天亮/邪恶待定→提醒/错误阶段)
+- `engine_night_info_test.go` → 夜晚信息分发回归测试（覆盖共情者在最后一个夜晚行动时仍能收到首夜信息）
 - `night_timeout_test.go` → 夜晚超时补全与 isEvilCriticalAction 测试
+- `engine_slayer_test.go` → 猎手宣称开枪测试（白天各阶段可用、假宣称、 中毒失效、红衣女郎接任后直接转夜）
 - `vote_resolve_test.go` → 投票结算、事件一致性、autodm 权限、阈值、OwnerID 迁移、DM 权限、每日一次处决测试
 - `scarlet_woman_test.go` → 恶魔继承 (Starpass) 与 Scarlet Woman 优先级测试
 - `win_check_test.go` → 胜负条件测试 (恶魔死亡、人数不足、Saint、Mayor 等)

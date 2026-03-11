@@ -59,6 +59,8 @@ function syncPlayers(playersMap, store) {
       hasGhostVote: p.has_ghost_vote !== undefined ? p.has_ghost_vote : true,
       isNominatedToday: p.was_nominated || false,
       hasNominatedToday: p.has_nominated || false,
+      isPoisoned: isMe ? !!p.is_poisoned : false,
+      reminders: isMe && Array.isArray(p.reminders) ? p.reminders : [],
       isMe
     });
     if (isMe && seatIndex > 0) mySeatIndex = seatIndex;
@@ -71,13 +73,15 @@ function syncPlayers(playersMap, store) {
 function syncOwnRole(playersMap, store) {
   if (!playersMap) return;
   const meData = playersMap[apiService.userId];
-  if (meData && meData.role && !store.state.players.myRole) {
+  if (meData && meData.role) {
     const roleData = store.getters.rolesByKey.get(meData.role);
     store.commit('players/setMyRole', {
       roleId: meData.role,
       roleName: roleData ? roleData.name : meData.role,
       team: meData.team || '',
-      ability: roleData ? roleData.ability : ''
+      ability: roleData ? roleData.ability : '',
+      isPoisoned: !!meData.is_poisoned,
+      reminders: Array.isArray(meData.reminders) ? meData.reminders : []
     });
   }
 }

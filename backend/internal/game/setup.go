@@ -279,6 +279,9 @@ func generateBluffs(inPlay []Role, townsfolk, outsiders []Role) []string {
 		}
 	}
 	for _, r := range outsiders {
+		if r.ID == "drunk" {
+			continue
+		}
 		if !inPlayIDs[r.ID] {
 			candidates = append(candidates, r.ID)
 		}

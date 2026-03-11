@@ -5,7 +5,7 @@
 
 const state = () => ({
   players: [],
-  myRole: null, // { roleId, roleName, team, ability }
+  myRole: null, // { roleId, roleName, team, ability, isPoisoned, reminders }
   bluffs: [null, null, null], // demon bluffs (only visible to demon)
   fabled: []
 });
@@ -18,6 +18,8 @@ const createPlayer = (id, seatIndex, name) => ({
   hasGhostVote: true,
   isNominatedToday: false,
   hasNominatedToday: false,
+  isPoisoned: false,
+  reminders: [],
   isMe: false
 });
 
@@ -55,7 +57,31 @@ const mutations = {
     }
   },
   setMyRole(state, role) {
-    state.myRole = role; // { roleId, roleName, team, ability }
+    const reminders = Array.isArray(role && role.reminders) ? [...role.reminders] : [];
+    state.myRole = {
+      isPoisoned: false,
+      ...role,
+      reminders
+    };
+  },
+  updateMyRole(state, patch) {
+    if (!state.myRole) {
+      state.myRole = {
+        roleId: '',
+        roleName: '',
+        team: '',
+        ability: '',
+        isPoisoned: false,
+        reminders: []
+      };
+    }
+    state.myRole = {
+      ...state.myRole,
+      ...patch
+    };
+    if (Array.isArray(state.myRole.reminders)) {
+      state.myRole.reminders = [...state.myRole.reminders];
+    }
   },
   setBluffs(state, bluffs) {
     state.bluffs = bluffs;

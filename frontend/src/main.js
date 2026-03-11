@@ -17,6 +17,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 const faIcons = [
   "BookOpen",
   "Clipboard",
+  "Bolt",
   "Cog",
   "Copy",
   "Dice",

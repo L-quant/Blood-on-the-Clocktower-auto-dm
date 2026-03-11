@@ -41,6 +41,7 @@ export default {
         { id: "square", icon: "users", label: "nav.square", badge: 0 },
         { id: "chat", icon: "clipboard", label: "nav.chat", badge: this.totalUnread },
         { id: "timeline", icon: "book-open", label: "nav.timeline", badge: 0 },
+        { id: "skills", icon: "bolt", label: "nav.skills", badge: 0 },
         { id: "me", icon: "user", label: "nav.me", badge: 0 }
       ];
     }

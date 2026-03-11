@@ -49,7 +49,8 @@ export default {
         { id: 'all' },
         { id: 'phases' },
         { id: 'deaths' },
-        { id: 'votes' }
+        { id: 'votes' },
+        { id: 'abilities' }
       ];
     },
     events() {
@@ -69,7 +70,7 @@ export default {
         }
         if (current.length === 0) current = ['all'];
         // Map display names to event types
-        const typeMap = { phases: 'phase_change', deaths: 'death', votes: 'vote_result' };
+        const typeMap = { phases: 'phase_change', deaths: 'death', votes: 'vote_result', abilities: 'ability' };
         this.$store.commit("timeline/setFilters", current.map(c => typeMap[c] || c));
       }
     },
@@ -95,6 +96,19 @@ export default {
         return this.$t('timeline.voteResult', {
           result: event.data.result === 'executed' ? this.$t('vote.executed') : this.$t('vote.safe')
         });
+      }
+      if (event.type === 'ability' && event.data && event.data.ability === 'slayer_shot') {
+        const params = {
+          shooter: event.data.shooterSeat,
+          target: event.data.targetSeat
+        };
+        if (event.data.result === 'killed_night') {
+          return this.$t('timeline.slayerShotKillNight', params);
+        }
+        if (event.data.result === 'killed') {
+          return this.$t('timeline.slayerShotKill', params);
+        }
+        return this.$t('timeline.slayerShotMiss', params);
       }
       return '';
     },

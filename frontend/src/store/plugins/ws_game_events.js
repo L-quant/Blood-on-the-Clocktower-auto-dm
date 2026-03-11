@@ -141,12 +141,23 @@ export function processGameEvent(pe, store) {
       break;
     }
     case 'red_herring.assigned':
+      break;
     case 'reminder.added':
+      handleReminderAdded(eventData, store);
+      break;
     case 'ai.decision':
+      break;
     case 'slayer.shot':
+      handleSlayerShot(eventData, store);
+      break;
     case 'poison.cleared':
+      handlePoisonCleared(store);
+      break;
     case 'poison.rollback':
+      break;
     case 'player.poisoned':
+      handlePlayerPoisoned(eventData, store);
+      break;
     case 'player.protected':
     case 'action.requested':
       break;
@@ -195,7 +206,14 @@ function handleRoleAssigned(d, store) {
   const roleData = store.getters.rolesByKey.get(roleId);
   const localName = i18n.te('roles.' + roleId) ? i18n.t('roles.' + roleId) : (roleData ? roleData.name : roleId);
   const localAbility = i18n.te('roles.' + roleId + '_ability') ? i18n.t('roles.' + roleId + '_ability') : (roleData ? roleData.ability : '');
-  store.commit('players/setMyRole', { roleId, roleName: localName, team: d.team || '', ability: localAbility });
+  store.commit('players/setMyRole', {
+    roleId,
+    roleName: localName,
+    team: d.team || '',
+    ability: localAbility,
+    isPoisoned: !!d.is_poisoned,
+    reminders: Array.isArray(d.reminders) ? d.reminders : []
+  });
 }
 
 function handleBluffsAssigned(d, store) {
@@ -346,10 +364,44 @@ function handlePlayerDied(d, store) {
   const deadPlayer = store.state.players.players.find(p => p.id === diedUserId);
   if (deadPlayer) {
     store.commit('players/killPlayer', deadPlayer.seatIndex);
-    store.commit('timeline/addEvent', {
-      type: 'death', dayCount: store.state.game.dayCount, data: { seatIndex: deadPlayer.seatIndex }
-    });
+    if (d.cause !== 'slayer') {
+      store.commit('timeline/addEvent', {
+        type: 'death', dayCount: store.state.game.dayCount, data: { seatIndex: deadPlayer.seatIndex }
+      });
+    }
   }
+}
+
+function handleReminderAdded(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  const current = store.state.players.myRole && Array.isArray(store.state.players.myRole.reminders)
+    ? store.state.players.myRole.reminders
+    : [];
+  if (current.includes(d.reminder)) return;
+  store.commit('players/updateMyRole', { reminders: [...current, d.reminder] });
+}
+
+function handlePlayerPoisoned(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  store.commit('players/updateMyRole', { isPoisoned: true });
+}
+
+function handlePoisonCleared(store) {
+  if (!store.state.players.myRole) return;
+  store.commit('players/updateMyRole', { isPoisoned: false });
+}
+
+function handleSlayerShot(d, store) {
+  store.commit('timeline/addEvent', {
+    type: 'ability',
+    dayCount: store.state.game.dayCount,
+    data: {
+      ability: 'slayer_shot',
+      shooterSeat: parseInt(d.shooter_seat, 10) || 0,
+      targetSeat: parseInt(d.target_seat, 10) || 0,
+      result: d.result || 'no_effect'
+    }
+  });
 }
 
 function handlePublicChat(pe, d, store) {

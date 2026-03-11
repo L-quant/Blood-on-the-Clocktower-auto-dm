@@ -125,6 +125,9 @@ export default {
       if (player.poisoned) {
         labels.push(this.$t('nightLog.poisoned'));
       }
+      if (player.protected) {
+        labels.push(this.$t('nightLog.protected'));
+      }
       return labels.join(' / ');
     },
     roleName(roleId) {
