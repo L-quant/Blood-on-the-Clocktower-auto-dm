@@ -79,8 +79,30 @@ func TestHandleSlayerShotAllowsFalseClaimWithoutKill(t *testing.T) {
 	if hasTestEventType(events, "player.died") {
 		t.Fatal("expected false slayer claim to have no kill effect")
 	}
-	if hasTestEventType(events, "reminder.added") {
-		t.Fatal("expected false slayer claim not to consume a real slayer ability")
+	if !hasReminder(events, "slayer_claim_used") {
+		t.Fatal("expected false slayer claim to be marked as used for that player")
+	}
+}
+
+func TestHandleSlayerShotRejectsSecondFalseClaim(t *testing.T) {
+	state := NewState("room-1")
+	state.Phase = PhaseDay
+	state.DemonID = "target"
+	state.Players["faker"] = Player{UserID: "faker", TrueRole: "washerwoman", Alive: true, SeatNumber: 1, Reminders: []string{"slayer_claim_used"}}
+	state.Players["target"] = Player{UserID: "target", TrueRole: "imp", Alive: true, SeatNumber: 2}
+
+	payload, err := json.Marshal(map[string]string{"target": "target"})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	_, _, err = handleSlayerShot(state, types.CommandEnvelope{
+		CommandID:   "cmd-1",
+		ActorUserID: "faker",
+		Payload:     payload,
+	})
+	if err == nil {
+		t.Fatal("expected second false slayer claim to be rejected")
 	}
 }
 
@@ -106,14 +128,14 @@ func TestHandleSlayerShotConsumedButIneffectiveWhenPoisoned(t *testing.T) {
 	}
 
 	hasSlayerShot := false
-	hasReminder := false
+	hasReminderEvent := false
 	hasPlayerDied := false
 	for _, event := range events {
 		if event.EventType == "slayer.shot" {
 			hasSlayerShot = true
 		}
 		if event.EventType == "reminder.added" {
-			hasReminder = true
+			hasReminderEvent = true
 		}
 		if event.EventType == "player.died" {
 			hasPlayerDied = true
@@ -122,8 +144,11 @@ func TestHandleSlayerShotConsumedButIneffectiveWhenPoisoned(t *testing.T) {
 	if !hasSlayerShot {
 		t.Fatal("expected slayer.shot event")
 	}
-	if !hasReminder {
+	if !hasReminderEvent {
 		t.Fatal("expected no_ability reminder to consume the skill")
+	}
+	if !hasReminder(events, "slayer_claim_used") {
+		t.Fatal("expected slayer claim to be marked as used")
 	}
 	if hasPlayerDied {
 		t.Fatal("expected poisoned slayer shot to have no kill effect")
@@ -177,6 +202,22 @@ func TestHandleSlayerShotTriggersNightAfterScarletWomanTakeover(t *testing.T) {
 func hasTestEventType(events []types.Event, eventType string) bool {
 	for _, event := range events {
 		if event.EventType == eventType {
+			return true
+		}
+	}
+	return false
+}
+
+func hasReminder(events []types.Event, reminder string) bool {
+	for _, event := range events {
+		if event.EventType != "reminder.added" {
+			continue
+		}
+		var payload map[string]string
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			continue
+		}
+		if payload["reminder"] == reminder {
 			return true
 		}
 	}

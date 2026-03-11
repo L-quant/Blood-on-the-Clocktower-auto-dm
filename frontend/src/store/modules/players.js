@@ -10,6 +10,8 @@ const state = () => ({
   fabled: []
 });
 
+const sortPlayersBySeat = (players) => [...players].sort((a, b) => a.seatIndex - b.seatIndex);
+
 const createPlayer = (id, seatIndex, name) => ({
   id: id || '',
   name: name || '',
@@ -25,10 +27,11 @@ const createPlayer = (id, seatIndex, name) => ({
 
 const mutations = {
   setPlayers(state, players) {
-    state.players = players;
+    state.players = sortPlayersBySeat(players);
   },
   addPlayer(state, { id, seatIndex }) {
     state.players.push(createPlayer(id, seatIndex));
+    state.players = sortPlayersBySeat(state.players);
   },
   removePlayer(state, seatIndex) {
     const idx = state.players.findIndex(p => p.seatIndex === seatIndex);
@@ -49,6 +52,7 @@ const mutations = {
     } else {
       state.players.push(createPlayer(id, seatIndex));
     }
+    state.players = sortPlayersBySeat(state.players);
   },
   unseatPlayer(state, seatIndex) {
     const idx = state.players.findIndex(p => p.seatIndex === seatIndex);

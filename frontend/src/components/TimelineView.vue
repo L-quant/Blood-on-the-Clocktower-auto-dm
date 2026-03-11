@@ -87,7 +87,7 @@ export default {
     },
     getDetail(event) {
       if (event.type === 'phase_change' && event.data) {
-        return this.$t('game.phases.' + (event.data.phase || ''));
+        return this.getPhaseChangeDetail(event);
       }
       if (event.type === 'death' && event.data) {
         return this.$t('timeline.playerDied', { n: event.data.seatIndex });
@@ -111,6 +111,34 @@ export default {
         return this.$t('timeline.slayerShotMiss', params);
       }
       return '';
+    },
+    getPhaseChangeDetail(event) {
+      const phase = event.data && event.data.phase ? event.data.phase : '';
+      if (phase === 'first_night') {
+        return this.$t('timeline.phaseFirstNight');
+      }
+      if (phase === 'day') {
+        return this.$t('timeline.phaseNthDay', { ordinal: this.toChineseOrdinal(event.dayCount) });
+      }
+      if (phase === 'night') {
+        return this.$t('timeline.phaseNthNight', { ordinal: this.toChineseOrdinal(event.dayCount) });
+      }
+      return this.$t('game.phases.' + phase);
+    },
+    toChineseOrdinal(value) {
+      const number = parseInt(value, 10);
+      if (!number || number < 1) return '一';
+
+      const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+      if (number < 10) return digits[number];
+      if (number === 10) return '十';
+      if (number < 20) return '十' + digits[number % 10];
+      if (number < 100) {
+        const tens = Math.floor(number / 10);
+        const ones = number % 10;
+        return digits[tens] + '十' + (ones ? digits[ones] : '');
+      }
+      return String(number);
     },
     formatTime(ts) {
       const d = new Date(ts);

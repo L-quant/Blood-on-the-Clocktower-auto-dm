@@ -33,7 +33,7 @@ func finalizeNightFromCompletions(state State, cmd types.CommandEnvelope,
 
 	infoEvents := distributeNightInfo(resolvedState, cmd)
 	events = append(events, infoEvents...)
-	events = append(events, newEvent(cmd, "phase.day", map[string]string{}))
+	events = append(events, newEvent(cmd, "phase.day", buildPhaseDayPayload(resolvedState, resolveEvents)))
 
 	winEvents := checkWinCondition(resolvedState, cmd)
 	events = append(events, winEvents...)

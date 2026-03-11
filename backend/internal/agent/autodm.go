@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -290,7 +291,7 @@ func (a *AutoDM) OnEvent(ctx context.Context, ev types.Event, state interface{})
 		return
 	}
 	if (ev.ActorUserID == "autodm" || ev.ActorUserID == "auto-dm") &&
-		(ev.EventType == "public.chat" || ev.EventType == "whisper.sent") {
+		(ev.EventType == "public.chat" || ev.EventType == "whisper.sent" || ev.EventType == "game.recap") {
 		return
 	}
 	a.updateGameStateFromEngineState(state)
@@ -321,11 +322,17 @@ func (a *AutoDM) ProcessQueuedEvent(ctx context.Context, ev types.Event) error {
 		if fallback := defaultMessageForEvent(ev.EventType); fallback != "" {
 			a.sendMessage(ctx, ev.RoomID, fallback)
 		}
+		if ev.EventType == "game.ended" {
+			a.publishGameRecap(ctx, ev)
+		}
 		return err
 	}
 
 	if resp != nil && resp.ShouldSpeak && resp.Message != "" {
 		a.sendMessage(ctx, ev.RoomID, resp.Message)
+	}
+	if ev.EventType == "game.ended" {
+		a.publishGameRecap(ctx, ev)
 	}
 	return nil
 }
@@ -402,7 +409,9 @@ func (a *AutoDM) convertEvent(ev types.Event) Event {
 	// For proxy nominations, use the real nominator as PlayerID
 	if ev.EventType == "nomination.created" {
 		if nuid, ok := event.Data["nominator_user_id"]; ok && nuid != "" {
-			if s, ok := nuid.(string); ok { event.PlayerID = s }
+			if s, ok := nuid.(string); ok {
+				event.PlayerID = s
+			}
 		}
 	}
 	event.Description = formatEventDescription(ev.EventType, event.Data)
@@ -562,6 +571,115 @@ func defaultMessageForEvent(eventType string) string {
 	default:
 		return ""
 	}
+}
+
+func (a *AutoDM) publishGameRecap(ctx context.Context, ev types.Event) {
+	recapCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), a.eventTimeout)
+	defer cancel()
+
+	summary, err := a.GetSummary(recapCtx, false)
+	if err != nil {
+		a.logger.Error("AutoDM failed to generate game recap", "error", err, "room_id", ev.RoomID)
+	}
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		summary = a.buildFallbackGameRecap(ev)
+	}
+	if strings.TrimSpace(summary) == "" {
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"event_type": "game.recap",
+		"data": map[string]string{
+			"summary": summary,
+		},
+	})
+	cmdID := generateCommandID()
+	cmd := types.CommandEnvelope{
+		CommandID:      cmdID,
+		IdempotencyKey: cmdID,
+		RoomID:         ev.RoomID,
+		Type:           "write_event",
+		ActorUserID:    "autodm",
+		Payload:        payload,
+	}
+	if err := a.dispatchCommand(cmd); err != nil {
+		a.logger.Error("AutoDM failed to publish game recap", "error", err, "room_id", ev.RoomID)
+	}
+}
+
+func (a *AutoDM) buildFallbackGameRecap(ev types.Event) string {
+	winner, reason := parseWinnerAndReason(ev.Payload)
+	state := a.currentEngineState()
+	if state == nil {
+		return fmt.Sprintf("对局结束。获胜方：%s。结束原因：%s。", winner, reason)
+	}
+
+	aliveSeats := make([]string, 0, len(state.Players))
+	deadSeats := make([]string, 0, len(state.Players))
+	for _, userID := range state.SeatOrder {
+		player, ok := state.Players[userID]
+		if !ok {
+			continue
+		}
+		seat := fmt.Sprintf("%d号", player.SeatNumber)
+		if player.Alive {
+			aliveSeats = append(aliveSeats, seat)
+		} else {
+			deadSeats = append(deadSeats, seat)
+		}
+	}
+
+	parts := []string{
+		fmt.Sprintf("对局结束。获胜方：%s。", winner),
+		fmt.Sprintf("结束原因：%s。", reason),
+	}
+	if len(aliveSeats) > 0 {
+		parts = append(parts, fmt.Sprintf("存活玩家：%s。", strings.Join(aliveSeats, "、")))
+	}
+	if len(deadSeats) > 0 {
+		parts = append(parts, fmt.Sprintf("死亡玩家：%s。", strings.Join(deadSeats, "、")))
+	}
+	if state.ExecutedToday != "" {
+		if player, ok := state.Players[state.ExecutedToday]; ok {
+			parts = append(parts, fmt.Sprintf("最后被处决的是%d号。", player.SeatNumber))
+		}
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func (a *AutoDM) currentEngineState() *engine.State {
+	a.mu.RLock()
+	getter := a.stateGetter
+	a.mu.RUnlock()
+	if getter == nil {
+		return nil
+	}
+	raw := getter()
+	state, ok := raw.(engine.State)
+	if !ok {
+		return nil
+	}
+	copy := state.Copy()
+	return &copy
+}
+
+func parseWinnerAndReason(payload json.RawMessage) (string, string) {
+	var data map[string]string
+	if err := json.Unmarshal(payload, &data); err != nil {
+		return "未知", "unknown"
+	}
+	winner := data["winner"]
+	if winner == "" {
+		winner = "未知"
+	}
+	reason := data["reason"]
+	if reason == "" {
+		reason = "unknown"
+	}
+	return winner, reason
 }
 
 func (a *AutoDM) dispatchCommand(cmd types.CommandEnvelope) error {

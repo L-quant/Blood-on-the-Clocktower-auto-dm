@@ -9,7 +9,9 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/game"
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
@@ -63,4 +65,48 @@ func hasEventType(events []types.Event, eventType string) bool {
 		}
 	}
 	return false
+}
+
+func buildPhaseDayPayload(state State, events []types.Event) map[string]string {
+	seatNumbers := collectNightDeathSeatNumbers(state, events)
+	payload := map[string]string{
+		"night_deaths": "[]",
+	}
+
+	encoded, err := json.Marshal(seatNumbers)
+	if err == nil {
+		payload["night_deaths"] = string(encoded)
+	}
+
+	return payload
+}
+
+func collectNightDeathSeatNumbers(state State, events []types.Event) []int {
+	seen := make(map[int]struct{})
+	seatNumbers := make([]int, 0)
+
+	for _, event := range events {
+		if event.EventType != "player.died" {
+			continue
+		}
+
+		var payload map[string]string
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			continue
+		}
+
+		player, ok := state.Players[payload["user_id"]]
+		if !ok || player.SeatNumber <= 0 {
+			continue
+		}
+		if _, exists := seen[player.SeatNumber]; exists {
+			continue
+		}
+
+		seen[player.SeatNumber] = struct{}{}
+		seatNumbers = append(seatNumbers, player.SeatNumber)
+	}
+
+	sort.Ints(seatNumbers)
+	return seatNumbers
 }

@@ -93,6 +93,8 @@ func (s *State) Reduce(event EventPayload) {
 		s.Phase = PhaseEnded
 		s.Winner = event.Payload["winner"]
 		s.WinReason = event.Payload["reason"]
+	case "game.recap":
+		s.GameRecap = event.Payload["summary"]
 	case "player.executed":
 		executedID := event.Payload["user_id"]
 		s.ExecutedToday = executedID

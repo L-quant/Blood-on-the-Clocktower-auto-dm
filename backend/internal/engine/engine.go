@@ -674,7 +674,7 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		infoEvents := distributeNightInfo(stateCopy, cmd)
 		events = append(events, infoEvents...)
 
-		events = append(events, newEvent(cmd, "phase.day", nil))
+		events = append(events, newEvent(cmd, "phase.day", buildPhaseDayPayload(stateCopy, resolveEvents)))
 
 		// 胜负检查
 		winEvents := checkWinCondition(stateCopy, cmd)
@@ -829,6 +829,11 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, ErrPlayerNotFound
 	}
 	isTrueSlayer := shooter.TrueRole == "slayer"
+	for _, reminder := range shooter.Reminders {
+		if reminder == "slayer_claim_used" {
+			return nil, nil, fmt.Errorf("player has already claimed a slayer shot")
+		}
+	}
 
 	if isTrueSlayer {
 		for _, reminder := range shooter.Reminders {
@@ -852,6 +857,10 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 
 	shotResult := "no_effect"
 	postShotEvents := make([]types.Event, 0, 4)
+	postShotEvents = append(postShotEvents, newEvent(cmd, "reminder.added", map[string]string{
+		"user_id":  cmd.ActorUserID,
+		"reminder": "slayer_claim_used",
+	}))
 	if isTrueSlayer {
 		postShotEvents = append(postShotEvents, newEvent(cmd, "reminder.added", map[string]string{
 			"user_id":  cmd.ActorUserID,

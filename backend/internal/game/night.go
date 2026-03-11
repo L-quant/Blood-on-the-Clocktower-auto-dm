@@ -6,6 +6,7 @@ package game
 
 import (
 	"fmt"
+	"sort"
 )
 
 // AbilityResult represents the result of using an ability.
@@ -145,21 +146,20 @@ func (na *NightAgent) resolveWasherwoman(req AbilityRequest, malfunctioning bool
 	// Find a townsfolk and create the pair
 	var townsfolkID, wrongID, townfolkRole string
 
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleTownsfolk {
-				townsfolkID = p.UserID
-				townfolkRole = p.TrueRole
-				break
-			}
+	for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+		p := na.ctx.Players[uid]
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleTownsfolk {
+			townsfolkID = p.UserID
+			townfolkRole = p.TrueRole
+			break
 		}
 	}
 
 	// Find a wrong player (not the townsfolk)
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID && p.UserID != townsfolkID {
-			wrongID = p.UserID
+	for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+		if uid != townsfolkID {
+			wrongID = uid
 			break
 		}
 	}
@@ -174,13 +174,15 @@ func (na *NightAgent) resolveWasherwoman(req AbilityRequest, malfunctioning bool
 	}
 
 	if malfunctioning {
-		// Give false information
-		fakeRole := na.getRandomTownsfolkRole(townfolkRole)
+		fakePlayers, fakeRole, ok := na.buildFalsePairInfo(req.UserID, RoleTownsfolk, townfolkRole, req.RoleID)
+		if !ok {
+			return &AbilityResult{Success: false, Message: "无法生成合理的错误信息"}, nil
+		}
 		result.Message = fmt.Sprintf("你得知：%s 或 %s 中有一人是 %s",
-			na.getPlayerName(townsfolkID), na.getPlayerName(wrongID), getRoleDisplayName(fakeRole))
+			na.getPlayerName(fakePlayers[0]), na.getPlayerName(fakePlayers[1]), getRoleDisplayName(fakeRole))
 		result.Information = &AbilityInfo{
 			Type:    "washerwoman",
-			Content: map[string]interface{}{"players": []string{townsfolkID, wrongID}, "role": fakeRole},
+			Content: map[string]interface{}{"players": fakePlayers, "role": fakeRole},
 			IsFalse: true,
 		}
 	} else {
@@ -204,14 +206,13 @@ func (na *NightAgent) resolveLibrarian(req AbilityRequest, malfunctioning bool) 
 	// Find an outsider
 	var outsiderID, wrongID, outsiderRole string
 
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleOutsider {
-				outsiderID = p.UserID
-				outsiderRole = p.TrueRole
-				break
-			}
+	for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+		p := na.ctx.Players[uid]
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleOutsider {
+			outsiderID = p.UserID
+			outsiderRole = p.TrueRole
+			break
 		}
 	}
 
@@ -223,32 +224,44 @@ func (na *NightAgent) resolveLibrarian(req AbilityRequest, malfunctioning bool) 
 	if outsiderID == "" {
 		// No outsiders in play
 		if malfunctioning {
-			// Might falsely claim there's an outsider
-			result.Message = "你得知：场上可能有外来者"
+			fakePlayers, fakeRole, ok := na.buildFalsePairInfo(req.UserID, RoleOutsider, req.RoleID)
+			if !ok {
+				return &AbilityResult{Success: false, Message: "无法生成合理的错误信息"}, nil
+			}
+			result.Message = fmt.Sprintf("你得知：%s 或 %s 中有一人是 %s",
+				na.getPlayerName(fakePlayers[0]), na.getPlayerName(fakePlayers[1]), getRoleDisplayName(fakeRole))
+			result.Information = &AbilityInfo{
+				Type:    "librarian",
+				Content: map[string]interface{}{"players": fakePlayers, "role": fakeRole},
+				IsFalse: true,
+			}
 		} else {
 			result.Message = "你得知：场上没有外来者"
-		}
-		result.Information = &AbilityInfo{
-			Type:    "librarian",
-			Content: map[string]interface{}{"no_outsiders": true},
-			IsFalse: malfunctioning,
+			result.Information = &AbilityInfo{
+				Type:    "librarian",
+				Content: map[string]interface{}{"no_outsiders": true},
+				IsFalse: false,
+			}
 		}
 	} else {
 		// Find a wrong player
-		for _, p := range na.ctx.Players {
-			if p.IsAlive && p.UserID != req.UserID && p.UserID != outsiderID {
-				wrongID = p.UserID
+		for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+			if uid != outsiderID {
+				wrongID = uid
 				break
 			}
 		}
 
 		if malfunctioning {
-			fakeRole := na.getRandomOutsiderRole(outsiderRole)
+			fakePlayers, fakeRole, ok := na.buildFalsePairInfo(req.UserID, RoleOutsider, outsiderRole, req.RoleID)
+			if !ok {
+				return &AbilityResult{Success: false, Message: "无法生成合理的错误信息"}, nil
+			}
 			result.Message = fmt.Sprintf("你得知：%s 或 %s 中有一人是 %s",
-				na.getPlayerName(outsiderID), na.getPlayerName(wrongID), getRoleDisplayName(fakeRole))
+				na.getPlayerName(fakePlayers[0]), na.getPlayerName(fakePlayers[1]), getRoleDisplayName(fakeRole))
 			result.Information = &AbilityInfo{
 				Type:    "librarian",
-				Content: map[string]interface{}{"players": []string{outsiderID, wrongID}, "role": fakeRole},
+				Content: map[string]interface{}{"players": fakePlayers, "role": fakeRole},
 				IsFalse: true,
 			}
 		} else {
@@ -273,21 +286,21 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 	// Find a minion (or Recluse registering as minion)
 	var minionID, wrongID, minionRole string
 
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID {
-			role := GetRoleByID(p.TrueRole)
-			if role != nil && role.Type == RoleMinion {
-				minionID = p.UserID
-				minionRole = p.TrueRole
-				break
-			}
+	for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+		p := na.ctx.Players[uid]
+		role := GetRoleByID(p.TrueRole)
+		if role != nil && role.Type == RoleMinion {
+			minionID = p.UserID
+			minionRole = p.TrueRole
+			break
 		}
 	}
 
 	// Recluse might appear as the minion instead
 	if minionID != "" && na.ctx.RecluseRegisterEvil {
-		for _, p := range na.ctx.Players {
-			if p.TrueRole == "recluse" && p.IsAlive && !na.ctx.PoisonedIDs[p.UserID] {
+		for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+			p := na.ctx.Players[uid]
+			if p.TrueRole == "recluse" && !na.ctx.PoisonedIDs[p.UserID] {
 				// Recluse shows up as the minion; the pair includes recluse + wrong player
 				minionID = p.UserID
 				// Keep the minionRole the same (what they "register as")
@@ -301,9 +314,9 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 	}
 
 	// Find a wrong player
-	for _, p := range na.ctx.Players {
-		if p.IsAlive && p.UserID != req.UserID && p.UserID != minionID {
-			wrongID = p.UserID
+	for _, uid := range na.getAliveOtherPlayerIDs(req.UserID) {
+		if uid != minionID {
+			wrongID = uid
 			break
 		}
 	}
@@ -314,12 +327,15 @@ func (na *NightAgent) resolveInvestigator(req AbilityRequest, malfunctioning boo
 	}
 
 	if malfunctioning {
-		fakeRole := na.getRandomMinionRole(minionRole)
+		fakePlayers, fakeRole, ok := na.buildFalsePairInfo(req.UserID, RoleMinion, minionRole)
+		if !ok {
+			return &AbilityResult{Success: false, Message: "无法生成合理的错误信息"}, nil
+		}
 		result.Message = fmt.Sprintf("你得知：%s 或 %s 中有一人是 %s",
-			na.getPlayerName(minionID), na.getPlayerName(wrongID), getRoleDisplayName(fakeRole))
+			na.getPlayerName(fakePlayers[0]), na.getPlayerName(fakePlayers[1]), getRoleDisplayName(fakeRole))
 		result.Information = &AbilityInfo{
 			Type:    "investigator",
-			Content: map[string]interface{}{"players": []string{minionID, wrongID}, "role": fakeRole},
+			Content: map[string]interface{}{"players": fakePlayers, "role": fakeRole},
 			IsFalse: true,
 		}
 	} else {
@@ -812,6 +828,80 @@ func (na *NightAgent) getPlayerName(userID string) string {
 	return "未知玩家"
 }
 
+func (na *NightAgent) getAliveOtherPlayerIDs(excludeUserID string) []string {
+	ids := make([]string, 0, len(na.ctx.Players))
+	for uid, p := range na.ctx.Players {
+		if uid == excludeUserID || !p.IsAlive {
+			continue
+		}
+		ids = append(ids, uid)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return na.ctx.Players[ids[i]].SeatNumber < na.ctx.Players[ids[j]].SeatNumber
+	})
+	return ids
+}
+
+func (na *NightAgent) buildFalsePairInfo(excludeUserID string, roleType RoleType, excludedRoles ...string) ([]string, string, bool) {
+	players := na.getAliveOtherPlayerIDs(excludeUserID)
+	if len(players) < 2 {
+		return nil, "", false
+	}
+
+	fakeRole := na.getPlausibleRoleByType(roleType, excludedRoles...)
+	if fakeRole == "" {
+		return nil, "", false
+	}
+
+	pair := make([]string, 0, 2)
+	for _, uid := range players {
+		if na.ctx.Players[uid].TrueRole == fakeRole {
+			continue
+		}
+		pair = append(pair, uid)
+		if len(pair) == 2 {
+			return pair, fakeRole, true
+		}
+	}
+
+	return players[:2], fakeRole, true
+}
+
+func (na *NightAgent) getPlausibleRoleByType(roleType RoleType, excludedRoles ...string) string {
+	excluded := make(map[string]struct{}, len(excludedRoles))
+	for _, roleID := range excludedRoles {
+		if roleID != "" {
+			excluded[roleID] = struct{}{}
+		}
+	}
+
+	for _, role := range GetRolesByType(roleType) {
+		if _, skip := excluded[role.ID]; skip {
+			continue
+		}
+		if !na.isRoleInPlay(role.ID) {
+			return role.ID
+		}
+	}
+
+	for _, role := range GetRolesByType(roleType) {
+		if _, skip := excluded[role.ID]; !skip {
+			return role.ID
+		}
+	}
+
+	return ""
+}
+
+func (na *NightAgent) isRoleInPlay(roleID string) bool {
+	for _, p := range na.ctx.Players {
+		if p.TrueRole == roleID {
+			return true
+		}
+	}
+	return false
+}
+
 func (na *NightAgent) getRandomTownsfolkRole(exclude string) string {
 	roles := GetRolesByType(RoleTownsfolk)
 	for _, r := range roles {
@@ -854,7 +944,12 @@ func (na *NightAgent) getRandomRole() string {
 func getRoleDisplayName(roleID string) string {
 	role := GetRoleByID(roleID)
 	if role != nil {
-		return role.Name
+		if role.NameCN != "" {
+			return role.NameCN
+		}
+		if role.Name != "" {
+			return role.Name
+		}
 	}
 	return roleID
 }

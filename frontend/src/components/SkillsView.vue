@@ -7,7 +7,7 @@
     <div class="skills-view__card">
       <div class="skills-view__header">
         <h3 class="skills-view__title">{{ $t('skills.title') }}</h3>
-        <span class="skills-view__status" v-if="isRealSlayer && hasUsedSlayerSkill">
+        <span class="skills-view__status" v-if="hasUsedSlayerSkill">
           {{ $t('skills.used') }}
         </span>
       </div>
@@ -84,10 +84,10 @@ export default {
       const reminders = this.myRole && Array.isArray(this.myRole.reminders)
         ? this.myRole.reminders
         : [];
-      return reminders.includes("no_ability") || reminders.includes("无能力");
+      return reminders.includes("slayer_claim_used") || reminders.includes("no_ability") || reminders.includes("无能力");
     },
     canUseSlayerAction() {
-      return this.isTroubleBrewing && this.isDaytime && !this.submitting && !(this.isRealSlayer && this.hasUsedSlayerSkill);
+      return this.isTroubleBrewing && this.isDaytime && !this.submitting && !this.hasUsedSlayerSkill;
     },
     targetPlayers() {
       return [...this.players]
@@ -96,7 +96,7 @@ export default {
     },
     actionLabel() {
       if (this.submitting) return this.$t('skills.submitting');
-      if (this.isRealSlayer && this.hasUsedSlayerSkill) return this.$t('skills.used');
+      if (this.hasUsedSlayerSkill) return this.$t('skills.used');
       return this.$t('skills.fireSlayer');
     }
   },

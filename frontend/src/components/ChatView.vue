@@ -134,7 +134,9 @@ export default {
       return this.activeMessages;
     },
     otherPlayers() {
-      return this.players.filter(p => !p.isMe);
+      return this.players
+        .filter(p => !p.isMe)
+        .sort((a, b) => a.seatIndex - b.seatIndex);
     },
     quickActions() {
       return {

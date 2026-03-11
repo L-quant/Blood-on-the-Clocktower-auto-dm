@@ -24,6 +24,8 @@ export function syncRoomState(state, store) {
     } else if (state.phase === 'ended') {
       store.commit('ui/setScreen', 'end');
       if (state.winner) store.commit('game/setWinner', state.winner);
+      if (state.win_reason) store.commit('game/setWinReason', state.win_reason);
+      if (state.game_recap) store.commit('game/setRecap', state.game_recap);
     } else {
       store.commit('ui/setScreen', 'game');
     }
@@ -65,6 +67,8 @@ function syncPlayers(playersMap, store) {
     });
     if (isMe && seatIndex > 0) mySeatIndex = seatIndex;
   });
+
+  playersList.sort((a, b) => a.seatIndex - b.seatIndex);
 
   if (playersList.length > 0) store.commit('players/setPlayers', playersList);
   if (mySeatIndex > 0) store.commit('setSeatIndex', mySeatIndex);

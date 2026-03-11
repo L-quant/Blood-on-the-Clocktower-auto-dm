@@ -52,6 +52,42 @@ func TestHandleAbilityDeliversEmpathInfoWhenLastNightActionCompletes(t *testing.
 	if !hasTestEventType(events, "phase.day") {
 		t.Fatal("expected phase.day event after final night action")
 	}
+
+	dayPayload := findEventPayload(t, events, "phase.day")
+	if dayPayload["night_deaths"] != "[]" {
+		t.Fatalf("expected first-night phase.day payload to report no deaths, got %q", dayPayload["night_deaths"])
+	}
+}
+
+func TestHandleAbilityIncludesNightDeathsInPhaseDayPayload(t *testing.T) {
+	state := NewState("room-2")
+	state.Phase = PhaseNight
+	state.NightCount = 2
+	state.SeatOrder = []string{"imp", "target", "monk"}
+	state.Players["imp"] = Player{UserID: "imp", TrueRole: "imp", Team: "evil", Alive: true, SeatNumber: 1}
+	state.Players["target"] = Player{UserID: "target", TrueRole: "washerwoman", Team: "good", Alive: true, SeatNumber: 2}
+	state.Players["monk"] = Player{UserID: "monk", TrueRole: "monk", Team: "good", Alive: true, SeatNumber: 3}
+	state.NightActions = []NightAction{{
+		UserID:     "imp",
+		RoleID:     "imp",
+		Order:      100,
+		ActionType: "select_one",
+	}}
+
+	events, _, err := handleAbility(state, types.CommandEnvelope{
+		CommandID:   "cmd-2",
+		ActorUserID: "imp",
+		RoomID:      state.RoomID,
+		Payload:     []byte(`{"targets":"[\"target\"]"}`),
+	})
+	if err != nil {
+		t.Fatalf("handleAbility returned error: %v", err)
+	}
+
+	dayPayload := findEventPayload(t, events, "phase.day")
+	if dayPayload["night_deaths"] != "[2]" {
+		t.Fatalf("expected phase.day payload to include seat 2 death, got %q", dayPayload["night_deaths"])
+	}
 }
 
 func findEventPayload(t *testing.T, events []types.Event, eventType string) map[string]string {

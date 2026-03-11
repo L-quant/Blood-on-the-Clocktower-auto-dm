@@ -74,7 +74,7 @@ export function processGameEvent(pe, store) {
       addPhaseTimeline('night', store);
       break;
     case 'phase.day':
-      handlePhaseDay(store);
+      handlePhaseDay(eventData, store);
       break;
     case 'phase.nomination':
       store.commit('game/setPhase', 'nomination');
@@ -134,6 +134,9 @@ export function processGameEvent(pe, store) {
       store.commit('game/setWinner', eventData.winner || '');
       store.commit('game/setWinReason', eventData.reason || '');
       store.commit('ui/setScreen', 'end');
+      break;
+    case 'game.recap':
+      store.commit('game/setRecap', eventData.summary || '');
       break;
     case 'timer.set': {
       const deadline = parseInt(eventData.deadline, 10) || 0;
@@ -226,7 +229,7 @@ function handleBluffsAssigned(d, store) {
   store.commit('players/setBluffs', bluffs || []);
 }
 
-function handlePhaseDay(store) {
+function handlePhaseDay(d, store) {
   const newDayCount = store.state.game.dayCount + 1;
   store.commit('game/setPhase', 'day');
   store.commit('game/setDayCount', newDayCount);
@@ -239,6 +242,40 @@ function handlePhaseDay(store) {
     store.commit('night/reset');
   }
   store.commit('timeline/addEvent', { type: 'phase_change', dayCount: newDayCount, data: { phase: 'day' } });
+
+  const nightDeaths = parseNightDeaths(d);
+  const announcement = buildMorningAnnouncement(nightDeaths);
+  store.commit('chat/addPublicMessage', {
+    seatIndex: -1,
+    text: announcement,
+    isSystem: true
+  });
+}
+
+function parseNightDeaths(d) {
+  if (!d || !d.night_deaths) return [];
+  if (Array.isArray(d.night_deaths)) return d.night_deaths.map(n => parseInt(n, 10)).filter(n => n > 0);
+
+  try {
+    const parsed = JSON.parse(d.night_deaths);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(n => parseInt(n, 10)).filter(n => n > 0);
+  } catch (_e) {
+    return [];
+  }
+}
+
+function buildMorningAnnouncement(nightDeaths) {
+  if (!nightDeaths.length) {
+    return i18n.t('game.peacefulNightAnnouncement');
+  }
+
+  const seats = [...nightDeaths]
+    .sort((a, b) => a - b)
+    .map(seat => `${seat}号`)
+    .join('、');
+
+  return i18n.t('game.morningDeathAnnouncement', { seats });
 }
 
 function addPhaseTimeline(phase, store) {
@@ -310,11 +347,6 @@ function handleNominationResolved(d, store) {
     text: summary, 
     isSystem: true 
   });
-
-  store.commit('timeline/addEvent', {
-    type: 'vote_result', dayCount: store.state.game.dayCount,
-    data: { nomineeSeat, yesCount, result }
-  });
 }
 
 function handleTimeExtended(d, store) {
@@ -335,10 +367,18 @@ function handleNightActionPrompt(d, store) {
   let targets = [];
   if (actionType === 'select_one' || actionType === 'select_two') {
     targets = store.state.players.players
-      .filter(p => !p.isMe && p.isAlive)
+      .filter(p => isNightActionTargetAllowed(nightRoleId, p))
+      .sort((a, b) => a.seatIndex - b.seatIndex)
       .map(p => ({ seatIndex: p.seatIndex, id: p.id }));
   }
   store.commit('night/queuePrompt', { roleId: nightRoleId, roleName, abilityText, actionType, targets });
+}
+
+function isNightActionTargetAllowed(roleId, player) {
+  if (!player) return false;
+  if (roleId === 'imp') return true;
+  if (roleId === 'poisoner') return !player.isMe;
+  return !player.isMe && player.isAlive;
 }
 
 function handleNightActionCompleted(d, store) {
