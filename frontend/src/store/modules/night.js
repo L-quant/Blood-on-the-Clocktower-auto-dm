@@ -17,6 +17,7 @@ const state = () => ({
   nightInfoDetail: null, // { roleId, infoType, content, message } from night.info event
   teamRecognition: null, // { team, demonId, minionIds, bluffs } from team.recognition event
   nightInfoHistory: [], // accumulated night info records across all nights
+  grimoireHistory: [], // spy grimoire snapshots grouped by night
   progress: {
     current: 0,
     total: 0
@@ -74,8 +75,19 @@ const mutations = {
   pushNightInfo(state, entry) {
     state.nightInfoHistory.push(entry);
   },
+  setGrimoireEntry(state, entry) {
+    const idx = state.grimoireHistory.findIndex(item => item.nightNumber === entry.nightNumber);
+    if (idx >= 0) {
+      state.grimoireHistory.splice(idx, 1, entry);
+      return;
+    }
+    state.grimoireHistory.push(entry);
+  },
   clearNightInfoHistory(state) {
     state.nightInfoHistory = [];
+  },
+  clearGrimoireHistory(state) {
+    state.grimoireHistory = [];
   },
   setProgress(state, { current, total }) {
     state.progress.current = current;
@@ -143,7 +155,7 @@ const mutations = {
     state.pendingPrompt = null;
     state.nightInfoDetail = null;
     state.teamRecognition = null;
-    // nightInfoHistory 不在此清除，需跨夜保留；仅在游戏结束/重新开始时通过 clearNightInfoHistory 清除
+    // nightInfoHistory / grimoireHistory 不在此清除，需跨夜保留；仅在游戏结束/重新开始时单独清除
     state.progress = { current: 0, total: 0 };
   }
 };

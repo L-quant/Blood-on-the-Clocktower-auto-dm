@@ -134,7 +134,9 @@ export default {
       return this.activeMessages;
     },
     otherPlayers() {
-      return this.players.filter(p => !p.isMe);
+      return this.players
+        .filter(p => !p.isMe)
+        .sort((a, b) => a.seatIndex - b.seatIndex);
     },
     quickActions() {
       return {
@@ -297,6 +299,11 @@ export default {
       border-radius: 8px;
       padding: 8px 12px;
       font-size: 0.8rem;
+    }
+
+    option {
+      background: #424B54;
+      color: white;
     }
   }
 

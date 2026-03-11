@@ -7,10 +7,10 @@
 - `roles.go` → 定义所有暗流涌动角色 (含 ActionType: info/select_one/select_two/no_action)、玩家分配表
 - `night.go` → 夜晚能力解析引擎，处理 13 种角色能力 (含中毒/保护逻辑)；ResolveAbility 现仅由信息分发层调用（不再由 handleAbility 直接调用）
 - `spy.go` → 间谍干扰系统：GetApparentAlignment / GetApparentRole (间谍对信息角色显为善良)、BuildGrimoireSnapshot (间谍魔典快照)
-- `setup.go` → 游戏初始化：角色分配 (支持 CustomRoles 和随机选择)、Baron 自动检测 (+2 outsider)、assignSpyApparentRole (间谍假角色分配)、夜晚顺序创建
+- `setup.go` → 游戏初始化：角色分配 (支持 CustomRoles 和随机选择)、Baron 自动检测 (+2 outsider)、generateBluffs（恶魔 bluff 排除 drunk）、assignSpyApparentRole (间谍假角色分配)、夜晚顺序创建
 - `compose.go` → 角色组合接口 (Composer)、RandomComposer (随机选角)、FallbackComposer (主→备降级)
 - `night_test.go` → 夜晚能力解析的 24 个测试用例
-- `setup_test.go` → Baron 修正、CustomRoles、RandomComposer、FallbackComposer 测试 (7 tests)
+- `setup_test.go` → Setup / bluff 生成测试（含 drunk 不进入恶魔 bluff 候选）
 
 ## 对外接口
 - `GetRoleByID(id string) *Role` → 按 ID 查询角色

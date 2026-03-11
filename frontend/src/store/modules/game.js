@@ -1,4 +1,4 @@
-// Vuex 模块：游戏阶段、天数、胜者状态管理
+// Vuex 模块：游戏阶段、天数、胜者状态与结算复盘管理
 //
 // [OUT] store/index.js（模块注册）
 // [POS] 游戏核心状态，驱动 UI 阶段展示与胜负判定
@@ -8,6 +8,7 @@ const state = () => ({
   dayCount: 0,
   winner: '', // 'good' | 'evil' | ''
   winReason: '',
+  recap: '',
   alivePlayers: 0,
   deadPlayers: 0,
   phaseDeadline: 0, // unix ms, 0 = no deadline
@@ -35,6 +36,9 @@ const mutations = {
   setWinReason(state, reason) {
     state.winReason = reason;
   },
+  setRecap(state, recap) {
+    state.recap = recap;
+  },
   setAliveCount(state, count) {
     state.alivePlayers = count;
   },
@@ -56,6 +60,7 @@ const mutations = {
     state.dayCount = 0;
     state.winner = '';
     state.winReason = '';
+    state.recap = '';
     state.alivePlayers = 0;
     state.deadPlayers = 0;
     state.phaseDeadline = 0;

@@ -4,7 +4,7 @@
 // [POS] UI 控制中心，替代 Vue Router 管理画面切换
 
 const state = () => ({
-  activeTab: 'square', // 'square' | 'chat' | 'timeline' | 'me'
+  activeTab: 'square', // 'square' | 'chat' | 'timeline' | 'skills' | 'me'
   screen: 'home', // 'home' | 'lobby' | 'game' | 'end'
   isMobile: false,
   modals: {

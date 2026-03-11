@@ -102,7 +102,8 @@ func NewRoomActor(loadCtx context.Context, loopCtx context.Context, roomID strin
 
 // recoverTimeoutFromState re-schedules the appropriate phase timer
 // after loading persisted state (e.g., after server restart).
-// Skips scheduling when timeout durations are 0 (timeouts disabled).
+// Night timeout is explicitly disabled in the current version, so
+// first_night / night phases are intentionally skipped here.
 func (ra *RoomActor) recoverTimeoutFromState() {
 	state := ra.state
 	if state.Phase == "" || state.Phase == engine.PhaseLobby || state.Phase == engine.PhaseEnded {
@@ -111,11 +112,7 @@ func (ra *RoomActor) recoverTimeoutFromState() {
 	cfg := state.Config
 	switch state.Phase {
 	case engine.PhaseFirstNight, engine.PhaseNight:
-		if cfg.NightActionTimeoutSec <= 0 {
-			return
-		}
-		dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
-		ra.phaseTimer.Schedule(dur, "night_timeout", nil)
+		return
 	case engine.PhaseDay:
 		switch state.SubPhase {
 		case engine.SubPhaseDefense:
@@ -370,16 +367,13 @@ func (ra *RoomActor) broadcast(ctx context.Context, events []store.StoredEvent, 
 
 // scheduleTimeouts inspects emitted events and schedules phase timeouts.
 // Each new schedule cancels the previous timer automatically.
-// When duration is 0, no timer is scheduled (timeouts disabled).
+// Night timeout is explicitly disabled in the current version, so only
+// day / nomination related timers are scheduled here.
 func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.GameConfig) {
 	for _, e := range events {
 		switch e.EventType {
 		case "phase.first_night", "phase.night":
-			if cfg.NightActionTimeoutSec <= 0 {
-				continue
-			}
-			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
-			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
+			continue
 
 		case "phase.day":
 			if cfg.DiscussionDurationSec <= 0 {
@@ -417,11 +411,7 @@ func (ra *RoomActor) scheduleTimeouts(events []store.StoredEvent, cfg engine.Gam
 			ra.phaseTimer.Schedule(dur, "advance_phase", map[string]string{"phase": "nomination"})
 
 		case "action.reminder":
-			if cfg.NightActionTimeoutSec <= 0 {
-				continue
-			}
-			dur := time.Duration(cfg.NightActionTimeoutSec) * time.Second
-			ra.phaseTimer.Schedule(dur, "night_timeout", nil)
+			continue
 
 		case "game.ended":
 			ra.phaseTimer.Cancel()

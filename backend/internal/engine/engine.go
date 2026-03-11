@@ -634,13 +634,14 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 
 	events := []types.Event{}
 	targetsJSON, _ := json.Marshal(targetIDs)
-
-	// 收集层：仅记录意图，不调用 ResolveAbility，不生成效果事件
-	events = append(events, newEvent(cmd, "night.action.completed", map[string]string{
+	completionEvent := newEvent(cmd, "night.action.completed", map[string]string{
 		"user_id": cmd.ActorUserID,
 		"role_id": player.TrueRole,
 		"targets": string(targetsJSON),
-	}))
+	})
+
+	// 收集层：仅记录意图，不调用 ResolveAbility，不生成效果事件
+	events = append(events, completionEvent)
 
 	// Prompt next player or trigger resolution
 	allDone := true
@@ -659,18 +660,21 @@ func handleAbility(state State, cmd types.CommandEnvelope) ([]types.Event, *type
 		events = append(events, promptEvents...)
 	}
 	if allDone && len(state.NightActions) > 0 {
+		workingState := state.Copy()
+		applyEventsToState(&workingState, []types.Event{completionEvent})
+
 		// 所有行动收集完毕 → 统一结算 → 信息分发 → 天亮
-		resolveEvents := resolveNight(state, cmd)
+		resolveEvents := resolveNight(workingState, cmd)
 		events = append(events, resolveEvents...)
 
 		// 应用结算效果到 state 副本，用于信息分发
-		stateCopy := state.Copy()
+		stateCopy := workingState.Copy()
 		applyResolveEffects(&stateCopy, resolveEvents)
 
 		infoEvents := distributeNightInfo(stateCopy, cmd)
 		events = append(events, infoEvents...)
 
-		events = append(events, newEvent(cmd, "phase.day", nil))
+		events = append(events, newEvent(cmd, "phase.day", buildPhaseDayPayload(stateCopy, resolveEvents)))
 
 		// 胜负检查
 		winEvents := checkWinCondition(stateCopy, cmd)
@@ -698,27 +702,16 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 	targetPhase := payload["phase"]
 	events := []types.Event{}
 
+	if targetPhase == "day" && (state.Phase == PhaseFirstNight || state.Phase == PhaseNight) {
+		return nil, nil, fmt.Errorf("night cannot be forced to day; complete all night actions instead")
+	}
+
 	switch targetPhase {
 	case "day":
 		// Auto-complete any remaining night actions as timed_out
 		timeoutEvents, _ := CompleteRemainingNightActions(state, cmd)
 		events = append(events, timeoutEvents...)
-
-		// Announce deaths from night
-		for _, death := range state.PendingDeaths {
-			if !death.Protected {
-				events = append(events, newEvent(cmd, "player.died", map[string]string{
-					"user_id": death.UserID,
-					"cause":   death.Cause,
-				}))
-				// Update local state for immediate win check
-				if p, ok := state.Players[death.UserID]; ok {
-					p.Alive = false
-					state.Players[death.UserID] = p
-				}
-			}
-		}
-		events = append(events, newEvent(cmd, "phase.day", nil))
+		events = append(events, finalizeNightFromCompletions(state, cmd, timeoutEvents)...)
 
 	case "night":
 		// Execute on-the-block player before entering night (only if no execution yet)
@@ -778,6 +771,10 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 		return nil, nil, fmt.Errorf("invalid target phase: %s", targetPhase)
 	}
 
+	if targetPhase == "day" {
+		return events, acceptedResult(cmd.CommandID), nil
+	}
+
 	// Check win condition
 	winEvents := checkWinCondition(state, cmd)
 	events = append(events, winEvents...)
@@ -823,19 +820,26 @@ func handleWriteEvent(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 }
 
 func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
-	if state.Phase != PhaseDay {
+	if !isDaytimePhase(state.Phase) {
 		return nil, nil, fmt.Errorf("slayer can only shoot during day")
 	}
 
-	slayer := state.Players[cmd.ActorUserID]
-	if slayer.TrueRole != "slayer" {
-		return nil, nil, fmt.Errorf("only slayer can use this ability")
+	shooter, ok := state.Players[cmd.ActorUserID]
+	if !ok {
+		return nil, nil, ErrPlayerNotFound
+	}
+	isTrueSlayer := shooter.TrueRole == "slayer"
+	for _, reminder := range shooter.Reminders {
+		if reminder == "slayer_claim_used" {
+			return nil, nil, fmt.Errorf("player has already claimed a slayer shot")
+		}
 	}
 
-	// Check if slayer has already used ability
-	for _, r := range slayer.Reminders {
-		if r == "no_ability" || r == "无能力" {
-			return nil, nil, fmt.Errorf("slayer has already used ability")
+	if isTrueSlayer {
+		for _, reminder := range shooter.Reminders {
+			if reminder == "no_ability" || reminder == "无能力" {
+				return nil, nil, fmt.Errorf("slayer has already used ability")
+			}
 		}
 	}
 
@@ -851,37 +855,49 @@ func handleSlayerShot(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, ErrPlayerNotFound
 	}
 
-	events := []types.Event{
-		newEvent(cmd, "slayer.shot", map[string]string{
-			"target":      targetID,
-			"target_seat": fmt.Sprintf("%d", target.SeatNumber),
-		}),
+	shotResult := "no_effect"
+	postShotEvents := make([]types.Event, 0, 4)
+	postShotEvents = append(postShotEvents, newEvent(cmd, "reminder.added", map[string]string{
+		"user_id":  cmd.ActorUserID,
+		"reminder": "slayer_claim_used",
+	}))
+	if isTrueSlayer {
+		postShotEvents = append(postShotEvents, newEvent(cmd, "reminder.added", map[string]string{
+			"user_id":  cmd.ActorUserID,
+			"reminder": "no_ability",
+		}))
 	}
 
-	// Mark slayer as having used ability
-	// This would be handled by adding reminder
-
-	// If target is the demon (and slayer not poisoned), they die
-	if targetID == state.DemonID && !slayer.IsPoisoned {
-		events = append(events, newEvent(cmd, "player.died", map[string]string{
+	if isTrueSlayer && targetID == state.DemonID && !shooter.IsPoisoned {
+		playerDiedEvent := newEvent(cmd, "player.died", map[string]string{
 			"user_id": targetID,
 			"cause":   "slayer",
-		}))
+		})
+		postShotEvents = append(postShotEvents, playerDiedEvent)
 
-		// Update state for win check
-		target.Alive = false
-		state.Players[targetID] = target
+		resolvedState := state.Copy()
+		applyEventsToState(&resolvedState, []types.Event{playerDiedEvent})
+		winEvents := checkWinCondition(resolvedState, cmd)
+		postShotEvents = append(postShotEvents, winEvents...)
 
-		// Check win condition
-		winEvents := checkWinCondition(state, cmd)
-		events = append(events, winEvents...)
+		if hasEventType(winEvents, "game.ended") {
+			shotResult = "killed"
+		} else if hasEventType(winEvents, "demon.changed") {
+			applyEventsToState(&resolvedState, winEvents)
+			postShotEvents = append(postShotEvents, buildNightTransitionEvents(resolvedState, cmd)...)
+			shotResult = "killed_night"
+		} else {
+			shotResult = "killed"
+		}
 	}
 
-	// Add no_ability reminder
-	events = append(events, newEvent(cmd, "reminder.added", map[string]string{
-		"user_id":  cmd.ActorUserID,
-		"reminder": "no_ability",
-	}))
+	events := []types.Event{newEvent(cmd, "slayer.shot", map[string]string{
+		"target":       targetID,
+		"target_seat":  fmt.Sprintf("%d", target.SeatNumber),
+		"shooter_seat": fmt.Sprintf("%d", shooter.SeatNumber),
+		"result":       shotResult,
+	})}
+	events = append(events, postShotEvents...)
 
 	return events, acceptedResult(cmd.CommandID), nil
 }

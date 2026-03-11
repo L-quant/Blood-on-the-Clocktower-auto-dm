@@ -33,11 +33,16 @@ func resolveNight(state State, cmd types.CommandEnvelope) []types.Event {
 	if intent, ok := intentByRole["poisoner"]; ok && len(intent.TargetIDs) > 0 {
 		poisonTargetID = intent.TargetIDs[0]
 		poisonerID = intent.UserID
-		events = append(events, newEvent(cmd, "player.poisoned", map[string]string{
-			"user_id": poisonTargetID,
-		}))
-		slog.Info("night.resolve: poisoner applied",
-			"target", poisonTargetID, "poisoner", poisonerID)
+		if target, exists := state.Players[poisonTargetID]; exists && target.Alive {
+			events = append(events, newEvent(cmd, "player.poisoned", map[string]string{
+				"user_id": poisonTargetID,
+			}))
+			slog.Info("night.resolve: poisoner applied",
+				"target", poisonTargetID, "poisoner", poisonerID)
+		} else {
+			slog.Info("night.resolve: poisoner selected dead or missing target, no effect",
+				"target", poisonTargetID, "poisoner", poisonerID)
+		}
 	}
 
 	// === 第二步：僧侣保护结算（非首夜）===
@@ -116,6 +121,11 @@ func resolveDemonKill(targetID, demonID, poisonTargetID, protectTargetID, monkID
 	// 自杀：触发红唇女郎继承检查
 	if targetID == demonID {
 		events = append(events, resolveStarpass(demonID, state, cmd)...)
+		return events
+	}
+
+	if !target.Alive {
+		slog.Info("night.resolve: imp selected dead target, no effect", "target", targetID, "demon", demonID)
 		return events
 	}
 

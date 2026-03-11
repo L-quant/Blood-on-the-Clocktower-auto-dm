@@ -337,6 +337,21 @@ export default new Vuex.Store({
     },
 
     /**
+     * Publicly claim to use the Slayer ability against a target seat.
+     * Backend command: "slayer_shot" with { target }
+     */
+    useSlayerShot({ commit, rootState }, targetSeat) {
+      const targetPlayer = rootState.players.players.find(player => player.seatIndex === targetSeat);
+      if (!targetPlayer) {
+        throw new Error('invalid slayer target');
+      }
+      commit('sendCommand', {
+        type: 'slayer_shot',
+        data: { target: targetPlayer.id }
+      });
+    },
+
+    /**
      * Ask AI assistant a question.
      * Calls backend askAssistant REST endpoint.
      */
@@ -353,6 +368,7 @@ export default new Vuex.Store({
       commit('timeline/clear');
       commit('night/reset');
       commit('night/clearNightInfoHistory');
+      commit('night/clearGrimoireHistory');
       commit('vote/reset');
       commit('ui/reset');
       commit('ui/setScreen', 'home');

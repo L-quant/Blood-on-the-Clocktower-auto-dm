@@ -123,6 +123,7 @@ type State struct {
 	OwnerID               string            `json:"owner_id,omitempty"`      // First player to join becomes owner
 	Winner                string            `json:"winner,omitempty"`        // "good" or "evil"
 	WinReason             string            `json:"win_reason,omitempty"`
+	GameRecap             string            `json:"game_recap,omitempty"`
 	ChatSeq               int64             `json:"chat_seq"`
 	LastSeq               int64             `json:"last_seq"`
 	PhaseStartedAt        int64             `json:"phase_started_at"`

@@ -58,6 +58,7 @@ export function processGameEvent(pe, store) {
     case 'game.started':
       store.commit('ui/setScreen', 'game');
       store.commit('night/clearNightInfoHistory');
+      store.commit('night/clearGrimoireHistory');
       _processedSeqs.clear();
       break;
     case 'phase.first_night':
@@ -73,7 +74,7 @@ export function processGameEvent(pe, store) {
       addPhaseTimeline('night', store);
       break;
     case 'phase.day':
-      handlePhaseDay(store);
+      handlePhaseDay(eventData, store);
       break;
     case 'phase.nomination':
       store.commit('game/setPhase', 'nomination');
@@ -134,18 +135,32 @@ export function processGameEvent(pe, store) {
       store.commit('game/setWinReason', eventData.reason || '');
       store.commit('ui/setScreen', 'end');
       break;
+    case 'game.recap':
+      store.commit('game/setRecap', eventData.summary || '');
+      break;
     case 'timer.set': {
       const deadline = parseInt(eventData.deadline, 10) || 0;
       store.commit('game/setPhaseDeadline', deadline);
       break;
     }
     case 'red_herring.assigned':
+      break;
     case 'reminder.added':
+      handleReminderAdded(eventData, store);
+      break;
     case 'ai.decision':
+      break;
     case 'slayer.shot':
+      handleSlayerShot(eventData, store);
+      break;
     case 'poison.cleared':
+      handlePoisonCleared(store);
+      break;
     case 'poison.rollback':
+      break;
     case 'player.poisoned':
+      handlePlayerPoisoned(eventData, store);
+      break;
     case 'player.protected':
     case 'action.requested':
       break;
@@ -194,7 +209,14 @@ function handleRoleAssigned(d, store) {
   const roleData = store.getters.rolesByKey.get(roleId);
   const localName = i18n.te('roles.' + roleId) ? i18n.t('roles.' + roleId) : (roleData ? roleData.name : roleId);
   const localAbility = i18n.te('roles.' + roleId + '_ability') ? i18n.t('roles.' + roleId + '_ability') : (roleData ? roleData.ability : '');
-  store.commit('players/setMyRole', { roleId, roleName: localName, team: d.team || '', ability: localAbility });
+  store.commit('players/setMyRole', {
+    roleId,
+    roleName: localName,
+    team: d.team || '',
+    ability: localAbility,
+    isPoisoned: !!d.is_poisoned,
+    reminders: Array.isArray(d.reminders) ? d.reminders : []
+  });
 }
 
 function handleBluffsAssigned(d, store) {
@@ -207,7 +229,7 @@ function handleBluffsAssigned(d, store) {
   store.commit('players/setBluffs', bluffs || []);
 }
 
-function handlePhaseDay(store) {
+function handlePhaseDay(d, store) {
   const newDayCount = store.state.game.dayCount + 1;
   store.commit('game/setPhase', 'day');
   store.commit('game/setDayCount', newDayCount);
@@ -220,6 +242,40 @@ function handlePhaseDay(store) {
     store.commit('night/reset');
   }
   store.commit('timeline/addEvent', { type: 'phase_change', dayCount: newDayCount, data: { phase: 'day' } });
+
+  const nightDeaths = parseNightDeaths(d);
+  const announcement = buildMorningAnnouncement(nightDeaths);
+  store.commit('chat/addPublicMessage', {
+    seatIndex: -1,
+    text: announcement,
+    isSystem: true
+  });
+}
+
+function parseNightDeaths(d) {
+  if (!d || !d.night_deaths) return [];
+  if (Array.isArray(d.night_deaths)) return d.night_deaths.map(n => parseInt(n, 10)).filter(n => n > 0);
+
+  try {
+    const parsed = JSON.parse(d.night_deaths);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(n => parseInt(n, 10)).filter(n => n > 0);
+  } catch (_e) {
+    return [];
+  }
+}
+
+function buildMorningAnnouncement(nightDeaths) {
+  if (!nightDeaths.length) {
+    return i18n.t('game.peacefulNightAnnouncement');
+  }
+
+  const seats = [...nightDeaths]
+    .sort((a, b) => a - b)
+    .map(seat => `${seat}号`)
+    .join('、');
+
+  return i18n.t('game.morningDeathAnnouncement', { seats });
 }
 
 function addPhaseTimeline(phase, store) {
@@ -270,9 +326,26 @@ function handleNominationResolved(d, store) {
   }, 3000);
 
   const yesCount = parseInt(d.votes_for, 10) || parseInt(d.yes_votes, 10) || store.state.vote.currentYesCount;
-  store.commit('timeline/addEvent', {
-    type: 'vote_result', dayCount: store.state.game.dayCount,
-    data: { nomineeSeat: store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1, yesCount, result }
+
+  // 优化播报：x提x，投票玩家xxxxx
+  const nominatorSeat = store.state.vote.nominator ? store.state.vote.nominator.seatIndex : -1;
+  const nomineeSeat = store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1;
+  const voters = store.state.vote.votes
+    .filter(v => v.vote)
+    .map(v => `${v.seatIndex}号`)
+    .join('、');
+  
+  const summary = i18n.t('vote.summary', {
+    nominator: nominatorSeat > 0 ? nominatorSeat : '?',
+    nominee: nomineeSeat > 0 ? nomineeSeat : '?',
+    voters: voters || i18n.t('vote.noVoters'),
+    count: yesCount
+  });
+
+  store.commit('chat/addPublicMessage', { 
+    seatIndex: -1, 
+    text: summary, 
+    isSystem: true 
   });
 }
 
@@ -294,10 +367,18 @@ function handleNightActionPrompt(d, store) {
   let targets = [];
   if (actionType === 'select_one' || actionType === 'select_two') {
     targets = store.state.players.players
-      .filter(p => !p.isMe && p.isAlive)
+      .filter(p => isNightActionTargetAllowed(nightRoleId, p))
+      .sort((a, b) => a.seatIndex - b.seatIndex)
       .map(p => ({ seatIndex: p.seatIndex, id: p.id }));
   }
   store.commit('night/queuePrompt', { roleId: nightRoleId, roleName, abilityText, actionType, targets });
+}
+
+function isNightActionTargetAllowed(roleId, player) {
+  if (!player) return false;
+  if (roleId === 'imp') return true;
+  if (roleId === 'poisoner') return !player.isMe;
+  return !player.isMe && player.isAlive;
 }
 
 function handleNightActionCompleted(d, store) {
@@ -323,10 +404,44 @@ function handlePlayerDied(d, store) {
   const deadPlayer = store.state.players.players.find(p => p.id === diedUserId);
   if (deadPlayer) {
     store.commit('players/killPlayer', deadPlayer.seatIndex);
-    store.commit('timeline/addEvent', {
-      type: 'death', dayCount: store.state.game.dayCount, data: { seatIndex: deadPlayer.seatIndex }
-    });
+    if (d.cause !== 'slayer') {
+      store.commit('timeline/addEvent', {
+        type: 'death', dayCount: store.state.game.dayCount, data: { seatIndex: deadPlayer.seatIndex }
+      });
+    }
   }
+}
+
+function handleReminderAdded(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  const current = store.state.players.myRole && Array.isArray(store.state.players.myRole.reminders)
+    ? store.state.players.myRole.reminders
+    : [];
+  if (current.includes(d.reminder)) return;
+  store.commit('players/updateMyRole', { reminders: [...current, d.reminder] });
+}
+
+function handlePlayerPoisoned(d, store) {
+  if (d.user_id !== apiService.userId) return;
+  store.commit('players/updateMyRole', { isPoisoned: true });
+}
+
+function handlePoisonCleared(store) {
+  if (!store.state.players.myRole) return;
+  store.commit('players/updateMyRole', { isPoisoned: false });
+}
+
+function handleSlayerShot(d, store) {
+  store.commit('timeline/addEvent', {
+    type: 'ability',
+    dayCount: store.state.game.dayCount,
+    data: {
+      ability: 'slayer_shot',
+      shooterSeat: parseInt(d.shooter_seat, 10) || 0,
+      targetSeat: parseInt(d.target_seat, 10) || 0,
+      result: d.result || 'no_effect'
+    }
+  });
 }
 
 function handlePublicChat(pe, d, store) {
@@ -362,10 +477,18 @@ function handleNightInfo(d, store) {
     message
   };
   store.commit('night/setNightInfoDetail', detail);
+  const nightNumber = store.state.game.dayCount + 1;
+  if (detail.infoType === 'grimoire') {
+    store.commit('night/setGrimoireEntry', {
+      ...detail,
+      nightNumber
+    });
+    return;
+  }
   // 追加到历史记录（夜晚编号 = dayCount + 1，因为 night.info 在 phase.day 之前触发）
   store.commit('night/pushNightInfo', {
     ...detail,
-    nightNumber: store.state.game.dayCount + 1
+    nightNumber
   });
 }
 

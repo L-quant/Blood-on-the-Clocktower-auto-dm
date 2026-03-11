@@ -5,10 +5,12 @@
 
 const state = () => ({
   players: [],
-  myRole: null, // { roleId, roleName, team, ability }
+  myRole: null, // { roleId, roleName, team, ability, isPoisoned, reminders }
   bluffs: [null, null, null], // demon bluffs (only visible to demon)
   fabled: []
 });
+
+const sortPlayersBySeat = (players) => [...players].sort((a, b) => a.seatIndex - b.seatIndex);
 
 const createPlayer = (id, seatIndex, name) => ({
   id: id || '',
@@ -18,15 +20,18 @@ const createPlayer = (id, seatIndex, name) => ({
   hasGhostVote: true,
   isNominatedToday: false,
   hasNominatedToday: false,
+  isPoisoned: false,
+  reminders: [],
   isMe: false
 });
 
 const mutations = {
   setPlayers(state, players) {
-    state.players = players;
+    state.players = sortPlayersBySeat(players);
   },
   addPlayer(state, { id, seatIndex }) {
     state.players.push(createPlayer(id, seatIndex));
+    state.players = sortPlayersBySeat(state.players);
   },
   removePlayer(state, seatIndex) {
     const idx = state.players.findIndex(p => p.seatIndex === seatIndex);
@@ -47,6 +52,7 @@ const mutations = {
     } else {
       state.players.push(createPlayer(id, seatIndex));
     }
+    state.players = sortPlayersBySeat(state.players);
   },
   unseatPlayer(state, seatIndex) {
     const idx = state.players.findIndex(p => p.seatIndex === seatIndex);
@@ -55,7 +61,31 @@ const mutations = {
     }
   },
   setMyRole(state, role) {
-    state.myRole = role; // { roleId, roleName, team, ability }
+    const reminders = Array.isArray(role && role.reminders) ? [...role.reminders] : [];
+    state.myRole = {
+      isPoisoned: false,
+      ...role,
+      reminders
+    };
+  },
+  updateMyRole(state, patch) {
+    if (!state.myRole) {
+      state.myRole = {
+        roleId: '',
+        roleName: '',
+        team: '',
+        ability: '',
+        isPoisoned: false,
+        reminders: []
+      };
+    }
+    state.myRole = {
+      ...state.myRole,
+      ...patch
+    };
+    if (Array.isArray(state.myRole.reminders)) {
+      state.myRole.reminders = [...state.myRole.reminders];
+    }
   },
   setBluffs(state, bluffs) {
     state.bluffs = bluffs;

@@ -1,11 +1,11 @@
-// Package engine 夜晚超时差异化处理
+// Package engine 夜晚超时路径（当前版本显式禁用）
 //
-// 当夜晚计时器超时时，自动补全信息类和善良方行动，
-// 邪恶方关键行动（imp杀人、poisoner选毒）不强制超时，
-// 而是发送 action.reminder 提醒并等待下一轮超时。
+// 项目当前规则要求夜晚只能自然结束，不能因计时器强制结束。
+// night_timeout 命令保留为兼容入口，但一律返回错误，避免外部误调用。
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/qingchang/Blood-on-the-Clocktower-auto-dm/internal/types"
@@ -15,20 +15,44 @@ import (
 // Auto-completes info/good actions, keeps evil critical actions pending
 // with a reminder, or advances to day if all done.
 func handleNightTimeout(state State, cmd types.CommandEnvelope) ([]types.Event, *types.CommandResult, error) {
-	if state.Phase != PhaseFirstNight && state.Phase != PhaseNight {
-		return nil, nil, fmt.Errorf("engine.handleNightTimeout: not in night phase")
+	_ = state
+	_ = cmd
+	return nil, nil, fmt.Errorf("engine.handleNightTimeout: night timeout is disabled in current version")
+}
+
+func finalizeNightFromCompletions(state State, cmd types.CommandEnvelope,
+	completionEvents []types.Event) []types.Event {
+	workingState := state.Copy()
+	applyEventsToState(&workingState, completionEvents)
+
+	resolveEvents := resolveNight(workingState, cmd)
+	events := append([]types.Event{}, resolveEvents...)
+
+	resolvedState := workingState.Copy()
+	applyResolveEffects(&resolvedState, resolveEvents)
+
+	infoEvents := distributeNightInfo(resolvedState, cmd)
+	events = append(events, infoEvents...)
+	events = append(events, newEvent(cmd, "phase.day", buildPhaseDayPayload(resolvedState, resolveEvents)))
+
+	winEvents := checkWinCondition(resolvedState, cmd)
+	events = append(events, winEvents...)
+
+	return events
+}
+
+func applyEventsToState(state *State, events []types.Event) {
+	for _, event := range events {
+		var payload map[string]string
+		if len(event.Payload) > 0 {
+			_ = json.Unmarshal(event.Payload, &payload)
+		}
+		state.Reduce(EventPayload{
+			Seq:     event.Seq,
+			Type:    event.EventType,
+			Payload: payload,
+		})
 	}
-
-	timeoutEvents, hasEvilPending := CompleteRemainingNightActions(state, cmd)
-	events := append([]types.Event{}, timeoutEvents...)
-
-	if hasEvilPending {
-		events = append(events, buildEvilReminders(state, cmd)...)
-	} else {
-		events = append(events, newEvent(cmd, "phase.day", map[string]string{}))
-	}
-
-	return events, acceptedResult(cmd.CommandID), nil
 }
 
 // buildEvilReminders generates action.reminder events for each incomplete

@@ -24,6 +24,8 @@ export function syncRoomState(state, store) {
     } else if (state.phase === 'ended') {
       store.commit('ui/setScreen', 'end');
       if (state.winner) store.commit('game/setWinner', state.winner);
+      if (state.win_reason) store.commit('game/setWinReason', state.win_reason);
+      if (state.game_recap) store.commit('game/setRecap', state.game_recap);
     } else {
       store.commit('ui/setScreen', 'game');
     }
@@ -59,10 +61,14 @@ function syncPlayers(playersMap, store) {
       hasGhostVote: p.has_ghost_vote !== undefined ? p.has_ghost_vote : true,
       isNominatedToday: p.was_nominated || false,
       hasNominatedToday: p.has_nominated || false,
+      isPoisoned: isMe ? !!p.is_poisoned : false,
+      reminders: isMe && Array.isArray(p.reminders) ? p.reminders : [],
       isMe
     });
     if (isMe && seatIndex > 0) mySeatIndex = seatIndex;
   });
+
+  playersList.sort((a, b) => a.seatIndex - b.seatIndex);
 
   if (playersList.length > 0) store.commit('players/setPlayers', playersList);
   if (mySeatIndex > 0) store.commit('setSeatIndex', mySeatIndex);
@@ -71,13 +77,15 @@ function syncPlayers(playersMap, store) {
 function syncOwnRole(playersMap, store) {
   if (!playersMap) return;
   const meData = playersMap[apiService.userId];
-  if (meData && meData.role && !store.state.players.myRole) {
+  if (meData && meData.role) {
     const roleData = store.getters.rolesByKey.get(meData.role);
     store.commit('players/setMyRole', {
       roleId: meData.role,
       roleName: roleData ? roleData.name : meData.role,
       team: meData.team || '',
-      ability: roleData ? roleData.ability : ''
+      ability: roleData ? roleData.ability : '',
+      isPoisoned: !!meData.is_poisoned,
+      reminders: Array.isArray(meData.reminders) ? meData.reminders : []
     });
   }
 }

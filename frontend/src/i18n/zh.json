@@ -48,6 +48,9 @@
     "goodWins": "善良阵营获胜！",
     "evilWins": "邪恶阵营获胜！",
     "gameOver": "游戏结束",
+    "recapTitle": "对局复盘",
+    "morningDeathAnnouncement": "昨晚，{seats}玩家死亡",
+    "peacefulNightAnnouncement": "昨晚是平安夜",
     "backToLobby": "返回大厅",
     "newGame": "新游戏",
     "advanceToNight": "进入夜晚",
@@ -71,8 +74,8 @@
   },
   "chat": {
     "title": "聊天",
-    "public": "公开",
-    "whisper": "悄悄话",
+    "public": "公聊",
+    "whisper": "私聊",
     "evil": "邪恶阵营",
     "assistant": "AI 助手",
     "placeholder": "输入消息...",
@@ -96,9 +99,27 @@
     "abilities": "能力",
     "empty": "暂无事件",
     "phaseChange": "阶段变更",
+    "phaseFirstNight": "首夜",
+    "phaseNthDay": "第{ordinal}个白天",
+    "phaseNthNight": "第{ordinal}个夜晚",
     "playerDied": "{n}号 死亡",
     "nominationResult": "{nominator}号 提名 {nominee}号",
-    "voteResult": "投票结果: {result}"
+    "voteResult": "投票结果: {result}",
+    "slayerShotMiss": "{shooter}号宣称自己是猎手向{target}号开枪，无事发生",
+    "slayerShotKill": "{shooter}号宣称自己是猎手向{target}号开枪，{target}号玩家死亡",
+    "slayerShotKillNight": "{shooter}号宣称自己是猎手向{target}号开枪，{target}号玩家死亡，天黑入夜"
+  },
+  "skills": {
+    "title": "技能",
+    "fireSlayer": "发动猎手技能",
+    "selectTarget": "选择号码",
+    "used": "已发动",
+    "submitting": "发动中...",
+    "onlyTb": "当前仅暗流涌动剧本开放此技能面板。",
+    "slayerHint": "公开宣称自己是猎手并选择一名玩家开枪。若你不是真猎手，或猎手中毒/打空，则无事发生。",
+    "dayOnly": "仅能在白天、提名或投票阶段发动。",
+    "noTargets": "当前没有可选目标。",
+    "failed": "发动技能失败"
   },
   "me": {
     "title": "我的",
@@ -131,7 +152,12 @@
     "timedOut": "你的夜晚行动已超时"
   },
   "nightLog": {
-    "title": "夜晚查验记录"
+    "title": "夜晚查验记录",
+    "grimoireTitle": "魔典",
+    "grimoireNight": "第 {n} 夜",
+    "drunk": "醉酒",
+    "poisoned": "中毒",
+    "protected": "被保护"
   },
   "teamReveal": {
     "title": "邪恶阵营",
@@ -148,6 +174,8 @@
     "nomineeLabel": "{n}号",
     "currentVotes": "当前: {count} 票",
     "requiredVotes": "需要 {count} 票",
+    "summary": "{nominator}号 提 {nominee}号，投票玩家：{voters} ({count}票)",
+    "noVoters": "无",
     "voteYes": "赞成",
     "voteNo": "反对",
     "yourTurn": "轮到你投票了！",
@@ -214,6 +242,7 @@
     "square": "广场",
     "chat": "聊天",
     "timeline": "事件",
+    "skills": "技能",
     "me": "我的"
   },
   "errors": {
