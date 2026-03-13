@@ -47,6 +47,11 @@ func distributeNightInfo(state State, cmd types.CommandEnvelope) []types.Event {
 			continue
 		}
 
+		// 当夜死亡玩家不再获得信息结算；守鸦人是唯一例外。
+		if action.RoleID != "ravenkeeper" && isPlayerDeadInState(action.UserID, state) {
+			continue
+		}
+
 		// 守鸦人特殊处理：只有今晚死亡才获得信息
 		if action.RoleID == "ravenkeeper" {
 			if !isPlayerDeadInState(action.UserID, state) {

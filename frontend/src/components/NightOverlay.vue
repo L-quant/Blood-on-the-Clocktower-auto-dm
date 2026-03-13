@@ -125,6 +125,7 @@
         </div>
         <div class="night-overlay__select-actions">
           <button
+            v-if="showSkipAction"
             class="button night-overlay__skip"
             @click="skipAction"
           >{{ $t('night.skip') }}</button>
@@ -194,6 +195,11 @@ export default {
     },
     isAutoAction() {
       return this.actionType === 'passive' || this.actionType === 'info' || this.actionType === 'no_action';
+    },
+    showSkipAction() {
+      const myRole = this.$store.state.players.myRole;
+      const isEvilTeam = !!myRole && myRole.team === 'evil';
+      return !isEvilTeam;
     },
     localizedRoleName() {
       if (!this.roleId) return this.roleName || '';

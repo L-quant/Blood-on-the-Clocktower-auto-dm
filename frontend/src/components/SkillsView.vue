@@ -80,14 +80,20 @@ export default {
     isRealSlayer() {
       return !!this.myRole && this.myRole.roleId === "slayer";
     },
+    mePlayer() {
+      return this.players.find(player => player.isMe) || null;
+    },
+    isMeAlive() {
+      return !!this.mePlayer && this.mePlayer.isAlive;
+    },
     hasUsedSlayerSkill() {
       const reminders = this.myRole && Array.isArray(this.myRole.reminders)
         ? this.myRole.reminders
         : [];
-      return reminders.includes("slayer_claim_used") || reminders.includes("no_ability") || reminders.includes("无能力");
+      return reminders.includes("slayer_claim_used");
     },
     canUseSlayerAction() {
-      return this.isTroubleBrewing && this.isDaytime && !this.submitting && !this.hasUsedSlayerSkill;
+      return this.isTroubleBrewing && this.isDaytime && this.isMeAlive && !this.submitting && !this.hasUsedSlayerSkill;
     },
     targetPlayers() {
       return [...this.players]

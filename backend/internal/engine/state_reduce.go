@@ -48,6 +48,8 @@ func (s *State) Reduce(event EventPayload) {
 		s.PhaseEndsAt = time.Now().Add(time.Duration(s.Config.NominationTimeoutSec) * time.Second).UnixMilli()
 	case "nomination.created":
 		s.reduceNominationCreated(event)
+	case "defense.progress":
+		s.reduceDefenseProgress(event)
 	case "defense.ended":
 		s.reduceDefenseEnded()
 	case "vote.cast":
@@ -294,15 +296,17 @@ func (s *State) reduceNominationCreated(event EventPayload) {
 	threshold := (aliveCount + 1) / 2
 	now := time.Now().UnixMilli()
 	s.Nomination = &Nomination{
-		Nominator:     nominatorID,
-		Nominee:       nomineeID,
-		NominatorSeat: nominator.SeatNumber,
-		NomineeSeat:   nominee.SeatNumber,
-		Votes:         make(map[string]bool),
-		VoteOrder:     s.buildVoteOrder(nominee.SeatNumber),
-		Threshold:     threshold,
-		StartedAt:     now,
-		DefenseEndsAt: now + int64(s.Config.DefenseDurationSec*1000),
+		Nominator:      nominatorID,
+		Nominee:        nomineeID,
+		NominatorSeat:  nominator.SeatNumber,
+		NomineeSeat:    nominee.SeatNumber,
+		Votes:          make(map[string]bool),
+		VoteOrder:      s.buildVoteOrder(nominee.SeatNumber),
+		Threshold:      threshold,
+		StartedAt:      now,
+		DefenseEndsAt:  now + int64(s.Config.DefenseDurationSec*1000),
+		NominatorEnded: false,
+		NomineeEnded:   false,
 	}
 	s.SubPhase = SubPhaseDefense
 	// FIX: Handle self-nomination — when nominator == nominee, both flags
@@ -316,6 +320,19 @@ func (s *State) reduceNominationCreated(event EventPayload) {
 		nominee.WasNominated = true
 		s.Players[nominatorID] = nominator
 		s.Players[nomineeID] = nominee
+	}
+}
+
+func (s *State) reduceDefenseProgress(event EventPayload) {
+	if s.Nomination == nil {
+		return
+	}
+	uid := event.Payload["user_id"]
+	if uid == s.Nomination.Nominator {
+		s.Nomination.NominatorEnded = true
+	}
+	if uid == s.Nomination.Nominee {
+		s.Nomination.NomineeEnded = true
 	}
 }
 

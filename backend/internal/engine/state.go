@@ -69,6 +69,8 @@ type Nomination struct {
 	StartedAt       int64           `json:"started_at"`
 	DefenseEndsAt   int64           `json:"defense_ends_at"`
 	VotingEndsAt    int64           `json:"voting_ends_at"`
+	NominatorEnded  bool            `json:"nominator_ended"`
+	NomineeEnded    bool            `json:"nominee_ended"`
 }
 
 // OnTheBlockInfo tracks the player currently "about to die" (待处决).

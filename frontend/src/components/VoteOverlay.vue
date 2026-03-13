@@ -69,11 +69,11 @@
           <div class="vote-overlay__vote-buttons">
             <button
               class="vote-overlay__vote-btn yes"
-              :aria-label="$t('vote.voteYes')"
+              :aria-label="voteYesLabel"
               @click="castVote(true)"
             >
               <span class="vote-overlay__vote-icon" aria-hidden="true">👍</span>
-              <span>{{ $t('vote.voteYes') }}</span>
+              <span>{{ voteYesLabel }}</span>
             </button>
             <button
               class="vote-overlay__vote-btn no"
@@ -142,6 +142,15 @@ export default {
     },
     mySeatDebug() {
       return this.$store.state.seatIndex;
+    },
+    mePlayer() {
+      return this.$store.state.players.players.find(player => player.isMe) || null;
+    },
+    isDeadVoter() {
+      return !!this.mePlayer && !this.mePlayer.isAlive;
+    },
+    voteYesLabel() {
+      return this.isDeadVoter ? this.$t('vote.voteGhost') : this.$t('vote.voteYes');
     },
     canVote() {
       const mySeat = Number(this.$store.state.seatIndex);

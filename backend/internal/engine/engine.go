@@ -502,15 +502,55 @@ func handleEndDefense(state State, cmd types.CommandEnvelope) ([]types.Event, *t
 		return nil, nil, fmt.Errorf("only nominator, nominee, DM, or autodm can end defense")
 	}
 
+	if isNominator && state.Nomination.NominatorEnded {
+		return nil, nil, fmt.Errorf("nominator has already ended defense")
+	}
+	if isNominee && state.Nomination.NomineeEnded {
+		return nil, nil, fmt.Errorf("nominee has already ended defense")
+	}
+
+	if isDM || isAutoDM {
+		votingDeadline := time.Now().Add(time.Duration(state.Config.VotingDurationSec) * time.Duration(len(state.Players)) * time.Second).UnixMilli()
+		events := []types.Event{
+			newEvent(cmd, "defense.progress", map[string]string{
+				"user_id": state.Nomination.Nominator,
+			}),
+			newEvent(cmd, "defense.progress", map[string]string{
+				"user_id": state.Nomination.Nominee,
+			}),
+			newEvent(cmd, "defense.ended", nil),
+			newEvent(cmd, "timer.set", map[string]string{
+				"timer_type": "voting",
+				"deadline":   fmt.Sprintf("%d", votingDeadline),
+			}),
+		}
+		return events, acceptedResult(cmd.CommandID), nil
+	}
+
+	progressUserID := state.Nomination.Nominator
+	if isNominee {
+		progressUserID = state.Nomination.Nominee
+	}
+
+	events := []types.Event{newEvent(cmd, "defense.progress", map[string]string{
+		"user_id": progressUserID,
+	})}
+
+	nominatorEnded := state.Nomination.NominatorEnded || isNominator
+	nomineeEnded := state.Nomination.NomineeEnded || isNominee
+	if !nominatorEnded || !nomineeEnded {
+		return events, acceptedResult(cmd.CommandID), nil
+	}
+
 	// Emit timer for voting phase countdown
 	votingDeadline := time.Now().Add(time.Duration(state.Config.VotingDurationSec) * time.Duration(len(state.Players)) * time.Second).UnixMilli()
-	events := []types.Event{
+	events = append(events,
 		newEvent(cmd, "defense.ended", nil),
 		newEvent(cmd, "timer.set", map[string]string{
 			"timer_type": "voting",
 			"deadline":   fmt.Sprintf("%d", votingDeadline),
 		}),
-	}
+	)
 
 	return events, acceptedResult(cmd.CommandID), nil
 }
@@ -731,6 +771,12 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 			state.ExecutedToday = state.OnTheBlock.UserID
 		}
 
+		preNightWinEvents := checkWinCondition(state, cmd)
+		if hasEventType(preNightWinEvents, "game.ended") {
+			events = append(events, preNightWinEvents...)
+			return events, acceptedResult(cmd.CommandID), nil
+		}
+
 		// Clear poison at dusk (official rule: poisoned "tonight and tomorrow day")
 		events = append(events, newEvent(cmd, "poison.cleared", nil))
 		events = append(events, newEvent(cmd, "phase.night", nil))
@@ -771,7 +817,7 @@ func handleAdvancePhase(state State, cmd types.CommandEnvelope) ([]types.Event, 
 		return nil, nil, fmt.Errorf("invalid target phase: %s", targetPhase)
 	}
 
-	if targetPhase == "day" {
+	if targetPhase == "day" || targetPhase == "night" {
 		return events, acceptedResult(cmd.CommandID), nil
 	}
 

@@ -573,10 +573,17 @@ func (na *NightAgent) resolveUndertaker(req AbilityRequest, malfunctioning bool)
 			IsFalse: true,
 		}
 	} else {
-		result.Message = fmt.Sprintf("你得知今天被处决的玩家是 %s", getRoleDisplayName(executedPlayer.TrueRole))
+		registeredRole := executedPlayer.TrueRole
+		if executedPlayer.TrueRole == "recluse" {
+			if n, err := randInt(2); err == nil && n == 1 {
+				registeredRole = na.getRandomRole()
+			}
+		}
+
+		result.Message = fmt.Sprintf("你得知今天被处决的玩家是 %s", getRoleDisplayName(registeredRole))
 		result.Information = &AbilityInfo{
 			Type:    "undertaker",
-			Content: map[string]interface{}{"player": executedID, "role": executedPlayer.TrueRole},
+			Content: map[string]interface{}{"player": executedID, "role": registeredRole},
 			IsFalse: false,
 		}
 	}
