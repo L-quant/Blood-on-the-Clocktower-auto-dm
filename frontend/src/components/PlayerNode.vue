@@ -80,6 +80,7 @@ export default {
   },
   computed: {
     ...mapState("players", ["myRole"]),
+    ...mapState("night", ["step", "targets", "selectedTargets"]),
     ...mapGetters("annotations", ["forSeat"]),
     ...mapGetters("vote", ["isNominated"]),
     isMe() {
@@ -132,12 +133,22 @@ export default {
     isAnnotated() {
       return !this.isMe && this.annotation && (this.annotation.guessedRoleId || this.annotation.guessedTeam);
     },
+    isNightSelectable() {
+      if (this.step !== 'selecting' || !Array.isArray(this.targets)) return false;
+      return this.targets.some(target => target && target.seatIndex === this.player.seatIndex);
+    },
+    isNightSelected() {
+      if (this.step !== 'selecting' || !Array.isArray(this.selectedTargets)) return false;
+      return this.selectedTargets.some(target => target && target.seatIndex === this.player.seatIndex);
+    },
     nodeClasses() {
       return {
         'is-me': this.isMe,
         'is-dead': !this.player.isAlive,
         'is-annotated': this.isAnnotated,
         'is-nominated': this.isNominated(this.player.seatIndex),
+        'is-night-selectable': this.isNightSelectable,
+        'is-night-selected': this.isNightSelected,
         [`team-${this.teamColor}`]: !!this.teamColor
       };
     },
@@ -279,6 +290,24 @@ export default {
     border-color: $demon;
   }
 
+  &.is-night-selectable .player-node__token {
+    border-color: rgba($townsfolk, 0.95);
+    box-shadow:
+      0 0 0 2px rgba($townsfolk, 0.25),
+      0 0 12px rgba($townsfolk, 0.9),
+      0 0 20px rgba($townsfolk, 0.45);
+    animation: target-glow 1.1s ease-in-out infinite;
+  }
+
+  &.is-night-selected .player-node__token {
+    border-color: $fabled;
+    box-shadow:
+      0 0 0 2px rgba($fabled, 0.35),
+      0 0 14px rgba($fabled, 0.95),
+      0 0 24px rgba($fabled, 0.6);
+    animation: none;
+  }
+
   // Team colors
   &.team-townsfolk .player-node__token { border-color: $townsfolk; }
   &.team-outsider .player-node__token { border-color: $outsider; }
@@ -296,5 +325,10 @@ export default {
 @keyframes nomination-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+@keyframes target-glow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba($townsfolk, 0.2), 0 0 10px rgba($townsfolk, 0.72), 0 0 18px rgba($townsfolk, 0.38); }
+  50% { box-shadow: 0 0 0 2px rgba($townsfolk, 0.38), 0 0 16px rgba($townsfolk, 1), 0 0 28px rgba($townsfolk, 0.68); }
 }
 </style>

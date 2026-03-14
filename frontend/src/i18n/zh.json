@@ -138,6 +138,8 @@
     "wakeUp": "醒来！",
     "selectTarget": "选择你的目标",
     "selectTwoTargets": "选择两个目标",
+    "selectionHint": "请选择你要{action}的玩家",
+    "selectedCount": "已选择 {count}/{required}",
     "passive": "你的能力自动触发",
     "noAction": "本夜无需行动",
     "waiting": "等待其他玩家...",

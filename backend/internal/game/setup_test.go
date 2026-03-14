@@ -44,3 +44,25 @@ func TestGenerateBluffsStillReturnsAvailableOutsiders(t *testing.T) {
 		t.Fatalf("expected butler to remain as the available outsider bluff, got %v", bluffs)
 	}
 }
+
+func TestDrunkPerceivedRoleExcludesInPlayTownsfolk(t *testing.T) {
+	agent := NewSetupAgent(SetupConfig{
+		PlayerCount: 5,
+		CustomRoles: []string{"imp", "poisoner", "drunk", "ravenkeeper", "chef"},
+	})
+
+	result, err := agent.GenerateAssignments(
+		[]string{"u1", "u2", "u3", "u4", "u5"},
+		[]int{1, 2, 3, 4, 5},
+	)
+	if err != nil {
+		t.Fatalf("GenerateAssignments failed: %v", err)
+	}
+
+	if result.DrunkRole == "" {
+		t.Fatal("expected drunk role to be assigned")
+	}
+	if result.DrunkRole == "ravenkeeper" || result.DrunkRole == "chef" {
+		t.Fatalf("expected drunk role to exclude in-play townsfolk, got %q", result.DrunkRole)
+	}
+}

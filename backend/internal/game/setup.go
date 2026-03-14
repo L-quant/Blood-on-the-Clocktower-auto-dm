@@ -140,16 +140,38 @@ func (sa *SetupAgent) GenerateAssignments(userIDs []string, seatOrder []int) (*S
 
 	// Handle drunk role
 	drunkRole := ""
-	for i, role := range shuffledRoles {
-		if role.ID == "drunk" {
-			_ = userIDs[i] // drunkUserID - could be used for additional tracking
-			// Select a random townsfolk role for drunk to "think" they are
-			if len(availableTownsfolk) > 0 {
-				drunkIdx, _ := randInt(len(availableTownsfolk))
-				drunkRole = availableTownsfolk[drunkIdx].ID
-			}
-			break
+	inPlayIDs := make(map[string]bool, len(shuffledRoles))
+	for _, role := range shuffledRoles {
+		inPlayIDs[role.ID] = true
+	}
+	for _, role := range shuffledRoles {
+		if role.ID != "drunk" {
+			continue
 		}
+
+		if sa.config.DrunkTarget != "" {
+			target := GetRoleByID(sa.config.DrunkTarget)
+			if target != nil && target.Type == RoleTownsfolk && !inPlayIDs[target.ID] {
+				drunkRole = target.ID
+				break
+			}
+		}
+
+		var drunkCandidates []Role
+		for _, townsfolk := range availableTownsfolk {
+			if !inPlayIDs[townsfolk.ID] {
+				drunkCandidates = append(drunkCandidates, townsfolk)
+			}
+		}
+		if len(drunkCandidates) == 0 {
+			drunkCandidates = availableTownsfolk
+		}
+
+		if len(drunkCandidates) > 0 {
+			drunkIdx, _ := randInt(len(drunkCandidates))
+			drunkRole = drunkCandidates[drunkIdx].ID
+		}
+		break
 	}
 
 	// Second pass: create assignments

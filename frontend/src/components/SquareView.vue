@@ -17,6 +17,31 @@
     <!-- Alive/dead counter -->
     <AliveCounter />
 
+    <div class="square-view__night-targeting" v-if="isNightSelecting">
+      <p class="square-view__night-hint">
+        {{ $t('night.selectionHint', { action: actionVerb }) }}
+      </p>
+      <p class="square-view__night-progress">
+        {{ $t('night.selectedCount', { count: selectedCount, required: requiredCount }) }}
+      </p>
+      <div class="square-view__night-actions">
+        <button
+          class="square-view__night-btn"
+          :class="{ disabled: !canSubmitNightSelection }"
+          @click="submitNightSelection"
+        >
+          {{ $t('night.confirm') }}
+        </button>
+        <button
+          v-if="showNightSkipAction"
+          class="square-view__night-btn square-view__night-btn--skip"
+          @click="skipNightSelection"
+        >
+          {{ $t('night.skip') }}
+        </button>
+      </div>
+    </div>
+
     <!-- Phase action: extend discussion / advance to night -->
     <div class="square-view__phase-action" v-if="canExtendTime || canAdvanceToNight">
       <button
@@ -55,8 +80,43 @@ export default {
   computed: {
     ...mapState("game", ["phase", "extensionsUsed", "maxExtensions"]),
     ...mapState("vote", { voteSubPhase: "subPhase" }),
+    ...mapState("players", ["myRole"]),
+    ...mapState("night", ["step", "targets", "selectedTargets", "roleId", "actionType"]),
     extensionsRemaining() {
       return this.maxExtensions - this.extensionsUsed;
+    },
+    isNightSelecting() {
+      return this.step === 'selecting';
+    },
+    requiredCount() {
+      if (this.actionType === 'select_two') return 2;
+      if (this.actionType === 'select_one') return 1;
+      return 0;
+    },
+    selectedCount() {
+      return Array.isArray(this.selectedTargets) ? this.selectedTargets.length : 0;
+    },
+    canSubmitNightSelection() {
+      return this.requiredCount > 0 && this.selectedCount === this.requiredCount;
+    },
+    showNightSkipAction() {
+      const isEvilTeam = !!this.myRole && this.myRole.team === 'evil';
+      return !isEvilTeam;
+    },
+    actionVerb() {
+      const roleVerbMap = {
+        imp: '击杀',
+        poisoner: '投毒',
+        monk: '保护',
+        ravenkeeper: '查验',
+        fortuneteller: '查验',
+        washerwoman: '查验',
+        librarian: '查验',
+        investigator: '查验',
+        butler: '指定'
+      };
+      const mapped = roleVerbMap[this.roleId] || (this.actionType === 'select_two' ? '查验' : '选择');
+      return mapped;
     },
     canExtendTime() {
       return this.phase === 'day' && this.extensionsRemaining > 0;
@@ -68,7 +128,34 @@ export default {
     }
   },
   methods: {
+    isNightTargetSelectable(player) {
+      if (!this.isNightSelecting || !Array.isArray(this.targets)) return false;
+      return this.targets.some(target => target && target.seatIndex === player.seatIndex);
+    },
+    getNightSelectedTargetBySeat(seatIndex) {
+      if (!Array.isArray(this.selectedTargets)) return null;
+      return this.selectedTargets.find(target => target && target.seatIndex === seatIndex) || null;
+    },
+    submitNightSelection() {
+      if (!this.canSubmitNightSelection) return;
+      this.$store.dispatch('sendNightAction', { targets: this.selectedTargets });
+    },
+    skipNightSelection() {
+      this.$store.dispatch('sendNightAction', { targets: [] });
+    },
     onNodeClick(player) {
+      if (this.isNightSelecting) {
+        if (!this.isNightTargetSelectable(player)) return;
+        const selectedTarget = this.getNightSelectedTargetBySeat(player.seatIndex);
+        if (selectedTarget) {
+          this.$store.commit('night/removeTarget', selectedTarget);
+          return;
+        }
+        const target = this.targets.find(item => item && item.seatIndex === player.seatIndex);
+        if (!target) return;
+        this.$store.commit('night/selectTarget', target);
+        return;
+      }
       // Open action sheet for any player (including self — allows self-nomination)
       this.$store.commit("ui/openModal", {
         modal: "playerAction",
@@ -76,6 +163,7 @@ export default {
       });
     },
     onNodeLongPress(player) {
+      if (this.isNightSelecting) return;
       if (!player.isMe) {
         this.$store.commit("chat/setActiveChannel", "whisper");
         this.$store.commit("chat/setActiveWhisperTarget", player.seatIndex);
@@ -112,6 +200,54 @@ export default {
   &__phase-action {
     text-align: center;
     padding: 8px 16px;
+  }
+
+  &__night-targeting {
+    margin: 8px 12px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba($townsfolk, 0.45);
+    background: rgba(0, 0, 0, 0.45);
+    text-align: center;
+  }
+
+  &__night-hint {
+    margin: 0;
+    font-size: 0.82rem;
+  }
+
+  &__night-progress {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    opacity: 0.75;
+  }
+
+  &__night-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  &__night-btn {
+    min-width: 88px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba($townsfolk, 0.55);
+    color: white;
+    background: rgba($townsfolk, 0.14);
+    cursor: pointer;
+    transition: all 160ms ease;
+
+    &.disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+  }
+
+  &__night-btn--skip {
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.06);
   }
 
   &__extend-btn {

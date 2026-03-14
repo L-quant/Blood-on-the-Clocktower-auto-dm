@@ -138,6 +138,8 @@
     "wakeUp": "Wake up!",
     "selectTarget": "Select your target",
     "selectTwoTargets": "Select two targets",
+    "selectionHint": "Please select the player you want to {action}",
+    "selectedCount": "Selected {count}/{required}",
     "passive": "Your ability triggers automatically",
     "noAction": "No action needed tonight",
     "waiting": "Waiting for other players...",

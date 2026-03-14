@@ -178,7 +178,7 @@ export default {
      * Covers: role_reveal, sleeping, woken, selecting, waiting, result.
      */
     showOverlay() {
-      return this.isActive;
+      return this.isActive && this.step !== 'selecting';
     },
     myRoleName() {
       const r = this.$store.state.players.myRole;
