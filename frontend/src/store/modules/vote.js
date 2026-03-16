@@ -8,6 +8,8 @@ const state = () => ({
   subPhase: 'none', // 'none' | 'defense' | 'voting' | 'resolved'
   nominator: null, // { seatIndex }
   nominee: null, // { seatIndex }
+  nominatorEnded: false,
+  nomineeEnded: false,
   votes: [], // [{ seatIndex, vote: true/false }]
   voteOrder: [], // Sequential voting order (seat numbers, clockwise from nominee+1)
   currentVoterSeatIndex: -1, // Seat number of who votes next
@@ -20,11 +22,13 @@ const state = () => ({
 });
 
 const mutations = {
-  startNomination(state, { nominatorSeat, nomineeSeat, requiredMajority, voteOrder }) {
+  startNomination(state, { nominatorSeat, nomineeSeat, requiredMajority, voteOrder, nominatorEnded, nomineeEnded }) {
     state.isActive = true;
     state.subPhase = 'defense';
     state.nominator = { seatIndex: nominatorSeat };
     state.nominee = { seatIndex: nomineeSeat };
+    state.nominatorEnded = !!nominatorEnded;
+    state.nomineeEnded = !!nomineeEnded;
     state.votes = [];
     state.voteOrder = voteOrder || [];
     state.currentVoterSeatIndex = voteOrder && voteOrder.length > 0 ? voteOrder[0] : -1;
@@ -33,6 +37,10 @@ const mutations = {
     state.myVote = null;
     state.isVotePending = false;
     state.result = null;
+  },
+  setDefenseProgress(state, { nominatorEnded, nomineeEnded }) {
+    state.nominatorEnded = nominatorEnded;
+    state.nomineeEnded = nomineeEnded;
   },
   setSubPhase(state, subPhase) {
     state.subPhase = subPhase;
@@ -80,6 +88,8 @@ const mutations = {
     state.subPhase = 'none';
     state.nominator = null;
     state.nominee = null;
+    state.nominatorEnded = false;
+    state.nomineeEnded = false;
     state.votes = [];
     state.voteOrder = [];
     state.currentVoterSeatIndex = -1;
@@ -93,6 +103,8 @@ const mutations = {
     state.subPhase = 'none';
     state.nominator = null;
     state.nominee = null;
+    state.nominatorEnded = false;
+    state.nomineeEnded = false;
     state.votes = [];
     state.voteOrder = [];
     state.currentVoterSeatIndex = -1;

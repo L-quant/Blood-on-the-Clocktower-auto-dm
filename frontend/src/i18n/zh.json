@@ -191,6 +191,8 @@
     "close": "关闭",
     "history": "投票记录",
     "defensePhase": "辩护进行中...",
+    "nominatorDefense": "{n}号正在进行提名辩护...",
+    "nomineeDefense": "{n}号正在进行被提名辩护...",
     "endDefense": "结束辩护",
     "defenseWaiting": "等待辩护结束..."
   },

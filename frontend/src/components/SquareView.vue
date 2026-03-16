@@ -42,18 +42,7 @@
       </div>
     </div>
 
-    <!-- Phase action: extend discussion / advance to night -->
-    <div class="square-view__phase-action" v-if="canExtendTime || canAdvanceToNight">
-      <button
-        v-if="canExtendTime"
-        class="square-view__extend-btn"
-        @click="extendTime"
-      >
-        {{ $t('game.extendTime') }}
-        <span class="square-view__extend-count">
-          {{ $t('game.extensionsRemaining', { count: extensionsRemaining }) }}
-        </span>
-      </button>
+    <div class="square-view__phase-action" v-if="canAdvanceToNight">
       <button
         v-if="canAdvanceToNight"
         class="square-view__advance-btn"
@@ -118,13 +107,10 @@ export default {
       const mapped = roleVerbMap[this.roleId] || (this.actionType === 'select_two' ? '查验' : '选择');
       return mapped;
     },
-    canExtendTime() {
-      return this.phase === 'day' && this.extensionsRemaining > 0;
-    },
     canAdvanceToNight() {
       const isDay = this.phase === 'day' || this.phase === 'nomination';
       const noActiveVote = this.voteSubPhase === 'none' || this.voteSubPhase === 'resolved';
-      return isDay && noActiveVote && this.$store.state.isRoomOwner;
+      return isDay && noActiveVote && this.$store.getters.isRoomOwner;
     }
   },
   methods: {
@@ -169,9 +155,6 @@ export default {
         this.$store.commit("chat/setActiveWhisperTarget", player.seatIndex);
         this.$store.commit("ui/setActiveTab", "chat");
       }
-    },
-    extendTime() {
-      this.$store.commit("sendCommand", { type: "extend_time", data: {} });
     },
     advanceToNight() {
       this.$store.dispatch("advancePhase", "night");

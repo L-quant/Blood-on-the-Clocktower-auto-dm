@@ -18,7 +18,7 @@
 
       <!-- Defense phase -->
       <div class="vote-overlay__defense" v-if="subPhase === 'defense'">
-        <p class="vote-overlay__defense-text">{{ $t('vote.defensePhase') }}</p>
+        <p class="vote-overlay__defense-text">{{ defensePhaseLabel }}</p>
         <p class="vote-overlay__countdown" v-if="countdown > 0">{{ countdown }}s</p>
         <button
           v-if="canEndDefense"
@@ -127,7 +127,7 @@ export default {
     ...mapState("vote", [
       "isActive", "subPhase", "nominator", "nominee", "votes",
       "voteOrder", "currentVoterSeatIndex", "requiredMajority", "currentYesCount",
-      "myVote", "isVotePending", "result"
+      "myVote", "isVotePending", "result", "nominatorEnded", "nomineeEnded"
     ]),
     ...mapState("game", ["phaseDeadline"]),
     ...mapGetters("vote", ["voteProgress"]),
@@ -161,7 +161,22 @@ export default {
     },
     canEndDefense() {
       const mySeat = this.$store.state.seatIndex;
-      return mySeat === this.nominatorSeat || mySeat === this.nomineeSeat;
+      // 1. 如果提名为 A 提名 B：
+      // 第一阶段：A 防辩。条件：!nominatorEnded，且我是 A。
+      if (!this.nominatorEnded) {
+        return mySeat === this.nominatorSeat;
+      }
+      // 第二阶段：B 防辩。条件：nominatorEnded，且 !nomineeEnded，且我是 B。
+      if (!this.nomineeEnded) {
+        return mySeat === this.nomineeSeat;
+      }
+      return false;
+    },
+    defensePhaseLabel() {
+      if (!this.nominatorEnded) {
+        return this.$t('vote.nominatorDefense', { n: this.nominatorSeat });
+      }
+      return this.$t('vote.nomineeDefense', { n: this.nomineeSeat });
     },
     resultClass() {
       if (this.result === 'on_the_block' || this.result === 'executed') return 'executed';

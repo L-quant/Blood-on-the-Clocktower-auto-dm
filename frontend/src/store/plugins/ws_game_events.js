@@ -85,6 +85,42 @@ export function processGameEvent(pe, store) {
       handleNominationCreated(eventData, store);
       console.log('[DBG] after handleNominationCreated - voteOrder:', store.state.vote.voteOrder, 'currentVoter:', store.state.vote.currentVoterSeatIndex, 'subPhase:', store.state.vote.subPhase);
       break;
+    case 'defense.progress':
+      {
+        const currentNominatorEnded = !!store.state.vote.nominatorEnded;
+        const currentNomineeEnded = !!store.state.vote.nomineeEnded;
+        const nominatorSeat = store.state.vote.nominator ? store.state.vote.nominator.seatIndex : -1;
+        const nomineeSeat = store.state.vote.nominee ? store.state.vote.nominee.seatIndex : -1;
+
+        let nominatorEnded = currentNominatorEnded;
+        let nomineeEnded = currentNomineeEnded;
+
+        // Prefer explicit booleans if backend provides them.
+        if (eventData.nominator_ended !== undefined || eventData.nominee_ended !== undefined) {
+          if (eventData.nominator_ended !== undefined) {
+            nominatorEnded = eventData.nominator_ended === 'true';
+          }
+          if (eventData.nominee_ended !== undefined) {
+            nomineeEnded = eventData.nominee_ended === 'true';
+          }
+        } else {
+          // Current backend emits only user_id for defense.progress.
+          const progressedUserId = eventData.user_id || '';
+          const progressedPlayer = store.state.players.players.find(player => player.id === progressedUserId);
+          const progressedSeat = progressedPlayer ? progressedPlayer.seatIndex : -1;
+
+          if (progressedSeat > 0) {
+            nominatorEnded = currentNominatorEnded || progressedSeat === nominatorSeat;
+            nomineeEnded = currentNomineeEnded || progressedSeat === nomineeSeat;
+          }
+        }
+
+        store.commit('vote/setDefenseProgress', {
+          nominatorEnded,
+          nomineeEnded
+        });
+      }
+      break;
     case 'defense.ended':
       console.log('[DBG] defense.ended received, setting subPhase to voting');
       store.commit('vote/setSubPhase', 'voting');
@@ -285,6 +321,8 @@ function addPhaseTimeline(phase, store) {
 function handleNominationCreated(d, store) {
   const nominatorSeat = parseInt(d.nominator_seat, 10) || 0;
   const nomineeSeat = parseInt(d.nominee_seat, 10) || 0;
+  const nominatorEnded = d.nominator_ended === 'true';
+  const nomineeEnded = d.nominee_ended === 'true';
   const alivePlayers = store.state.players.players.filter(p => p.isAlive);
   const requiredMajority = Math.ceil(alivePlayers.length / 2);
   // Parse sequential vote order (seat numbers, clockwise from nominee+1)
@@ -292,7 +330,7 @@ function handleNominationCreated(d, store) {
   if (d.vote_order) {
     try { voteOrder = JSON.parse(d.vote_order); } catch (_e) { voteOrder = []; }
   }
-  store.commit('vote/startNomination', { nominatorSeat, nomineeSeat, requiredMajority, voteOrder });
+  store.commit('vote/startNomination', { nominatorSeat, nomineeSeat, requiredMajority, voteOrder, nominatorEnded, nomineeEnded });
   store.commit('players/updatePlayer', { seatIndex: nominatorSeat, property: 'hasNominatedToday', value: true });
   store.commit('players/updatePlayer', { seatIndex: nomineeSeat, property: 'isNominatedToday', value: true });
 }

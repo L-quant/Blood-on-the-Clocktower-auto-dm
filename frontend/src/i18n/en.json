@@ -191,6 +191,8 @@
     "close": "Close",
     "history": "Vote History",
     "defensePhase": "Defense in progress...",
+    "nominatorDefense": "Seat {n} is defending their nomination...",
+    "nomineeDefense": "Seat {n} is defending the nomination...",
     "endDefense": "End Defense",
     "defenseWaiting": "Waiting for defense to end..."
   },
