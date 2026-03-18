@@ -8,35 +8,46 @@
 ## 当日待完成项
 
 ### 1. 取消“延长讨论”按钮
-- [ ] 移除前端所有涉及“延长讨论” (extend_discussion) 的按钮入口（通常在白天的广场或操作面板）。
-- [ ] 若后端有对应命令处理逻辑，保持兼容但前端不再触发。
+- [x] 移除前端所有涉及“延长讨论” (extend_discussion) 的按钮入口（通常在白天的广场或操作面板）。
+- [x] 若后端有对应命令处理逻辑，保持兼容但前端不再触发。
 
 ### 2. 恢复房主的“进入夜晚”按钮
-- [ ] 检查并确保房主（Host）在白天结算完成后，能够正常看到“进入夜晚” (enter_night) 按钮。
-- [ ] 修复当前版本该按钮意外消失的问题，确保测试阶段房主可以手动推进流程。
+- [x] 检查并确保房主（Host）在白天结算完成后，能够正常看到“进入夜晚” (enter_night) 按钮。
+- [x] 修复当前版本该按钮意外消失的问题，确保测试阶段房主可以手动推进流程。
 
 ### 3. 辩护逻辑修正 (A 提名 B)
-- [ ] **A 的辩护阶段（第一阶段）：**
-    - [ ] 修正状态分发/前端显示：当进入 A 的辩护阶段时，所有玩家界面应明确显示当前是 ‘A（提名者）发表辩护’。
-    - [ ] 按钮权限控制：此时被提名者 B **不应**显示“结束辩护”按钮。
-    - [ ] 动作限制：只有 A 拥有“结束辩护”按钮。
-- [ ] **B 的辩护阶段（第二阶段）：**
-    - [ ] 状态衔接：当 A 点击“结束辩护”后，系统自动切换至 B 的辩护阶段。所有玩家界面应明确显示当前是 ‘B（被提名者）发表辩护’
-    - [ ] 按钮切换：A 的“结束辩护”按钮消失，B 的窗口生成并显示“结束辩护”按钮。
-- [ ] **流程推进：**
-    - [ ] 只有在 B 点击“完成辩护”后，系统才正式开启所有玩家的投票序列。
+- [x] **A 的辩护阶段（第一阶段）：**
+    - [x] 修正状态分发/前端显示：当进入 A 的辩护阶段时，所有玩家界面应明确显示当前是 ‘A（提名者）发表辩护’。
+    - [x] 按钮权限控制：此时被提名者 B **不应**显示“结束辩护”按钮。
+    - [x] 动作限制：只有 A 拥有“结束辩护”按钮。
+- [x] **B 的辩护阶段（第二阶段）：**
+    - [x] 状态衔接：当 A 点击“结束辩护”后，系统自动切换至 B 的辩护阶段。所有玩家界面应明确显示当前是 ‘B（被提名者）发表辩护’
+    - [x] 按钮切换：A 的“结束辩护”按钮消失，B 的窗口生成并显示“结束辩护”按钮。
+- [x] **流程推进：**
+    - [x] 只有在 B 点击“完成辩护”后，系统才正式开启所有玩家的投票序列。
 
 ### 4. 回环检查
-- [ ] 检查所有受影响的 `CLAUDE.md` 和文件头注释。
-- [ ] 验证 A/B 辩护顺序切换时，按钮的可见性是否完全符合预期，无权限越位。
+- [x] 检查所有受影响的 `CLAUDE.md` 和文件头注释。
+- [x] 验证 A/B 辩护顺序切换时，按钮的可见性是否完全符合预期，无权限越位。
 
 ## 状态：✅ 已完成
 
-## 任务执行记录
-1. **取消“延长讨论”按钮**：在 [SquareView.vue](frontend/src/components/SquareView.vue) 中移除了 `canExtendTime` 判断及其对应的 UI 按钮。
-2. **恢复房主“进入夜晚”按钮**：修正了 [SquareView.vue](frontend/src/components/SquareView.vue) 中 `canAdvanceToNight` 的逻辑，使用 `$store.getters.isRoomOwner` 确保其可见性。
-3. **辩护逻辑修正**：
-   - 更新了 [vote.js](frontend/src/store/modules/vote.js) 状态管理，新增 `nominatorEnded` 和 `nomineeEnded`。
-   - 增强了 [ws_game_events.js](frontend/src/store/plugins/ws_game_events.js)，支持 `defense.progress` 事件同步辩护进度。
-   - 改造了 [VoteOverlay.vue](frontend/src/components/VoteOverlay.vue)，实现 A/B 辩护阶段的显示隔离与按钮权限控制。
-   - 补充了中英双语 ([zh.json](frontend/src/i18n/zh.json), [en.json](frontend/src/i18n/en.json)) 的辩护文案。
+## 补充修复记录（2026-03-15）
+- 修复项：取消“延长讨论”按钮。
+- 影响文件：`frontend/src/components/SquareView.vue`。
+- 变更说明：移除 `canExtendTime` 判断及其对应 UI 按钮入口。
+- 验证结果：前端不再触发 `extend_discussion`，后端兼容逻辑保持不变。
+
+- 修复项：恢复房主“进入夜晚”按钮可见性。
+- 影响文件：`frontend/src/components/SquareView.vue`。
+- 变更说明：修正 `canAdvanceToNight` 判定，使用 `$store.getters.isRoomOwner` 保证房主可见。
+- 验证结果：白天结算后房主可正常手动推进到夜晚。
+
+- 修复项：提名辩护阶段隔离与按钮权限控制。
+- 影响文件：`frontend/src/store/modules/vote.js`、`frontend/src/store/plugins/ws_game_events.js`、`frontend/src/components/VoteOverlay.vue`、`frontend/src/i18n/zh.json`、`frontend/src/i18n/en.json`。
+- 变更说明：
+    - `vote.js` 新增 `nominatorEnded` 和 `nomineeEnded` 状态。
+    - `ws_game_events.js` 支持 `defense.progress` 事件并同步 A/B 辩护进度。
+    - `VoteOverlay.vue` 按阶段隔离显示与“结束辩护”按钮权限。
+    - `zh.json` 与 `en.json` 补充对应辩护文案。
+- 验证结果：A 结束后自动切换至 B，且仅当前辩护方可见“结束辩护”按钮，B 完成后再进入投票序列。
